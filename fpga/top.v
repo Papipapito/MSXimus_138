@@ -4131,7 +4131,15 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
     // Y8950 en 5249 (medido) => el OPLL vale 0,746 de una portadora de
     // MSX-Audio. En el MSXimus las dos valen 4095 (mismo jtopl_acc, INW=13):
     // el OPLL entraba +2,6 dB de mas. x3/4 = -2,5 dB.
-    wire signed [15:0] opll_s    = $signed(jt2413_wav);
+    // 138K: el acumulador del OPLL (clk_54m) entraba en el arbol de sumas del
+    // mezclador (clk_27m) SIN registro: 13 niveles + rutado = 22 ns contra los
+    // 18,5 de la relacion 54->27 (en el 60K cabia por poco; aqui -4,3 ns en dos
+    // dados). Se registra en 27 ANTES de sumar: el cruce queda FF->FF sin logica
+    // y el arbol tiene los 37 ns enteros. +37 ns de latencia en el OPLL:
+    // inaudible (el mezclador muestrea a 3,58 MHz).
+    reg  signed [15:0] jt2413_wav_r27 = 16'sd0;
+    always @(posedge clk_27m) jt2413_wav_r27 <= $signed(jt2413_wav);
+    wire signed [15:0] opll_s    = jt2413_wav_r27;
     wire        [15:0] opll_term = (opll_s >>> 1) + (opll_s >>> 2);
 
     // _89: PCM del MoonSound (motor YMF278B). Mono = (L+R)/2 con extension de
