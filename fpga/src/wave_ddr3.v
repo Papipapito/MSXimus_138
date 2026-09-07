@@ -152,46 +152,19 @@ end
 wire memory_clk;
 wire pll_lock;
 wire pll_stop;
-wire        mdrp_inc;
-wire [1:0]  mdrp_op;
-wire [7:0]  mdrp_wdata;
-wire [7:0]  mdrp_rdata;
-
+// 138K (MSXimus_138): el PLL del 138 no tiene mDRP. El pll_stop de la IP
+// va DIRECTO al enable del CLKOUT2 (asi lo cablea nand2mario en la Console
+// 138K, ddr3_framebuffer_gowin); PLL_INIT vive dentro de pll_ddr3.
 pll_ddr3 pll_ddr3_inst (
-    .lock   (pll_lock),
-    .clkout0(),
-    .clkout2(memory_clk),
-    .clkin  (clk_27),
-    .reset  (~por_done | rc_pulse),   // _101: la recal forzada resetea TAMBIEN
-                                      // el PLL — re-lock completo con fase
-                                      // nueva = billete de ojo INDEPENDIENTE
-                                      // (solo resetear la IP daba ojos
-                                      // correlacionados: la misma corrupcion
-                                      // 18D6C2 en boots distintos)
-    .mdclk  (clk_g50),
-    .mdopc  (mdrp_op),
-    .mdainc (mdrp_inc),
-    .mdwdi  (mdrp_wdata),
-    .mdrdo  (mdrp_rdata)
+    .lock    (pll_lock),
+    .clkout0 (),
+    .clkout2 (memory_clk),
+    .clkin   (clk_27),
+    .reset   (~por_done | rc_pulse),
+    .init_clk(clk_g50),
+    .enclk0  (1'b1),
+    .enclk2  (pll_stop)
 );
-
-reg mdrp_wr;
-reg pll_stop_r;
-pll_mDRP_intf u_pll_mDRP_intf (
-    .clk       (clk_g50),
-    .rst_n     (1'b1),
-    .pll_lock  (pll_lock),
-    .wr        (mdrp_wr),
-    .mdrp_inc  (mdrp_inc),
-    .mdrp_op   (mdrp_op),
-    .mdrp_wdata(mdrp_wdata),
-    .mdrp_rdata(mdrp_rdata)
-);
-
-always @(posedge clk_g50) begin
-    pll_stop_r <= pll_stop;
-    mdrp_wr    <= pll_stop ^ pll_stop_r;
-end
 
 // ---------------------------------------------------------------------------
 // IP DDR3 (cmd/128b en clk_x1, que la propia IP genera)

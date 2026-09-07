@@ -8,7 +8,7 @@
 
 # clk_86 = 27 x 35/11 = 85.909090 MHz (pll_86 en cascada de clk27_video;
 # periodo declarado 11.640 = ligeramente MAS estricto que el real 11.6402).
-create_clock -name clk_86 -period 11.640 [get_pins {pll86_vdp/PLLA_inst/CLKOUT0}]
+create_clock -name clk_86 -period 11.640 [get_pins {pll86_vdp/u_pll/PLL_inst/CLKOUT0}]
 
 # Dominio ASINCRONO a todo por construccion:
 #  - bridge 85.9<->108: toggles req/ack con 2FF, datos cuasi-estaticos

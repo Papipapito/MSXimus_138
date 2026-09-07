@@ -324,11 +324,13 @@ end
     wire clk_hdmi5;             // 371.25 MHz TMDS x5
     wire pll27_lock;            // _87: gatea el reset del PLL DDR3 (calib estable)
     pll_27 pll27_video (
+        .init_clk(ex_clk_27m),  // 138K: reloj del PLL_INIT (50 MHz)
         .clkin  (ex_clk_27m),   // pad 50 MHz
         .clkout0(clk27_video),
         .lock_o (pll27_lock)
     );
     pll_74 pll74_video (
+        .init_clk(ex_clk_27m),  // 138K: reloj del PLL_INIT (50 MHz)
         .clkin  (clk27_video),
         .clkout0(clk_hdmi),
         .clkout1(clk_hdmi5)
@@ -2030,7 +2032,7 @@ assign keyboard_addr = ppi_port_c[3:0];
 
     // ---- reloj maestro 85.909 MHz (27 x 35/11, 0 ppm vs 24x colorburst) ----
     wire clk_86, pll86_lock;
-    pll_86 pll86_vdp ( .clkout0(clk_86), .lock(pll86_lock), .clkin(clk27_video) );
+    pll_86 pll86_vdp ( .init_clk(ex_clk_27m), .clkout0(clk_86), .lock(pll86_lock), .clkin(clk27_video) );   // 138K: init_clk
 
     // _125b: syn_maxfan — rst86_n abanica a TODO el dominio clk_86 (shim +
     // core V9968) y su ultima etapa aparecio como migaja de -0.063 en el
@@ -5780,6 +5782,7 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
     wire        clk_usb12;
     wire        pll12_lock;
     pll_12 pll12_usb (
+        .init_clk(ex_clk_27m),      // 138K: reloj del PLL_INIT (50 MHz)
         .clkin  (ex_clk_27m),       // pad 50 MHz
         .clkout0(clk_usb12),        // 12.000 MHz (VCO 900, generada para GW5AT-60)
         .lock   (pll12_lock)

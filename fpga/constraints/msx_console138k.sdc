@@ -8,7 +8,7 @@
 #  ⚠ Tras CADA PnR, VERIFICAR EN EL LOG que cada get_ports/get_pins casa >0
 #    objetos. Un match vacio NO da error: pierde la constraint.
 #
-#  Relojes: un unico PLLA (pll_main/u_pll/PLLA_inst) con VCO 1350 MHz y 4
+#  Relojes: un unico PLL (pll_main/u_pll/PLL_inst; en el 138 el primitivo es PLL, no PLLA) con VCO 1350 MHz y 4
 #  salidas de divisor entero/fraccional: 108 / 54 / 27 / 135, todas alineadas
 #  (PE=0, mismo VCO). Los periodos de abajo usan RATIOS EXACTOS entre si
 #  (hiperperiodo 74.08 ns) para que la STA modele la alineacion de fase:
@@ -19,22 +19,22 @@
 create_clock -name clk_in -period 20.000 [get_ports {ex_clk_27m}]
 
 # ---- Salidas del PLLA (ratios exactos: 9.26*2=18.52, *4=37.04, 37.04/5=7.408) ----
-create_clock -name clk_108m -period 9.260  [get_pins {pll_main/u_pll/PLLA_inst/CLKOUT0}]
-create_clock -name clk_54m  -period 18.520 [get_pins {pll_main/u_pll/PLLA_inst/CLKOUT1}]
-create_clock -name clk_135m -period 7.408  [get_pins {pll_main/u_pll/PLLA_inst/CLKOUT3}]
+create_clock -name clk_108m -period 9.260  [get_pins {pll_main/u_pll/PLL_inst/CLKOUT0}]
+create_clock -name clk_54m  -period 18.520 [get_pins {pll_main/u_pll/PLL_inst/CLKOUT1}]
+create_clock -name clk_135m -period 7.408  [get_pins {pll_main/u_pll/PLL_inst/CLKOUT3}]
 # v3.0: clk_27m del PLLA (CLKOUT2) — fase CONOCIDA vs 54/108 (mismo VCO, como
 # el rPLL del TN20K). El CLKDIV desaparecio con el video 720p: ya no hay OSER10
 # a 27M. La STA asume flancos alineados en t=0 entre los base clocks del PLLA,
 # que es la realidad fisica tras el lock de PLL_INIT (disciplina TN20K).
-create_clock -name clk_27m -period 37.040 [get_pins {pll_main/u_pll/PLLA_inst/CLKOUT2}]
+create_clock -name clk_27m -period 37.040 [get_pins {pll_main/u_pll/PLL_inst/CLKOUT2}]
 
 # ---- v3.0 relojes de VIDEO 720p (cascada monitorcore, dominio propio) ----
-create_clock -name clk27_video -period 37.037 [get_pins {pll27_video/PLLA_inst/CLKOUT0}]
-create_clock -name clk_hdmi    -period 13.468 [get_pins {pll74_video/PLLA_inst/CLKOUT0}]
-create_clock -name clk_hdmi5   -period  2.694 [get_pins {pll74_video/PLLA_inst/CLKOUT1}]
+create_clock -name clk27_video -period 37.037 [get_pins {pll27_video/u_pll/PLL_inst/CLKOUT0}]
+create_clock -name clk_hdmi    -period 13.468 [get_pins {pll74_video/u_pll/PLL_inst/CLKOUT0}]
+create_clock -name clk_hdmi5   -period  2.694 [get_pins {pll74_video/u_pll/PLL_inst/CLKOUT1}]
 
 # ---- F3 (_39): reloj del soft-host USB (teclado USB-A directo) ----
-create_clock -name clk_usb12 -period 83.333 [get_pins {pll12_usb/PLLA_inst/CLKOUT0}]
+create_clock -name clk_usb12 -period 83.333 [get_pins {pll12_usb/u_pll/PLL_inst/CLKOUT0}]
 
 # ---- F1 V9968: las constraints del dominio clk_86 viven en un SDC APARTE
 # (constraints/msx_v9968.sdc) que build.tcl solo añade con USE_V9968=1 —
@@ -52,7 +52,7 @@ create_clock -name clk_usb12 -period 83.333 [get_pins {pll12_usb/PLLA_inst/CLKOU
 # esta placa). Todo en la MISMA familia: cruces cronometrados, cero CDC.
 # Periodo exacto: 1350/36 = 37.5 -> 26.667ns (26.66666... redondeado abajo
 # = conservador). CE del motor: 14112/15625 = 33.8688 MHz exactos.
-create_clock -name eng_clk375 -period 26.666 [get_pins {pll_main/u_pll/PLLA_inst/CLKOUT4}]
+create_clock -name eng_clk375 -period 26.666 [get_pins {pll_main/u_pll/PLL_inst/CLKOUT4}]
 
 # ---- Relojes derivados/gated del diseño (intencion del SDC del TN20K) ----
 # bus_reset_n y clk_audio clockean FFs propios (gated); VideoDH/DLClk (÷2/÷4 de
@@ -62,8 +62,8 @@ create_clock -name clock_reset -period 277.778 [get_nets {bus_reset_n}] -add
 # puente corre con clock-enable sincrono a clk_pixel (fix del bug #14: el
 # reloj de fabric con LOCAL_CLOCK tenia skew sin garantias => CTS corrupto).
 # El create_clock clock_audio y su grupo asincrono quedan RETIRADOS.
-create_generated_clock -name clock_VideoDHClk -source [get_pins {pll_main/u_pll/PLLA_inst/CLKOUT2}] -master_clock clk_27m -divide_by 2 [get_nets {VideoDHClk}] -add
-create_generated_clock -name clock_VideoDLClk -source [get_pins {pll_main/u_pll/PLLA_inst/CLKOUT2}] -master_clock clk_27m -divide_by 4 [get_nets {VideoDLClk}] -add
+create_generated_clock -name clock_VideoDHClk -source [get_pins {pll_main/u_pll/PLL_inst/CLKOUT2}] -master_clock clk_27m -divide_by 2 [get_nets {VideoDHClk}] -add
+create_generated_clock -name clock_VideoDLClk -source [get_pins {pll_main/u_pll/PLL_inst/CLKOUT2}] -master_clock clk_27m -divide_by 4 [get_nets {VideoDLClk}] -add
 
 # ---- Reloj SPI del BL616 onboard (resuelve el hueco TA1132 del TN20K) ----
 create_clock -name spi_sclk -period 50.000 [get_ports {spi_sclk}]

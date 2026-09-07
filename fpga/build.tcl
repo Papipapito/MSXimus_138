@@ -167,24 +167,23 @@ if {$USE_V9968} {
     add_file src/v9968_vram_shim.v
     add_file src/v9968_sdram_bridge.v
     add_file src/v9968_cpu_glue.v
-    add_file src/pll_86.v
+    add_file pll138/pll_86.v
     add_file video720/msx2hdmi_v9968.sv
     # _128X (USE_VRAM_DDR3): VRAM del V9968 en la DDR3 del SOM — IP + PLL 297
     # + danza mDRP (los mismos ficheros de la era wave _86) + backend nuevo.
     # El define ENABLE_VRAM_DDR3 de top.v gobierna el RTL; esto solo compila.
     if {$USE_VRAM_DDR3} {
         add_file ddr3/ddr3_memory_interface.v
-        add_file ddr3/pll_ddr3.v
-        add_file ddr3/pll_mDRP_intf.v
+        add_file pll138/pll_ddr3.v
         add_file src/v9968_ddr3_backend.v
     }
 }
 add_file top.v
 
 # ----- Reloj GW5A: un solo PLLA (108/54/27/135) + secuencia de init mDRP -----
-add_file msx_console60k/src/gowin_pll/gowin_pll.v
-add_file msx_console60k/src/gowin_pll/gowin_pll_mod.v
-add_file msx_console60k/src/pll_init.v
+# 138K: PLL (no PLLA) + PLL_INIT del gw5ast138b, generados en pll138/
+add_file pll138/gowin_pll.v
+add_file pll138/pll_init.v
 
 # ----- USB subsystem (BL616 FPGA Companion, onboard — sin dock M0S) -----
 # ---- V3.1 PELDANO 1: iosys de TangCore (nand2mario/nestang, GPL-3.0) -------
@@ -244,13 +243,13 @@ if {!$USE_V9968} {
 }
 
 # ----- v3.0 FASE 1-REDUX: video 720p (cadena monitorcore + puente ring-BRAM) -----
-add_file video720/plla/pll_27.v
-add_file video720/plla/pll_74.v
+add_file pll138/pll_27.v
+add_file pll138/pll_74.v
 add_file video720/msx2hdmi.sv
 
 # ----- F3 (_39): teclado USB-A directo (usb_hid_host de nand2mario + decoder) -----
 add_file src/usb_direct/usb_hid_host.v
-add_file src/usb_direct/pll_12.v
+add_file pll138/pll_12.v
 add_file src/usb_direct/usb_kbd_decode.v
 
 # ----- Constraints (nuevos del 60K — verificar matches>0 tras el 1er PnR) -----
@@ -294,7 +293,7 @@ if {$USE_V9968} {
         # _128X: relojes de la DDR3 (nombres/pines de la era wave _86 con la
         # instancia u_vddr3). Solo cuando la IP esta en el build: con matches
         # vacios el create_clock seria TA2003/TA2004.
-        puts $fp_o "create_clock -name ddr_clk4x -period 3.367 -waveform {0 1.684} \[get_pins {u_vddr3/pll_ddr3_inst/PLLA_inst/CLKOUT2}\]"
+        puts $fp_o "create_clock -name ddr_clk4x -period 3.367 -waveform {0 1.684} \[get_pins {u_vddr3/pll_ddr3_inst/u_pll/PLL_inst/CLKOUT2}\]"
         puts $fp_o "create_clock -name ddr_clk1x -period 13.47 -waveform {0 6.734} \[get_pins {u_vddr3/u_ddr3/gw3_top/u_ddr_phy_top/fclkdiv/CLKOUT}\]"
         puts $fp_o "set_clock_groups -asynchronous -group \[get_clocks {ddr_clk4x ddr_clk1x}\] -group \[get_clocks {clk_86}\] -group \[get_clocks {clk_in clk_108m clk_54m clk_27m clk_135m eng_clk375}\] -group \[get_clocks {clk27_video clk_hdmi clk_hdmi5}\]"
     }

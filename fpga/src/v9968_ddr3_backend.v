@@ -162,44 +162,19 @@ wire       ip_rst_n = ~wd_rst;
 // ---------------------------------------------------------------------------
 wire memory_clk;
 wire pll_stop;
-wire        mdrp_inc;
-wire [1:0]  mdrp_op;
-wire [7:0]  mdrp_wdata;
-wire [7:0]  mdrp_rdata;
-
+// 138K (MSXimus_138): el PLL del 138 no tiene mDRP. El pll_stop de la IP
+// va DIRECTO al enable del CLKOUT2 (asi lo cablea nand2mario en la Console
+// 138K, ddr3_framebuffer_gowin); PLL_INIT vive dentro de pll_ddr3.
 pll_ddr3 pll_ddr3_inst (
-    .lock   (pll_lock),
-    .clkout0(),
-    .clkout2(memory_clk),
-    .clkin  (clk_27),
-    .reset  (~pll27_lock),        // _130 fiel: solo el arranque del arbol de 27
-    .mdclk  (clk_g50),
-    .mdopc  (mdrp_op),
-    .mdainc (mdrp_inc),
-    .mdwdi  (mdrp_wdata),
-    .mdrdo  (mdrp_rdata)
+    .lock    (pll_lock),
+    .clkout0 (),
+    .clkout2 (memory_clk),
+    .clkin   (clk_27),
+    .reset   (~pll27_lock),
+    .init_clk(clk_g50),
+    .enclk0  (1'b1),
+    .enclk2  (pll_stop)
 );
-
-reg mdrp_wr;
-reg pll_stop_r;
-pll_mDRP_intf u_pll_mDRP_intf (
-    .clk       (clk_g50),
-    .rst_n     (1'b1),
-    .pll_lock  (pll_lock),
-    .wr        (mdrp_wr),
-    .mdrp_inc  (mdrp_inc),
-    .mdrp_op   (mdrp_op),
-    .mdrp_wdata(mdrp_wdata),
-    .mdrp_rdata(mdrp_rdata)
-);
-
-always @(posedge clk_g50) begin
-    pll_stop_r <= pll_stop;
-    // _129c: SIN gatear por lock — la danza mDRP es justo lo que para y
-    // arranca el PLL durante la calibracion; gatearla con pll_lock la dejaba
-    // muda precisamente cuando hace falta (ver la leccion de settle_done).
-    mdrp_wr    <= pll_stop ^ pll_stop_r;
-end
 
 // ---------------------------------------------------------------------------
 // IP DDR3 (cmd/128b en clk_x1, que la propia IP genera)
