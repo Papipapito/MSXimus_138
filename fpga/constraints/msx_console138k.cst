@@ -78,8 +78,8 @@ IO_LOC  "ex_clk_27m" V22;
 IO_PORT "ex_clk_27m" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=OFF;
 
 // ---- Botones (BANCO 1.5V, activo bajo — cambia el IOSTANDARD vs TN20K) ----  [ALTA]
-IO_LOC  "s1" AB13; IO_PORT "s1" IO_TYPE=LVCMOS15 PULL_MODE=UP DRIVE=OFF BANK_VCCIO=1.5;  // user
-IO_LOC  "s2" AA13; IO_PORT "s2" IO_TYPE=LVCMOS15 PULL_MODE=UP DRIVE=OFF BANK_VCCIO=1.5;  // reset
+IO_LOC  "s1" AB13; IO_PORT "s1" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=OFF BANK_VCCIO=3.3;  // user  (138K: banco 5 = 3,3 V, lo fija la flash de config; en el 60K era 1,5)
+IO_LOC  "s2" AA13; IO_PORT "s2" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=OFF BANK_VCCIO=3.3;  // reset (138K: idem)
 //  (Confirmar la asignación s1/user vs s2/reset contra la semántica del top.v.)
 
 // ---- LEDs onboard (solo 2 fiables; el MSXnano lleva 6) ----
@@ -418,10 +418,14 @@ IO_PORT "ddr_dqs[0]" IO_TYPE=SSTL15D PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF 
 // top.v; dentro: u_ddr3 = DDR3_Memory_Interface_Top, pll_ddr3_inst = pll).
 // DDRDLLM_BL = macro fisico del DLL DDR3 (bottom-left, junto al banco DDR3);
 // PLL_L[0] = PLL izquierdo. Deterministas => deberian matar la loteria.
-INS_LOC "u_vddr3/u_ddr3/gw3_top/u_ddr_phy_top/u_dll" DDRDLLM_BL;
-INS_LOC "u_vddr3/pll_ddr3_inst/PLLA_inst" PLL_L[0];
+// 138K: las dos INS_LOC del 60K quedan FUERA en el arranque del porte: la del PLL
+// apuntaba al PLLA_inst (en el 138 es .../u_pll/PLL_inst) y los nombres de sitio
+// (DDRDLLM_BL, PLL_L[0]) son los del GW5AT-60; en el 138 hay 12 PLL y otro mapa. Si
+// la loteria de la DDR3 reaparece, fijarlas con los sitios que elija el placer.
+//INS_LOC "u_vddr3/u_ddr3/gw3_top/u_ddr_phy_top/u_dll" DDRDLLM_BL;
+//INS_LOC "u_vddr3/pll_ddr3_inst/u_pll/PLL_inst" PLL_L[0];
 
 // Ventilador (Console 60K): FAN_EN en AB12 (Bank 9 a 1.5V), 1 = 5V al
 // conector SH1.0. PULL_MODE=DOWN = apagado durante la configuracion.
 IO_LOC  "fan_en_o" AB12;
-IO_PORT "fan_en_o" IO_TYPE=LVCMOS15 PULL_MODE=DOWN DRIVE=4 BANK_VCCIO=1.5;
+IO_PORT "fan_en_o" IO_TYPE=LVCMOS33 PULL_MODE=DOWN DRIVE=4 BANK_VCCIO=3.3;   // 138K: banco 5 a 3,3 V (en el 60K era 1,5)
