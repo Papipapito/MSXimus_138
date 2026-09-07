@@ -295,7 +295,7 @@ end
                                 //  TMDS vive a 74.25/371.25 en pll_74) -> la restriccion
                                 //  que motivo el CLKDIV desaparece con el video 720p.
         .clkout3(clk_135),      // 135.000000 MHz (TMDS; sustituye al CLK_135 del tn_vdp)
-        .clkout4(clk_wave375),  // _104: 37.500 MHz (motor OPL4 wave; VCO/36, fase t=0)
+        .clkout4(clk_wave375),  // 138K: 36.000 MHz (motor OPL4 wave; VCO 1080/30, misma fase que 27/54/108)
         .lock   (clock_locked),
         .mdclk  (ex_clk_27m)    // reloj de init del PLLA (secuencia mDRP)
     );

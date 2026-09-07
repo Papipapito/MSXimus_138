@@ -108,10 +108,10 @@ PLL PLL_inst (
     .SSCMDSEL_FRAC({gw_gnd,gw_gnd,gw_gnd})
 );
 defparam PLL_inst.FCLKIN = "27";
-defparam PLL_inst.IDIV_SEL = 1;
+defparam PLL_inst.IDIV_SEL = 2;
 defparam PLL_inst.FBDIV_SEL = 1;
-defparam PLL_inst.ODIV0_SEL = 20;
-defparam PLL_inst.ODIV1_SEL = 4;
+defparam PLL_inst.ODIV0_SEL = 10;
+defparam PLL_inst.ODIV1_SEL = 2;
 defparam PLL_inst.ODIV2_SEL = 8;
 defparam PLL_inst.ODIV3_SEL = 8;
 defparam PLL_inst.ODIV4_SEL = 8;

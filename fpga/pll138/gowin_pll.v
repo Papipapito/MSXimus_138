@@ -51,7 +51,7 @@ wire pll_rst;
         .LPFRES(lpfres)
     );
     defparam u_pll_init.CLK_PERIOD = 20;
-    defparam u_pll_init.MULTI_FAC = 27;
+    defparam u_pll_init.MULTI_FAC = 108;
 endmodule //Gowin_PLL
 
 module Gowin_PLL_MOD (lock, clkout0, clkout1, clkout2, clkout3, clkout4, clkin, reset, icpsel, lpfres, lpfcap);
@@ -124,18 +124,18 @@ PLL PLL_inst (
     .SSCMDSEL_FRAC({gw_gnd,gw_gnd,gw_gnd})
 );
 defparam PLL_inst.FCLKIN = "50";
-defparam PLL_inst.IDIV_SEL = 1;
-defparam PLL_inst.FBDIV_SEL = 1;
-defparam PLL_inst.ODIV0_SEL = 12;
-defparam PLL_inst.ODIV1_SEL = 25;
-defparam PLL_inst.ODIV2_SEL = 50;
-defparam PLL_inst.ODIV3_SEL = 10;
-defparam PLL_inst.ODIV4_SEL = 36;
+defparam PLL_inst.IDIV_SEL = 5;
+defparam PLL_inst.FBDIV_SEL = 2;
+defparam PLL_inst.ODIV0_SEL = 10;
+defparam PLL_inst.ODIV1_SEL = 20;
+defparam PLL_inst.ODIV2_SEL = 40;
+defparam PLL_inst.ODIV3_SEL = 8;
+defparam PLL_inst.ODIV4_SEL = 30;
 defparam PLL_inst.ODIV5_SEL = 8;
 defparam PLL_inst.ODIV6_SEL = 8;
-defparam PLL_inst.MDIV_SEL = 27;
+defparam PLL_inst.MDIV_SEL = 54;
 defparam PLL_inst.MDIV_FRAC_SEL = 0;
-defparam PLL_inst.ODIV0_FRAC_SEL = 4;
+defparam PLL_inst.ODIV0_FRAC_SEL = 0;
 defparam PLL_inst.CLKOUT0_EN = "TRUE";
 defparam PLL_inst.CLKOUT1_EN = "TRUE";
 defparam PLL_inst.CLKOUT2_EN = "TRUE";

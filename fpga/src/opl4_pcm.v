@@ -246,8 +246,11 @@ end
 // Durante un stall el acumulador SIGUE sumando (credito) y al soltar
 // dispara CEs seguidos hasta recuperar: la fs media queda clavada.
 // 24 bits = ~36us de credito acumulable (un fetch DDR3 son ~0.3us).
+// MSXimus_138: el motor va a 36 MHz (VCO 1080/30; el PLL del 138 no llega al
+// VCO 1350 que daba los 37,5). Trama de 768 clk = 46875 Hz; CE = 44100/46875 =
+// 14112/15000 (antes 14112/15625 con 48828,125 Hz de trama). Margen para stalls: 6%.
 localparam [23:0] CE_INC = 24'd14112;
-localparam [23:0] CE_MOD = 24'd15625;
+localparam [23:0] CE_MOD = 24'd15000;
 reg [23:0] ce_acc;
 reg        ce;
 reg        mem_inflight;
@@ -857,8 +860,8 @@ YMF278B u_engine (
 // (contadores libres de 16 bits: el lector calcula deltas por ventana;
 //  lvl_min es ventana-local, se rearma en cada trama)
 // ===========================================================================
-parameter DBG_FRAME_CYC = 32'd9375000;   // ~250ms a 37.5MHz (el TB lo acorta)
-parameter DBG_BAUD_DIV  = 9'd326;        // 37.5e6/115200 = 325.5
+parameter DBG_FRAME_CYC = 32'd9000000;   // ~250ms a 36MHz (138K; el TB lo acorta)
+parameter DBG_BAUD_DIV  = 9'd313;        // 36e6/115200 = 312.5 (138K)
 
 reg [15:0] c_rep, c_drop, c_push, c_tick, c_miss, c_pf;
 reg [3:0]  lvl_min_w;

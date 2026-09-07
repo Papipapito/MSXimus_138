@@ -52,7 +52,8 @@ create_clock -name clk_usb12 -period 83.333 [get_pins {pll12_usb/u_pll/PLL_inst/
 # esta placa). Todo en la MISMA familia: cruces cronometrados, cero CDC.
 # Periodo exacto: 1350/36 = 37.5 -> 26.667ns (26.66666... redondeado abajo
 # = conservador). CE del motor: 14112/15625 = 33.8688 MHz exactos.
-create_clock -name eng_clk375 -period 26.666 [get_pins {pll_main/u_pll/PLL_inst/CLKOUT4}]
+# 138K: el motor OPL4 va a 36 MHz (VCO 1080/30), no a 37,5; mismo VCO y fase que 27/54/108
+create_clock -name eng_clk375 -period 27.777 [get_pins {pll_main/u_pll/PLL_inst/CLKOUT4}]
 
 # ---- Relojes derivados/gated del diseño (intencion del SDC del TN20K) ----
 # bus_reset_n y clk_audio clockean FFs propios (gated); VideoDH/DLClk (÷2/÷4 de
