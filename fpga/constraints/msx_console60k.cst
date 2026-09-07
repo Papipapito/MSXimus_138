@@ -1,0 +1,420 @@
+// ============================================================================
+//  msx_console60k.cst — Pin constraints  ·  MSXnano port  ·  Tang Console 60K
+//  Device: GW5AT-LV60PG484AC1/I0  (PBGA484)
+// ----------------------------------------------------------------------------
+//  SKELETON. Los pines marcados [ALTA] salen VERBATIM del .cst real del Console
+//  60K (MiSTle-Dev/C64Nano src/tang/console60k/c64nano.cst) — core que arranca
+//  HOY en la placa. Los marcados <<<INCIERTO>>> NO llevan pin: rellenar con el
+//  schematic oficial de Sipeed o midiendo. Ver docs/BOARD_60K.md.
+//
+//  Decisiones aplicadas: companion = BL616 ONBOARD (dock M0S eliminado);
+//  memoria = DDR3 onboard (hard-IP → SIN pines de usuario en este .cst).
+//
+//  ⚠⚠ FALLO SILENCIOSO DE GOWIN (AUDIT §5.A3): un IO_LOC sobre un net que no
+//  existe en el top NO da error — pierde la constraint. TRAS EL 1er PnR,
+//  VERIFICAR EN EL LOG que cada net casa >0 objetos. Los nombres de net de
+//  abajo son los del top del TN20K (tang9k.cst); ajustar al top.v ya portado.
+// ============================================================================
+
+// ---- JTAG-repurposed (NUEVO en el 60K, no existía en TN20K) ----
+//  El Console 60K reconfigura los pines JTAG como SPI del BL616 (build.tcl lleva
+//  -use_jtag_as_gpio 1). Mecánica C64Nano cableada en top.v: jtagseln =
+//  clock_locked & ~bl616_jtagsel (el BL616 reclama JTAG subiendo su línea;
+//  PULL_UP = sin firmware companion la placa queda reprogramable por JTAG).
+// Reloj SPI del companion en red local (como C64Nano console60k): mcu_spi_new
+// clockea FFs directamente con spi_sclk (13,33 MHz; antes del BL616, ahora
+// del ESP32-S3 por el J10 -- y en U20, que ES pin de reloj global).
+CLOCK_LOC "spi_sclk" LOCAL_CLOCK;
+NET_LOC   "jtagseln" V_JTAGSELN;
+IO_PORT   "jtagseln" PULL_MODE=DOWN IO_TYPE=LVCMOS33 BANK_VCCIO=3.3;
+// V3.1 (TangCore): TX del enlace UART con el BL616. U15 = GPIO27 RX del
+// MCU; quedo libre al mudar spi_irqn al J10 (AB22). El RX no lleva pad
+// propio: bl616_jtagsel (V14) YA ES el TX del BL616.
+IO_LOC    "iosys_uart_tx" U15;
+IO_PORT   "iosys_uart_tx" PULL_MODE=NONE DRIVE=8 IO_TYPE=LVCMOS33 BANK_VCCIO=3.3;
+IO_LOC    "bl616_jtagsel" V14;
+IO_PORT   "bl616_jtagsel" PULL_MODE=UP IO_TYPE=LVCMOS33 BANK_VCCIO=3.3;
+
+// ---- Companion SPI: ahora el ESP32-S3 por el J10, NO el BL616 ------------
+// Estas cinco senales las servia el BL616 de a bordo por los pines JTAG
+// reconfigurados... salvo que ese BL616 nunca llego a llevar firmware, asi que
+// fpga_companion (top.v) llevaba todo este tiempo instanciado y OCIOSO,
+// esperando un maestro. Ahora se lo da el S3.
+//
+// Se mudan al J10, donde el S3 ya esta cableado para el UART del UNAPI y el
+// turbo. spi_sclk va a U20 a proposito: es GCLKT_8, entrada de reloj GLOBAL, y
+// mcu_spi_new clockea biestables directamente con ella.
+//
+//   J10 p19 = V20  (B8, GCLKC_8)  spi_dat   MOSI, entrada   <- GPIO5  del S3
+//   J10 p20 = U20  (B8, GCLKT_8)  spi_sclk  reloj, entrada  <- GPIO4
+//   J10 p21 = Y22  (B8)           spi_dir   MISO, salida    -> GPIO6
+//   J10 p22 = Y21  (B8)           spi_csn   CS#,  entrada   <- GPIO7
+//   J10 p23 = AB22 (B8)           spi_irqn  IRQ#, salida    -> GPIO15
+//
+// spi_csn con PULL_UP: sin maestro conectado queda DESELECCIONADO, que es lo
+// seguro. Si flotara, el ruido dispararia tramas fantasma.
+// ⚠ Siguen siendo pines del slot SDRAM1: si algun dia se pincha un 2o modulo
+//   de SDRAM en el J10, todo esto se muda.
+IO_LOC  "spi_dat"  V20;  IO_PORT "spi_dat"  PULL_MODE=NONE DRIVE=OFF IO_TYPE=LVCMOS33 BANK_VCCIO=3.3;
+IO_LOC  "spi_sclk" U20;  IO_PORT "spi_sclk" PULL_MODE=NONE DRIVE=OFF IO_TYPE=LVCMOS33 BANK_VCCIO=3.3;
+IO_LOC  "spi_dir"  Y22;  IO_PORT "spi_dir"  PULL_MODE=NONE DRIVE=8   IO_TYPE=LVCMOS33 BANK_VCCIO=3.3;
+IO_LOC  "spi_csn"  Y21;  IO_PORT "spi_csn"  PULL_MODE=UP            IO_TYPE=LVCMOS33 BANK_VCCIO=3.3;
+IO_LOC  "spi_irqn" AB22; IO_PORT "spi_irqn" PULL_MODE=NONE DRIVE=8   IO_TYPE=LVCMOS33 BANK_VCCIO=3.3;
+//  m0s[0..4] del dock M0S ELIMINADOS (decisión: companion onboard). Al portar
+//  top.v se quita spi_ext/mux (fpga_companion.v:47-59) → desaparece el TA1132.
+
+// ---- Reloj de sistema: 50 MHz en V22 (¡NO 27!) ----                        [ALTA]
+//  El net del top actual se llama ex_clk_27m (engañoso: aquí lleva 50 MHz).
+//  RENOMBRAR en el top.v portado (p.ej. ex_clk_50m) y recalcular PLL/CLKDIV.
+//  OPEN-ITEM Nº1: 108 exactos desde 50 no es trivial (ver docs/PORT_FINDINGS §2).
+IO_LOC  "ex_clk_27m" V22;
+IO_PORT "ex_clk_27m" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=OFF;
+
+// ---- Botones (BANCO 1.5V, activo bajo — cambia el IOSTANDARD vs TN20K) ----  [ALTA]
+IO_LOC  "s1" AB13; IO_PORT "s1" IO_TYPE=LVCMOS15 PULL_MODE=UP DRIVE=OFF BANK_VCCIO=1.5;  // user
+IO_LOC  "s2" AA13; IO_PORT "s2" IO_TYPE=LVCMOS15 PULL_MODE=UP DRIVE=OFF BANK_VCCIO=1.5;  // reset
+//  (Confirmar la asignación s1/user vs s2/reset contra la semántica del top.v.)
+
+// ---- LEDs onboard (solo 2 fiables; el MSXnano lleva 6) ----
+IO_LOC  "led[0]" G11; IO_PORT "led[0]" IO_TYPE=LVCMOS33 DRIVE=4 PULL_MODE=NONE BANK_VCCIO=3.3; // [ALTA]
+IO_LOC  "led[1]" U12; IO_PORT "led[1]" IO_TYPE=LVCMOS33 DRIVE=4 PULL_MODE=NONE BANK_VCCIO=3.3; // [ALTA]
+// <<<INCIERTO>>> led[2..5]: sin pin confirmado en el 60K. Opciones: reducir a 2
+//   LEDs en el top, o sacarlos por header/PMOD (candidato: pmod_companion_* si
+//   no se usa companion externo). NO inventar pin.
+
+// ---- HDMI TMDS ----                                                        [ALTA]
+//  ⚠ ESTILO nestang (console.cst, PROBADO en esta placa): los 8 pines P y N
+//  constreñidos INDIVIDUALMENTE como LVCMOS33D. La sintaxis de par "G15,G16"
+//  sobre el nombre P (herencia TN20K) dejaba el driver MUDO en GW5A (bring-up
+//  2026-07-07: core vivo, TV sin señal): con ELVDS + par en pines TRUELVDS el
+//  PnR configura diferencial verdadero, inválido a 3.3V.
+IO_LOC  "clk_p"     G15; IO_PORT "clk_p"     PULL_MODE=NONE IO_TYPE=LVCMOS33D;
+IO_LOC  "clk_n"     G16; IO_PORT "clk_n"     PULL_MODE=NONE IO_TYPE=LVCMOS33D;
+IO_LOC  "data_p[0]" J14; IO_PORT "data_p[0]" PULL_MODE=NONE IO_TYPE=LVCMOS33D;
+IO_LOC  "data_n[0]" H14; IO_PORT "data_n[0]" PULL_MODE=NONE IO_TYPE=LVCMOS33D;
+IO_LOC  "data_p[1]" J15; IO_PORT "data_p[1]" PULL_MODE=NONE IO_TYPE=LVCMOS33D;
+IO_LOC  "data_n[1]" H15; IO_PORT "data_n[1]" PULL_MODE=NONE IO_TYPE=LVCMOS33D;
+IO_LOC  "data_p[2]" K17; IO_PORT "data_p[2]" PULL_MODE=NONE IO_TYPE=LVCMOS33D;
+IO_LOC  "data_n[2]" J17; IO_PORT "data_n[2]" PULL_MODE=NONE IO_TYPE=LVCMOS33D;
+
+// ---- microSD (SDIO 4-bit) ----                                             [ALTA]
+IO_LOC  "sd_sclk" V15;  IO_PORT "sd_sclk" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC  "sd_cmd"  Y16;  IO_PORT "sd_cmd"  IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC  "sd_dat0" AA15; IO_PORT "sd_dat0" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC  "sd_dat1" AB15; IO_PORT "sd_dat1" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC  "sd_dat2" W14;  IO_PORT "sd_dat2" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC  "sd_dat3" W15;  IO_PORT "sd_dat3" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+
+// ---- Flash NOR MSPI (W25Q64 8MB, compartida con BL616) ----                [ALTA]
+//  Re-mapear direcciones del pack (0x200000) y config (0x280000): el bitstream
+//  GW5AT-60 es mayor y el BL616 comparte la flash (AUDIT §5.B). Aplicar antes
+//  los fixes de flash_rw.v (#1 write_terminate + WIP).
+IO_LOC  "mspi_cs"   T19; IO_PORT "mspi_cs"   IO_TYPE=LVCMOS33 PULL_MODE=NONE;
+IO_LOC  "mspi_sclk" L12; IO_PORT "mspi_sclk" IO_TYPE=LVCMOS33 PULL_MODE=NONE;
+IO_LOC  "mspi_mosi" P22; IO_PORT "mspi_mosi" IO_TYPE=LVCMOS33 PULL_MODE=NONE;  // DI
+IO_LOC  "mspi_miso" R22; IO_PORT "mspi_miso" IO_TYPE=LVCMOS33 PULL_MODE=NONE;  // DO
+//  QSPI: /WP y /HOLD conducidos a nivel alto desde top.v (flash single-SPI)
+IO_LOC  "mspi_wp"   P21; IO_PORT "mspi_wp"   IO_TYPE=LVCMOS33 PULL_MODE=NONE;  // [ALTA]
+IO_LOC  "mspi_hold" R21; IO_PORT "mspi_hold" IO_TYPE=LVCMOS33 PULL_MODE=NONE;  // [ALTA]
+
+// ---- Monitor serie del BL616 (opcional) ----                               [MEDIA]
+IO_LOC  "usb_uart_tx" R14; IO_PORT "usb_uart_tx" IO_TYPE=LVCMOS33 DRIVE=8;
+
+// ---- DEBUG BRING-UP: electrocardiograma por los dos PMODs (pines C64Nano) ----
+//  PMOD1 = relojes: lock, 50M, 27M, 54M, 108M, 135M(TMDS)
+IO_LOC  "dbg_pmod1[0]" W19; IO_PORT "dbg_pmod1[0]" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "dbg_pmod1[1]" W20; IO_PORT "dbg_pmod1[1]" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "dbg_pmod1[2]" F19; IO_PORT "dbg_pmod1[2]" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "dbg_pmod1[3]" F20; IO_PORT "dbg_pmod1[3]" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "dbg_pmod1[4]" E22; IO_PORT "dbg_pmod1[4]" IO_TYPE=LVCMOS33 DRIVE=8;
+// D22 (era dbg_pmod1[5]) -> uart_pmod_rx: RX del WiFi por PMOD1 en modo test
+IO_LOC  "uart_pmod_rx" D22; IO_PORT "uart_pmod_rx" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+//  PMOD0 = vitales: reset_n, pack cargado, Z80 M1, SPI BL616, jtagseln
+IO_LOC  "dbg_pmod0[0]" V19; IO_PORT "dbg_pmod0[0]" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "dbg_pmod0[1]" V18; IO_PORT "dbg_pmod0[1]" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "dbg_pmod0[2]" G22; IO_PORT "dbg_pmod0[2]" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "dbg_pmod0[3]" G21; IO_PORT "dbg_pmod0[3]" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "dbg_pmod0[4]" E18; IO_PORT "dbg_pmod0[4]" IO_TYPE=LVCMOS33 DRIVE=8;
+
+// ---- WS2812B (tira de estado en carcasa) ----
+// <<<INCIERTO>>> ws2812_led: sin pin confirmado en el 60K. Candidato: una línea
+//   libre de PMOD1 (io[5]=D22) o header 2×20. Confirmar con schematic. NO inventar.
+
+// ---- WiFi ESP32-C6 externo (Waveshare C6-LCD-1.3, fw ESP32-UNAPI 859372) ----
+// _153: RESUELTO el <<INCIERTO>> historico con el ESQUEMATICO OFICIAL de la
+// Console (Tang_Mega_60K_Console_32001C, hoja SDRAM): el 2x20 LIBRE es J10
+// ("SDRAM1 CONN. Close to PMOD connector"; el modulo SDRAM del core va en el
+// otro). Peticion de Albert v2 (foto placa): FILA UNICA para cable plano de
+// una hilera -> COLUMNA PAR, 3 pines consecutivos:
+//   J10 pin 12 = GND   pin 14 = W21 (TX)   pin 16 = N17 (RX)
+// El +5V (pin 11) esta en la columna impar -> el C6 se alimenta por su USB-C.
+// Identificacion sin serigrafia: el UNICO pin del conector con continuidad a
+// masa es el 12; sus dos vecinos de columna hacia el LADO LARGO son 14 y 16.
+// (V17/pin10 descartado: CSI_B, pin de configuracion dual.)
+// ⚠ Si algun dia se pincha un 2o modulo SDRAM en J10, mudar el ESP.
+// esp_rx_i con PULL_UP: idle UART correcto aunque no haya modulo pinchado.
+IO_LOC  "esp_rx_i" N17; IO_PORT "esp_rx_i" IO_TYPE=LVCMOS33 PULL_MODE=UP;   // J10 p16 (SDRAM1_D10) <- IO16 (TX) del C6
+IO_LOC  "esp_tx_o" W21; IO_PORT "esp_tx_o" IO_TYPE=LVCMOS33 DRIVE=8;        // J10 p14 (SDRAM1_D12) -> IO17 (RX) del C6
+// _156: indicador de turbo (esquema del nano: drive suave; el C6 lo lee en
+// GPIO3 con pulldown => sin cable = "Normal", sin destellos en frio)
+IO_LOC  "esp_turbo_o" N13; IO_PORT "esp_turbo_o" IO_TYPE=LVCMOS33 DRIVE=4;   // J10 p18 (SDRAM1_D8) -> GPIO3 del C6
+// ============================================================================
+// PINOUT COMPLETO DEL J10 — extraido del ESQUEMATICO OFICIAL (27/07)
+// docs/hw/Tang_Mega_60K_Console_32001C_Schematics.pdf, hoja del conector +
+// hoja de ballout. Los tres pines EN USO validan la extraccion: SDRAM1_D12=W21,
+// D10=N17, D8=N13 casan exactamente con lo medido/usado arriba.
+//
+//   pin | net          | bola FPGA (banco)      || pin | net          | bola
+//   ----+--------------+------------------------++-----+--------------+------
+//    11 | +5V          | -                      ||  12 | GND          | -
+//    13 | SDRAM1_D13   |                        ||  14 | SDRAM1_D12   | W21 (B7)  [TX  -> C6]
+//    15 | SDRAM1_D11   |                        ||  16 | SDRAM1_D10   | N17 (B6)  [RX  <- C6]
+//    17 | SDRAM1_D9    |                        ||  18 | SDRAM1_D8    | N13 (B6)  [TURBO -> C6]
+//    19 | SDRAM1_A12   | V20 (B8, GCLKC_8)      ||  20 | SDRAM1_CLK   | U20 (B8, GCLKT_8)  <- LIBRE
+//    21 | SDRAM1_A9    | Y22 (B8)               ||  22 | SDRAM1_A11   | Y21 (B8)           <- LIBRE
+//    23 | SDRAM1_A7    | AB22 (B8)              ||  24 | SDRAM1_A8    |
+//    25 | SDRAM1_A5    |                        ||  26 | SDRAM1_A6    | AA20 (B7)
+//    27 | SDRAM1_/WE   |                        ||  28 | SDRAM1_A4    |
+//    29 | SDRAM1_EXIO0 |                        ||  30 | SDRAM1_EXIO1 |
+//   (1-10 = SDRAM1_D0..D7,D15,D14; el resto de la tabla en el esquematico)
+//
+// SIGUIENTES DOS PINES LIBRES de la columna par, para ampliar el cable plano a
+// 6 hilos (12/14/16/18/20/22) — reservados para la CINTA TSX del C6:
+//   J10 p20 = U20  (banco 8; es GCLKT_8, entrada de reloj global: IDEAL como
+//                   entrada de datos rapida desde el C6)
+//   J10 p22 = Y21  (banco 8, IOB99A)
+// ⚠ Siguen siendo pines del slot SDRAM1: si algun dia se pincha un 2o modulo
+//   de SDRAM ahi, todo esto se muda.
+// ============================================================================
+
+// ---- Memoria del CORE: SDR SDRAM (módulo Tang SDRAM, W9825G6KH, 16b/32MB) ----
+//  Decisión (docs/MEMORY_OPTIONS.md): el core va en SDR SDRAM, reusando memory.v
+//  (frente 32→16b). Pines del slot SDRAM1 del Console 60K, del .cst de C64Nano.
+//  ⚠️ El nombre de net debe casar con el memory.v portado (16 bits: dq[15:0],
+//  dqm[1:0]). O_sdram_clk por pin GPIO con skew controlado (punto delicado @108MHz).
+//  Bloque COMPLETO (34 pines) copiado VERBATIM del .cst de C64Nano console60k
+//  (core que corre HOY en la placa con este módulo). Todos LVCMOS33 como el ref.
+//  ⚠ El módulo ata CKE a nivel alto en placa → O_sdram_cke NO tiene pin (dejar
+//    el puerto sin constraint; si el PnR se queja, quitar el puerto en top).
+IO_LOC  "O_sdram_clk"   B17; IO_PORT "O_sdram_clk"   IO_TYPE=LVCMOS33;  // [ALTA]
+IO_LOC  "O_sdram_cs_n"  F21; IO_PORT "O_sdram_cs_n"  IO_TYPE=LVCMOS33;  // [ALTA]
+IO_LOC  "O_sdram_ras_n" F16; IO_PORT "O_sdram_ras_n" IO_TYPE=LVCMOS33;  // [ALTA]
+IO_LOC  "O_sdram_cas_n" E17; IO_PORT "O_sdram_cas_n" IO_TYPE=LVCMOS33;  // [ALTA]
+IO_LOC  "O_sdram_wen_n" D16; IO_PORT "O_sdram_wen_n" IO_TYPE=LVCMOS33;  // [ALTA]
+IO_LOC  "O_sdram_ba[0]" F15; IO_PORT "O_sdram_ba[0]" IO_TYPE=LVCMOS33;  // [ALTA]
+IO_LOC  "O_sdram_ba[1]" C20; IO_PORT "O_sdram_ba[1]" IO_TYPE=LVCMOS33;  // [ALTA]
+IO_LOC  "O_sdram_dqm[0]" F14; IO_PORT "O_sdram_dqm[0]" IO_TYPE=LVCMOS33; // [ALTA]
+IO_LOC  "O_sdram_dqm[1]" F13; IO_PORT "O_sdram_dqm[1]" IO_TYPE=LVCMOS33; // [ALTA]
+IO_LOC  "O_sdram_addr[0]"  D19; IO_PORT "O_sdram_addr[0]"  IO_TYPE=LVCMOS33;
+IO_LOC  "O_sdram_addr[1]"  E19; IO_PORT "O_sdram_addr[1]"  IO_TYPE=LVCMOS33;
+IO_LOC  "O_sdram_addr[2]"  C19; IO_PORT "O_sdram_addr[2]"  IO_TYPE=LVCMOS33;
+IO_LOC  "O_sdram_addr[3]"  C18; IO_PORT "O_sdram_addr[3]"  IO_TYPE=LVCMOS33;
+IO_LOC  "O_sdram_addr[4]"  E16; IO_PORT "O_sdram_addr[4]"  IO_TYPE=LVCMOS33;
+IO_LOC  "O_sdram_addr[5]"  D15; IO_PORT "O_sdram_addr[5]"  IO_TYPE=LVCMOS33;
+IO_LOC  "O_sdram_addr[6]"  D14; IO_PORT "O_sdram_addr[6]"  IO_TYPE=LVCMOS33;
+IO_LOC  "O_sdram_addr[7]"  A19; IO_PORT "O_sdram_addr[7]"  IO_TYPE=LVCMOS33;
+IO_LOC  "O_sdram_addr[8]"  A18; IO_PORT "O_sdram_addr[8]"  IO_TYPE=LVCMOS33;
+IO_LOC  "O_sdram_addr[9]"  C17; IO_PORT "O_sdram_addr[9]"  IO_TYPE=LVCMOS33;
+IO_LOC  "O_sdram_addr[10]" D20; IO_PORT "O_sdram_addr[10]" IO_TYPE=LVCMOS33;
+IO_LOC  "O_sdram_addr[11]" D17; IO_PORT "O_sdram_addr[11]" IO_TYPE=LVCMOS33;
+IO_LOC  "O_sdram_addr[12]" B18; IO_PORT "O_sdram_addr[12]" IO_TYPE=LVCMOS33;
+IO_LOC  "IO_sdram_dq[0]"  E14; IO_PORT "IO_sdram_dq[0]"  IO_TYPE=LVCMOS33;
+IO_LOC  "IO_sdram_dq[1]"  E13; IO_PORT "IO_sdram_dq[1]"  IO_TYPE=LVCMOS33;
+IO_LOC  "IO_sdram_dq[2]"  C15; IO_PORT "IO_sdram_dq[2]"  IO_TYPE=LVCMOS33;
+IO_LOC  "IO_sdram_dq[3]"  C14; IO_PORT "IO_sdram_dq[3]"  IO_TYPE=LVCMOS33;
+IO_LOC  "IO_sdram_dq[4]"  B13; IO_PORT "IO_sdram_dq[4]"  IO_TYPE=LVCMOS33;
+IO_LOC  "IO_sdram_dq[5]"  C13; IO_PORT "IO_sdram_dq[5]"  IO_TYPE=LVCMOS33;
+IO_LOC  "IO_sdram_dq[6]"  A14; IO_PORT "IO_sdram_dq[6]"  IO_TYPE=LVCMOS33;
+IO_LOC  "IO_sdram_dq[7]"  A13; IO_PORT "IO_sdram_dq[7]"  IO_TYPE=LVCMOS33;
+IO_LOC  "IO_sdram_dq[8]"  B21; IO_PORT "IO_sdram_dq[8]"  IO_TYPE=LVCMOS33;
+IO_LOC  "IO_sdram_dq[9]"  A21; IO_PORT "IO_sdram_dq[9]"  IO_TYPE=LVCMOS33;
+IO_LOC  "IO_sdram_dq[10]" B20; IO_PORT "IO_sdram_dq[10]" IO_TYPE=LVCMOS33;
+IO_LOC  "IO_sdram_dq[11]" A20; IO_PORT "IO_sdram_dq[11]" IO_TYPE=LVCMOS33;
+IO_LOC  "IO_sdram_dq[12]" A15; IO_PORT "IO_sdram_dq[12]" IO_TYPE=LVCMOS33;
+IO_LOC  "IO_sdram_dq[13]" A16; IO_PORT "IO_sdram_dq[13]" IO_TYPE=LVCMOS33;
+IO_LOC  "IO_sdram_dq[14]" B15; IO_PORT "IO_sdram_dq[14]" IO_TYPE=LVCMOS33;
+IO_LOC  "IO_sdram_dq[15]" B16; IO_PORT "IO_sdram_dq[15]" IO_TYPE=LVCMOS33;
+//
+//  ---- DDR3 onboard (SK Hynix H5TQ4G63EFR, 512MB) — FASE 2 (framebuffer) ----
+//  Hard-IP: sin IO_LOC. Se generará su IP cuando toque el frontend gráfico
+//  (estilo nand2mario/ddr3_framebuffer_gowin, 297MHz/refresh-off). Ver DDR3_WRAPPER.md.
+
+// ===== F3 (_39): USB-A directos al fabric (verificado en tangcore console.cst;
+// el esquematico de Sipeed esta MAL — la verdad es el .cst). Pulldowns 15K en placa.
+IO_LOC "usb1_dp" H13; IO_PORT "usb1_dp" IO_TYPE=LVCMOS33;
+IO_LOC "usb1_dn" G13; IO_PORT "usb1_dn" IO_TYPE=LVCMOS33;
+IO_LOC "usb2_dp" M15; IO_PORT "usb2_dp" IO_TYPE=LVCMOS33;
+IO_LOC "usb2_dn" M16; IO_PORT "usb2_dn" IO_TYPE=LVCMOS33;
+
+// ===== v3.5: la red PRIMARY estaba SATURADA (8/8) — se degrado clk_audio a
+// LOCAL_CLOCK para liberar un carril. _127I: ese LOCAL_CLOCK resulto ser LA
+// CAUSA del bug #14 (skew del reloj de fabric => CTS corrupto => cortes de
+// audio en el monitor). El reloj de fabric YA NO EXISTE: el audio corre con
+// clock-enable sincrono a clk_pixel (ver msx2hdmi*.sv). Constraint retirada;
+// el carril PRIMARY sigue libre porque ya no hay reloj de audio que asignar.
+
+// ============ P1: endurecimiento anti-loteria de strobes (2026-07-11) ============
+// Los samplers negedge de RD/WR del T80 y su primer LUT se FIJAN en el centroide
+// del cluster mem1/wait (R45-59, C91-98 en el placement de referencia): el camino
+// critico half-period (9.26ns, F11 golden rule: NUNCA relajarlo) es sampler ->
+// decode -> mux ram_addr -> sdram_seq/ram_busy/state_wait, y el salto CPU->mem
+// (~1.9ns de net) era lo que la loteria de placement a veces no absorbia. El lado
+// T80 -> sampler tiene margen de sobra y tolera el viaje largo.
+// _63diag: pins DESACTIVADOS para bisecar la regresion de ESC de la _62
+// (con turbo=0 el injerto es funcionalmente identico a la _61; el otro cambio
+// eran estos pins -> sospecha: alargar T80->sampler rompe coherencia de
+// muestreo aunque el STA pase por la excepcion multicycle)
+//INS_LOC "cpu1/RD_s0" R52C95;
+//INS_LOC "cpu1/RD_n_i_s0" R52C96;
+//INS_LOC "cpu1/WR_n_i_s0" R53C95;
+
+// ---- _86: pines DDR3 del SOM (verbatim del ddr3_framebuffer_gowin de nand2mario, console60k) ----
+IO_LOC "ddr_bank[2]" M6;
+IO_PORT "ddr_bank[2]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_bank[1]" P2;
+IO_PORT "ddr_bank[1]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_bank[0]" P5;
+IO_PORT "ddr_bank[0]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_addr[14]" D1;
+IO_PORT "ddr_addr[14]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_addr[13]" K1;
+IO_PORT "ddr_addr[13]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_addr[12]" K4;
+IO_PORT "ddr_addr[12]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_addr[11]" H3;
+IO_PORT "ddr_addr[11]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_addr[10]" L1;
+IO_PORT "ddr_addr[10]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_addr[9]" H5;
+IO_PORT "ddr_addr[9]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_addr[8]" J5;
+IO_PORT "ddr_addr[8]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_addr[7]" J1;
+IO_PORT "ddr_addr[7]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_addr[6]" G3;
+IO_PORT "ddr_addr[6]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_addr[5]" H2;
+IO_PORT "ddr_addr[5]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_addr[4]" J2;
+IO_PORT "ddr_addr[4]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_addr[3]" J4;
+IO_PORT "ddr_addr[3]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_addr[2]" G2;
+IO_PORT "ddr_addr[2]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_addr[1]" K2;
+IO_PORT "ddr_addr[1]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_addr[0]" M1;
+IO_PORT "ddr_addr[0]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_odt" M2;
+IO_PORT "ddr_odt" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_cke" K6;
+IO_PORT "ddr_cke" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_we" M5;
+IO_PORT "ddr_we" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_cas" L4;
+IO_PORT "ddr_cas" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_ras" L5;
+IO_PORT "ddr_ras" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_cs" P4;
+IO_PORT "ddr_cs" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_reset_n" L6;
+IO_PORT "ddr_reset_n" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_ck" L3,K3;
+IO_PORT "ddr_ck" IO_TYPE=SSTL15D_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+// IO_LOC "ddr_dm[3]" V7;
+// IO_PORT "ddr_dm[3]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+// IO_LOC "ddr_dm[2]" AA4;
+// IO_PORT "ddr_dm[2]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_dm[1]" V7;
+IO_PORT "ddr_dm[1]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+IO_LOC "ddr_dm[0]" AA4;
+IO_PORT "ddr_dm[0]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 BANK_VCCIO=1.5;
+// IO_LOC "ddr_dq[31]" U18;
+// IO_PORT "ddr_dq[31]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+// IO_LOC "ddr_dq[30]" N18;
+// IO_PORT "ddr_dq[30]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+// IO_LOC "ddr_dq[29]" U17;
+// IO_PORT "ddr_dq[29]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+// IO_LOC "ddr_dq[28]" P18;
+// IO_PORT "ddr_dq[28]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+// IO_LOC "ddr_dq[27]" N14;
+// IO_PORT "ddr_dq[27]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+// IO_LOC "ddr_dq[26]" N17;
+// IO_PORT "ddr_dq[26]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+// IO_LOC "ddr_dq[25]" T17;
+// IO_PORT "ddr_dq[25]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+// IO_LOC "ddr_dq[24]" P17;
+// IO_PORT "ddr_dq[24]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+// IO_LOC "ddr_dq[23]" H17;
+// IO_PORT "ddr_dq[23]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+// IO_LOC "ddr_dq[22]" M16;
+// IO_PORT "ddr_dq[22]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+// IO_LOC "ddr_dq[21]" H18;
+// IO_PORT "ddr_dq[21]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+// IO_LOC "ddr_dq[20]" L17;
+// IO_PORT "ddr_dq[20]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+// IO_LOC "ddr_dq[19]" J16;
+// IO_PORT "ddr_dq[19]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+// IO_LOC "ddr_dq[18]" M18;
+// IO_PORT "ddr_dq[18]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+// IO_LOC "ddr_dq[17]" L15;
+// IO_PORT "ddr_dq[17]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+// IO_LOC "ddr_dq[16]" Y9;
+// IO_PORT "ddr_dq[16]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+IO_LOC "ddr_dq[15]" Y9;
+IO_PORT "ddr_dq[15]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+IO_LOC "ddr_dq[14]" AB6;
+IO_PORT "ddr_dq[14]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+IO_LOC "ddr_dq[13]" W9;
+IO_PORT "ddr_dq[13]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+IO_LOC "ddr_dq[12]" AB8;
+IO_PORT "ddr_dq[12]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+IO_LOC "ddr_dq[11]" Y7;
+IO_PORT "ddr_dq[11]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+IO_LOC "ddr_dq[10]" AB7;
+IO_PORT "ddr_dq[10]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+IO_LOC "ddr_dq[9]" Y8;
+IO_PORT "ddr_dq[9]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+IO_LOC "ddr_dq[8]" AA8;
+IO_PORT "ddr_dq[8]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+IO_LOC "ddr_dq[7]" AB1;
+IO_PORT "ddr_dq[7]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+IO_LOC "ddr_dq[6]" AB5;
+IO_PORT "ddr_dq[6]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+IO_LOC "ddr_dq[5]" AB2;
+IO_PORT "ddr_dq[5]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+IO_LOC "ddr_dq[4]" AA1;
+IO_PORT "ddr_dq[4]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+IO_LOC "ddr_dq[3]" V4;
+IO_PORT "ddr_dq[3]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+IO_LOC "ddr_dq[2]" AA5;
+IO_PORT "ddr_dq[2]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+IO_LOC "ddr_dq[1]" AB3;
+IO_PORT "ddr_dq[1]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+IO_LOC "ddr_dq[0]" Y4;
+IO_PORT "ddr_dq[0]" IO_TYPE=SSTL15_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+// IO_LOC "ddr_dqs[3]" V9,V8;
+// IO_PORT "ddr_dqs[3]" IO_TYPE=SSTL15D_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+// IO_LOC "ddr_dqs[2]" K17,K18;
+// IO_PORT "ddr_dqs[2]" IO_TYPE=SSTL15D_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+IO_LOC "ddr_dqs[1]" V9,V8;
+IO_PORT "ddr_dqs[1]" IO_TYPE=SSTL15D_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+IO_LOC "ddr_dqs[0]" Y3,AA3;
+IO_PORT "ddr_dqs[0]" IO_TYPE=SSTL15D_I PULL_MODE=NONE DRIVE=8 SINGLE_RESISTOR=OFF BANK_VCCIO=1.5;
+
+// _145 FIJAR EL PHY DDR3 (vía B — lo que nos FALTABA vs nand2mario): sin
+// estas dos INS_LOC el placer de Gowin coloca el DLL y el PLL de la DDR3
+// donde puede, y en nuestro diseño congestionado los empuja a un mal sitio
+// => ojo de calibracion pequeno => arranque loteria + caidas termicas. Las
+// copiamos VERBATIM de nand2mario/console60k.cst, adaptando el prefijo de
+// jerarquia fb/ -> u_vddr3/ (nuestra instancia del v9968_ddr3_backend en
+// top.v; dentro: u_ddr3 = DDR3_Memory_Interface_Top, pll_ddr3_inst = pll).
+// DDRDLLM_BL = macro fisico del DLL DDR3 (bottom-left, junto al banco DDR3);
+// PLL_L[0] = PLL izquierdo. Deterministas => deberian matar la loteria.
+INS_LOC "u_vddr3/u_ddr3/gw3_top/u_ddr_phy_top/u_dll" DDRDLLM_BL;
+INS_LOC "u_vddr3/pll_ddr3_inst/PLLA_inst" PLL_L[0];
+
+// Ventilador (Console 60K): FAN_EN en AB12 (Bank 9 a 1.5V), 1 = 5V al
+// conector SH1.0. PULL_MODE=DOWN = apagado durante la configuracion.
+IO_LOC  "fan_en_o" AB12;
+IO_PORT "fan_en_o" IO_TYPE=LVCMOS15 PULL_MODE=DOWN DRIVE=4 BANK_VCCIO=1.5;

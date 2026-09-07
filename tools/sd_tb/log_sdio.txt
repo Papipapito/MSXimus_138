@@ -1,0 +1,24 @@
+=== tb_sdio ===
+  OK   reset: count = 1
+  OK   reset: ptr = 0
+  OK   IN #4C: el puntero avanza UNA vez por ciclo
+  OK   durante el ciclo: data_sel=1 y ptr quieto
+  OK   al acabar el ciclo: ptr = 2
+  OK   OUT #4F: ptr = 0
+  OK   512 OUT #4C: ptr vuelve a 0
+  OK   512 OUT #4C: exactamente UN buf_ack
+  OK   el byte 513 no genera otro ack
+  OK   OUT #4C: el dato queda capturado (data_val)
+  OK   OUT #4D: count = 7
+  OK   force1 (orden por la ventana): count = 1
+  OK   OUT #4D: count = 64
+  OK   OUT #47: cmd_wr es UN pulso de un ciclo
+  OK   OUT #47: cmd_val trae el dato de la orden
+  OK   OUT #47: rebobina el bufer
+  OK   tras el ciclo: cmd_wr en reposo
+  OK   OUT #4A: saddr_val trae el byte del LBA
+  OK   tras el ciclo: saddr_wr en reposo
+  OK   OUT #4E: info_idx = 13
+  OK   IN #47 no mueve el puntero
+=== tb_sdio: TODO OK ===
+tb_sdio.sv:112: $finish called at 603034197 (1ps)

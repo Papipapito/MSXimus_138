@@ -1,0 +1,12 @@
+=== tb_mstimer ===
+  OK   27000 ciclos = 1 ms
+  OK   270000 ciclos = 10 ms
+  OK   indice 28: firma 'T' (0x54)
+  OK   los tres bytes son de la MISMA foto pese a los 6 ms de por medio
+  OK   y mientras tanto el contador ha seguido corriendo
+  OK   pedir el 25 otra vez saca una foto NUEVA
+  OK   y la foto nueva no es anterior al momento de pedirla
+  OK   acarreo en medio: la foto no se parte (era el riesgo real)
+  OK   leer otros indices no rehace la foto
+=== tb_mstimer: TODO OK ===
+tb_mstimer.sv:152: $finish called at 18028450209 (1ps)

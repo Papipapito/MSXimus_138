@@ -1,0 +1,104 @@
+=== tb_sd  FAST_DIV=4  (sdclk periodo 12 clk = 2.25 MHz)  TOD=14 ns ===
+  OK   T1 init: sd_reader en IDLING
+  OK   T1 init: SDHCv2 detectada (ACMD41 con CCS)
+  OK   T1 init: C_SIZE del CSD v2 capturado
+  OK   T1 init: MID del CID capturado
+  OK   T1 init: divisor RAPIDO activo tras CMD7
+  OK   T1 init: sin timeout
+    [dbg] t=10805077000 sddat_stat 1 -> 2  ridx=0 crc_stat=xxxx crc_error=0 rcrc_bad=0
+    [dbg] t=10833522000 sddat_stat 2 -> 3  ridx=64 crc_stat=xxxx crc_error=0 rcrc_bad=0
+    [dbg] leido  : 55 5c 63 6a 71 78 7f 86 ... 47 4e
+    [dbg] modelo : 55 5c 63 6a 71 78 7f 86 ... 47 4e
+    [dbg] bytes distintos: 0
+  OK   T2 lectura sector 5: 512 bytes identicos al modelo
+  OK   T2 lectura: rcrc_error=0
+  OK   T2 lectura: crc_error=0
+  OK   T2 lectura: timeout_error=0
+  OK   T2 lectura: vuelve a IDLING
+    [dbg] t=12754906000 sddat_stat 6 -> 7  ridx=0 crc_stat=xxxx crc_error=0 rcrc_bad=0
+    [dbg] t=12757128000 sddat_stat 7 -> 8  ridx=0 crc_stat=0010 crc_error=0 rcrc_bad=0
+    [dbg] t=12766017000 sddat_stat 8 -> 9  ridx=0 crc_stat=0010 crc_error=0 rcrc_bad=0
+  OK   T3 escritura sector 6: el modelo guardo los 512 bytes
+  OK   T3 escritura: token 010 -> crc_error=0
+  OK   T3 escritura: timeout_error=0
+  OK   T3 escritura: CRC16 del host correcto para la tarjeta
+    [dbg] t=14680289000 sddat_stat 1 -> 2  ridx=0 crc_stat=0010 crc_error=0 rcrc_bad=0
+    [dbg] t=14708734000 sddat_stat 2 -> 3  ridx=64 crc_stat=0010 crc_error=0 rcrc_bad=0
+  OK   T4 relectura sector 6: identico
+  OK   T4 relectura sector 6: identico a lo escrito
+    [dbg] t=16623006000 sddat_stat 1 -> 2  ridx=0 crc_stat=0010 crc_error=0 rcrc_bad=0
+    [dbg] t=16651451000 sddat_stat 2 -> 3  ridx=64 crc_stat=0010 crc_error=0 rcrc_bad=1
+  OK   T5 bit corrupto: exactamente 1 byte distinto
+  OK   T5 bit corrupto: rcrc_error=1 (detectado)
+  OK   T5 bit corrupto: crc_error (escritura) sigue a 0
+    [dbg] t=18565723000 sddat_stat 1 -> 2  ridx=0 crc_stat=0010 crc_error=0 rcrc_bad=0
+    [dbg] t=18594169000 sddat_stat 2 -> 3  ridx=64 crc_stat=0010 crc_error=0 rcrc_bad=0
+  OK   T5 relectura limpia: datos bien
+  OK   T5 relectura limpia: rcrc_error vuelve a 0
+    [dbg] t=20515552000 sddat_stat 6 -> 7  ridx=0 crc_stat=0010 crc_error=0 rcrc_bad=0
+    [dbg] t=20517774000 sddat_stat 7 -> 8  ridx=0 crc_stat=0101 crc_error=1 rcrc_bad=0
+    [dbg] t=20526663000 sddat_stat 8 -> 9  ridx=0 crc_stat=0101 crc_error=1 rcrc_bad=0
+  OK   T6 escritura rechazada: crc_error=1
+  OK   T6 escritura rechazada: el modelo NO la guardo
+    [dbg] t=22440935000 sddat_stat 1 -> 2  ridx=0 crc_stat=0101 crc_error=0 rcrc_bad=0
+    [dbg] t=22469380000 sddat_stat 2 -> 3  ridx=64 crc_stat=0101 crc_error=0 rcrc_bad=0
+  OK   T6 lectura tras rechazo: crc_error=0 (AUDIT #6 cerrado)
+  OK   T6 lectura tras rechazo: rcrc_error=0
+  OK   T6 lectura tras rechazo: datos bien
+  OK   T7 tarjeta muda: timeout_error=1
+  OK   T7 tarjeta muda: el lector VUELVE a IDLING (CMD12 acotado)
+  OK   T7 tarjeta muda: busy NO se queda pegado
+  OK   T7 tarjeta muda: se intento el CMD12
+    [dbg] t=469920569000 sddat_stat 1 -> 2  ridx=0 crc_stat=0101 crc_error=0 rcrc_bad=0
+    [dbg] t=469949015000 sddat_stat 2 -> 3  ridx=64 crc_stat=0101 crc_error=0 rcrc_bad=0
+  OK   T7 recuperacion: lectura normal despues del timeout
+  OK   T7 recuperacion: timeout_error se limpia
+    [dbg] t=471863287000 sddat_stat 1 -> 2  ridx=0 crc_stat=0101 crc_error=0 rcrc_bad=0
+    [dbg] t=473695779000 sddat_stat 1 -> 2  ridx=0 crc_stat=0101 crc_error=0 rcrc_bad=0
+    [dbg] t=475528271000 sddat_stat 1 -> 2  ridx=0 crc_stat=0101 crc_error=0 rcrc_bad=0
+    [dbg] t=477360763000 sddat_stat 1 -> 2  ridx=0 crc_stat=0101 crc_error=0 rcrc_bad=0
+    [dbg] t=477368319000 sddat_stat 2 -> 3  ridx=17 crc_stat=0101 crc_error=0 rcrc_bad=0
+  OK   T9 CMD18: un solo comando de lectura para 4 bloques
+  OK   T9 CMD18: cerrado con UN CMD12
+  OK   T9 CMD18: blk_rdy 3 veces (los 3 primeros bloques)
+  OK   T9 CMD18: el host recogio 4 bloques
+  OK   T9 CMD18: los 4 bloques = sectores 8..11 del modelo
+  OK   T9 CMD18: sin errores
+  OK   T9 CMD18: vuelve a IDLING
+  OK   T9 CMD18: el reloj no se queda parado
+    [dbg] t=479450151000 sddat_stat 6 -> 7  ridx=0 crc_stat=0101 crc_error=0 rcrc_bad=0
+    [dbg] t=479452373000 sddat_stat 7 -> 8  ridx=0 crc_stat=0010 crc_error=0 rcrc_bad=0
+    [dbg] t=481292865000 sddat_stat 6 -> 7  ridx=0 crc_stat=0010 crc_error=0 rcrc_bad=0
+    [dbg] t=481295087000 sddat_stat 7 -> 8  ridx=0 crc_stat=0010 crc_error=0 rcrc_bad=0
+    [dbg] t=483135580000 sddat_stat 6 -> 7  ridx=0 crc_stat=0010 crc_error=0 rcrc_bad=0
+    [dbg] t=483137802000 sddat_stat 7 -> 8  ridx=0 crc_stat=0010 crc_error=0 rcrc_bad=0
+    [dbg] t=483146691000 sddat_stat 8 -> 9  ridx=0 crc_stat=0010 crc_error=0 rcrc_bad=0
+  OK   T10 CMD25: un solo comando de escritura para 3 bloques
+  OK   T10 CMD25: cerrado con UN CMD12
+  OK   T10 CMD25: blk_rdy 2 veces (bufer libre tras los bloques 1 y 2)
+  OK   T10 CMD25: el modelo guardo los 3 bloques en 12..14
+  OK   T10 CMD25: sin errores
+  OK   T10 CMD25: vuelve a IDLING tras el busy final
+  OK   T10 CMD25: CRC16 del host correcto en los 3 bloques
+    [dbg] t=485228967000 sddat_stat 1 -> 2  ridx=0 crc_stat=0010 crc_error=0 rcrc_bad=0
+    [dbg] t=487061460000 sddat_stat 1 -> 2  ridx=0 crc_stat=0010 crc_error=0 rcrc_bad=0
+    [dbg] t=487069015000 sddat_stat 2 -> 3  ridx=17 crc_stat=0010 crc_error=0 rcrc_bad=1
+  OK   T11 CMD18 bloque 2 corrupto: rcrc_error=1
+  OK   T11 CMD18 bloque 2 corrupto: el host recogio 2 bloques y paro
+  OK   T11 CMD18: el 1er bloque llego bien
+  OK   T11 CMD18: el 2o bloque tiene exactamente 1 byte mal
+  OK   T11 CMD18: se cerro con CMD12
+  OK   T11 CMD18: vuelve a IDLING
+  OK   T11 CMD18: reloj en marcha
+    [dbg] t=489143736000 sddat_stat 1 -> 2  ridx=0 crc_stat=0010 crc_error=0 rcrc_bad=0
+    [dbg] t=489172181000 sddat_stat 2 -> 3  ridx=64 crc_stat=0010 crc_error=0 rcrc_bad=0
+  OK   T12 lectura CMD17 tras multibloque: bien
+    [dbg] t=491093564000 sddat_stat 6 -> 7  ridx=0 crc_stat=0010 crc_error=0 rcrc_bad=0
+    [dbg] t=491095787000 sddat_stat 7 -> 8  ridx=0 crc_stat=0010 crc_error=0 rcrc_bad=0
+    [dbg] t=491104676000 sddat_stat 8 -> 9  ridx=0 crc_stat=0010 crc_error=0 rcrc_bad=0
+  OK   T12 escritura CMD24 tras multibloque: bien
+  OK   T8 el modelo no vio comandos mal formados (CRC7 ok)
+  OK   T8 solo la escritura rechazada a proposito fallo el CRC
+comandos vistos por la tarjeta: 32  lecturas: 15  escrituras: 6
+=== tb_sd FAST_DIV=4 TOD=14: TODO OK ===
+tb_sd.sv:414: $finish called at 491105083215 (1ps)

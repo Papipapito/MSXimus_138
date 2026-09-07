@@ -1,0 +1,9 @@
+=== tb_glue ===
+  OK   puertos: OUT #4D,64 + OUT #47,1 -> el FSM ve count=64 (CMD18)
+  OK   ventana: la orden llega (rstart sube)
+  OK   ventana tras puertos: el FSM ve count=1 EN EL MISMO FLANCO (CMD17, no CMD18)
+  OK   ventana: count queda en 1 (force1)
+  OK   ventana: OUT #80 pone init y NO rstart
+  OK   ventana: escritura -> wstart y count=1
+=== tb_glue: TODO OK ===
+tb_glue.sv:143: $finish called at 8277993 (1ps)
