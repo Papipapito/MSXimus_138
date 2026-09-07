@@ -8,7 +8,10 @@
 
 # clk_86 = 27 x 35/11 = 85.909090 MHz (pll_86 en cascada de clk27_video;
 # periodo declarado 11.640 = ligeramente MAS estricto que el real 11.6402).
-create_clock -name clk_86 -period 11.640 [get_pins {pll86_vdp/u_pll/PLL_inst/CLKOUT0}]
+# 138K (07/09): SOBRE-RESTRINGIDO a 11,30 ns (real: 11,64 = 85,9 MHz). Los tres dados
+# de p138g pasaban el gate con 0,013-0,029 ns: el rutador de Gowin cumple y para. Con
+# 11,30 el gate exige >= 0,34 ns de margen REAL en el dominio del V9968/shim.
+create_clock -name clk_86 -period 11.300 [get_pins {pll86_vdp/u_pll/PLL_inst/CLKOUT0}]
 
 # Dominio ASINCRONO a todo por construccion:
 #  - bridge 85.9<->108: toggles req/ack con 2FF, datos cuasi-estaticos
