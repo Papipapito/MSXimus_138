@@ -13,6 +13,7 @@ module pll_ddr3 (
     input  wire enclk0,
     input  wire enclk2,     // <- pll_stop de la IP DDR3
     output wire clkout0,
+    output wire clkout1,    // 74,25 MHz (VCO 891/12): referencia del PLL del HDMI, NO se gatea
     output wire clkout2,    // 297 MHz (memory_clk)
     output wire lock
 );
@@ -24,6 +25,7 @@ wire pll_rst;
         .enclk0(enclk0),
         .enclk2(enclk2),
         .clkout0(clkout0),
+        .clkout1(clkout1),
         .clkout2(clkout2),
         .lock(pll_lock),
         .clkin(clkin),
@@ -45,9 +47,10 @@ wire pll_rst;
     defparam u_pll_init.MULTI_FAC = 33;
 endmodule //pll_ddr3
 
-module pll_ddr3_MOD (lock, clkout0, clkout2, clkin, reset, icpsel, lpfres, lpfcap, enclk0, enclk2);
+module pll_ddr3_MOD (lock, clkout0, clkout1, clkout2, clkin, reset, icpsel, lpfres, lpfcap, enclk0, enclk2);
 output lock;
 output clkout0;
+output clkout1;
 output clkout2;
 input clkin;
 input reset;
@@ -56,7 +59,6 @@ input [2:0] lpfres;
 input [1:0] lpfcap;
 input enclk0;
 input enclk2;
-wire clkout1;
 wire clkout3;
 wire clkout4;
 wire clkout5;
@@ -120,7 +122,7 @@ defparam PLL_inst.FCLKIN = "27";
 defparam PLL_inst.IDIV_SEL = 1;
 defparam PLL_inst.FBDIV_SEL = 1;
 defparam PLL_inst.ODIV0_SEL = 3;
-defparam PLL_inst.ODIV1_SEL = 8;
+defparam PLL_inst.ODIV1_SEL = 12;
 defparam PLL_inst.ODIV2_SEL = 3;
 defparam PLL_inst.ODIV3_SEL = 8;
 defparam PLL_inst.ODIV4_SEL = 8;
@@ -130,7 +132,7 @@ defparam PLL_inst.MDIV_SEL = 33;
 defparam PLL_inst.MDIV_FRAC_SEL = 0;
 defparam PLL_inst.ODIV0_FRAC_SEL = 0;
 defparam PLL_inst.CLKOUT0_EN = "TRUE";
-defparam PLL_inst.CLKOUT1_EN = "FALSE";
+defparam PLL_inst.CLKOUT1_EN = "TRUE";
 defparam PLL_inst.CLKOUT2_EN = "TRUE";
 defparam PLL_inst.CLKOUT3_EN = "FALSE";
 defparam PLL_inst.CLKOUT4_EN = "FALSE";

@@ -36,7 +36,7 @@ wire pll_rst;
         .LPFRES(lpfres)
     );
     defparam u_pll_init.CLK_PERIOD = 20;
-    defparam u_pll_init.MULTI_FAC = 55;
+    defparam u_pll_init.MULTI_FAC = 10;
 endmodule //pll_74
 module pll_74_MOD (lock, clkout0, clkout1, clkin, reset, icpsel, lpfres, lpfcap);
 output lock;
@@ -107,8 +107,8 @@ PLL PLL_inst (
     .SSCMDSEL({gw_gnd,gw_gnd,gw_gnd,gw_gnd,gw_gnd,gw_gnd,gw_gnd}),
     .SSCMDSEL_FRAC({gw_gnd,gw_gnd,gw_gnd})
 );
-defparam PLL_inst.FCLKIN = "27";
-defparam PLL_inst.IDIV_SEL = 2;
+defparam PLL_inst.FCLKIN = "74.25";
+defparam PLL_inst.IDIV_SEL = 1;
 defparam PLL_inst.FBDIV_SEL = 1;
 defparam PLL_inst.ODIV0_SEL = 10;
 defparam PLL_inst.ODIV1_SEL = 2;
@@ -117,7 +117,7 @@ defparam PLL_inst.ODIV3_SEL = 8;
 defparam PLL_inst.ODIV4_SEL = 8;
 defparam PLL_inst.ODIV5_SEL = 8;
 defparam PLL_inst.ODIV6_SEL = 8;
-defparam PLL_inst.MDIV_SEL = 55;
+defparam PLL_inst.MDIV_SEL = 10;
 defparam PLL_inst.MDIV_FRAC_SEL = 0;
 defparam PLL_inst.ODIV0_FRAC_SEL = 0;
 defparam PLL_inst.CLKOUT0_EN = "TRUE";

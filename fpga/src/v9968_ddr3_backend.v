@@ -57,6 +57,8 @@ module v9968_ddr3_backend (
     output reg         b_done,        // PULSO 1 ciclo clk_x1
 
     output wire        clk_x1_out,    // 74.25MHz de la IP: reloj de los canales
+    output wire        clk_7425_out,  // 138K: 74,25 MHz del PLL (VCO 891/12), NO se gatea con
+                                      // pll_stop: referencia del PLL del HDMI (pll_74)
     output wire        ready,         // calibracion completada (dominio x1)
 
     // ---- telemetria (_95): {calib_drop, wd_fires[2:0], wd_ops[3:0]} ----
@@ -168,6 +170,7 @@ wire pll_stop;
 pll_ddr3 pll_ddr3_inst (
     .lock    (pll_lock),
     .clkout0 (),
+    .clkout1 (clk_7425_out),
     .clkout2 (memory_clk),
     .clkin   (clk_27),
     .reset   (~pll27_lock),

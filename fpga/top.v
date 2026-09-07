@@ -286,8 +286,18 @@ end
     wire clk_135;               // TMDS x5 del HDMI (mismo VCO: 135 = 5 x 27 exacto)
     wire clk_wave375; // _104: 37.5 MHz del PLLA (motor OPL4) — declarado ANTES
                       // de su primer uso (leccion Gowin de los implicitos)
+    // 138K: CASCADA. El PLL del 138 exige PFD 19-81,25 MHz y VCO 650-1300: desde el
+    // pad de 50 no salen 108/54/27 exactos y enteros. pll_27 (50/2 x27 = VCO 675)
+    // da 27,000 exactos y de ahi cuelgan pll_main (x40 = VCO 1080), pll_86 y
+    // pll_ddr3 (x33 = VCO 891), que a su vez presta 891/12 = 74,25 al PLL del HDMI.
+    wire clk27_video;           // 27,000 de pll_27: referencia de pll_main, pll_86 y pll_ddr3
+    wire clk_hdmi;              // 74.25 MHz pixel 720p
+    wire clk_hdmi5;             // 371.25 MHz TMDS x5
+    wire pll27_lock;            // gatea el reset de pll_main y del PLL DDR3
+    wire clk_7425;              // 74,25 del PLL de la DDR3 (VCO 891/12): referencia de pll_74
     Gowin_PLL pll_main (
-        .clkin  (ex_clk_27m),   // ⚠ en la Console 60K este pin lleva 50 MHz (V22)
+        .clkin  (clk27_video),  // 138K: 27,000 de pll_27 (cascada; PFD 27, VCO 1080)
+        .reset  (~pll27_lock),  // 138K: PLL_INIT en reset hasta que el 27 engancha
         .clkout0(clk_108m),     // 108.000000 MHz (fraccional, exacto)
         .clkout1(clk_54m),      //  54.000000 MHz
         .clkout2(clk_27m),      // v3.0: 27M del PLLA (fase CONOCIDA vs 54/108, como el
@@ -319,10 +329,6 @@ end
     // el HDMI ya no comparte NADA con el arbol del MSX — el cruce es
     // solo el ring BRAM dual-clock + toggles 2FF de msx2hdmi.
     // ================================================================
-    wire clk27_video;           // 27M intermedio de la cascada (SOLO alimenta pll_74)
-    wire clk_hdmi;              // 74.25 MHz pixel 720p
-    wire clk_hdmi5;             // 371.25 MHz TMDS x5
-    wire pll27_lock;            // _87: gatea el reset del PLL DDR3 (calib estable)
     pll_27 pll27_video (
         .init_clk(ex_clk_27m),  // 138K: reloj del PLL_INIT (50 MHz)
         .clkin  (ex_clk_27m),   // pad 50 MHz
@@ -331,7 +337,7 @@ end
     );
     pll_74 pll74_video (
         .init_clk(ex_clk_27m),  // 138K: reloj del PLL_INIT (50 MHz)
-        .clkin  (clk27_video),
+        .clkin  (clk_7425),     // 138K: 74,25 del PLL de la DDR3 -> x10 entero (VCO 742,5)
         .clkout0(clk_hdmi),
         .clkout1(clk_hdmi5)
     );
@@ -2178,7 +2184,7 @@ assign keyboard_addr = ppi_port_c[3:0];
         .a_dout(vddr_a_dout), .a_done(vddr_a_done),
         .b_req(vddr_b_req), .b_addr(vddr_b_addr),
         .b_dout(vddr_b_dout), .b_done(vddr_b_done),
-        .clk_x1_out(vddr_clk_x1), .ready(vddr_ready), .diag(vddr_diag),
+        .clk_x1_out(vddr_clk_x1), .clk_7425_out(clk_7425), .ready(vddr_ready), .diag(vddr_diag),
         .dbg_ops(vddr_ops),        // _129b: {lecturas, escrituras} servidas
         .recal_req(1'b0),
         .clk_27(clk27_video),      // misma topologia que wave_ddr3/_86

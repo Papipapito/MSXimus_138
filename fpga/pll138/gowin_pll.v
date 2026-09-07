@@ -8,6 +8,7 @@
 //============================================================================
 module Gowin_PLL(
     clkin,
+    reset,
     clkout0,
     clkout1,
     clkout2,
@@ -16,12 +17,13 @@ module Gowin_PLL(
     lock,
     mdclk
 );
-input clkin;
+input clkin;      // 138K: 27,000 MHz de pll_27 (cascada), ya no el pad de 50
+input reset;      // 138K: ~pll27_lock
 output clkout0;
 output clkout1;
 output clkout2;
 output clkout3;
-output clkout4;   // _104: 37.5 MHz motor OPL4
+output clkout4;   // 138K: 36 MHz motor OPL4 (VCO 1080/30)
 output lock;
 input mdclk;      // 138K: reloj del PLL_INIT (50 MHz del pad), ya no hay mDRP
 wire [5:0] icpsel;
@@ -43,7 +45,7 @@ wire pll_rst;
     );
     PLL_INIT u_pll_init(
         .CLKIN(mdclk),
-        .I_RST(1'b0),
+        .I_RST(reset),
         .O_RST(pll_rst),
         .PLLLOCK(pll_lock),
         .O_LOCK(lock),
@@ -51,7 +53,7 @@ wire pll_rst;
         .LPFRES(lpfres)
     );
     defparam u_pll_init.CLK_PERIOD = 20;
-    defparam u_pll_init.MULTI_FAC = 108;
+    defparam u_pll_init.MULTI_FAC = 40;
 endmodule //Gowin_PLL
 
 module Gowin_PLL_MOD (lock, clkout0, clkout1, clkout2, clkout3, clkout4, clkin, reset, icpsel, lpfres, lpfcap);
@@ -123,9 +125,9 @@ PLL PLL_inst (
     .SSCMDSEL({gw_gnd,gw_gnd,gw_gnd,gw_gnd,gw_gnd,gw_gnd,gw_gnd}),
     .SSCMDSEL_FRAC({gw_gnd,gw_gnd,gw_gnd})
 );
-defparam PLL_inst.FCLKIN = "50";
-defparam PLL_inst.IDIV_SEL = 5;
-defparam PLL_inst.FBDIV_SEL = 2;
+defparam PLL_inst.FCLKIN = "27";
+defparam PLL_inst.IDIV_SEL = 1;
+defparam PLL_inst.FBDIV_SEL = 1;
 defparam PLL_inst.ODIV0_SEL = 10;
 defparam PLL_inst.ODIV1_SEL = 20;
 defparam PLL_inst.ODIV2_SEL = 40;
@@ -133,7 +135,7 @@ defparam PLL_inst.ODIV3_SEL = 8;
 defparam PLL_inst.ODIV4_SEL = 30;
 defparam PLL_inst.ODIV5_SEL = 8;
 defparam PLL_inst.ODIV6_SEL = 8;
-defparam PLL_inst.MDIV_SEL = 54;
+defparam PLL_inst.MDIV_SEL = 40;
 defparam PLL_inst.MDIV_FRAC_SEL = 0;
 defparam PLL_inst.ODIV0_FRAC_SEL = 0;
 defparam PLL_inst.CLKOUT0_EN = "TRUE";
