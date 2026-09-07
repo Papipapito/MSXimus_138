@@ -1,13 +1,19 @@
 # ============================================================================
-#  build.tcl — MSXnano port · Tang Console 60K (GW5AT-60)
+#  build.tcl - MSXimus_138 : Tang Console 138K (GW5AST-138B, SOM Mega 138K PG484)
+#  Porte del MSXimus (MSX_up_v3 V3.5) el 07/09/2026: mismo RTL, misma IP de DDR3
+#  (la de Gowin es portable dentro de Arora V: nand2mario usa una generada para
+#  el GW5A-25 en el 60K y en el 138K), MISMOS PINES (la bola de cada senal del
+#  dock y de la DDR3 del SOM coincide con el 60K; verificado contra los cst de
+#  nand2mario para la Console 138K). Cambia el device, el nombre de los cst y
+#  el mapa de flash (top.v: el bitstream es ~2,5x mas grande).
 #  Derivado del build.tcl del TN20K (108 add_file) con los cambios del port:
-#   - device GW5AT-LV60PG484AC1/I0
+#   - device GW5AST-LV138PG484AC1/I0 (version B; para chips 'C' de julio 2025+, GW5AST-138C)
 #   - IPs de reloj GW2A (clk_108p, clkdiv, clkdiv2, clk_135) SUSTITUIDAS por
 #     un unico Gowin_PLL (PLLA, 4 salidas: 108/54/27/135 exactos) + PLL_INIT
-#   - constraints nuevos (msx_console60k.cst/.sdc)
+#   - constraints msx_console138k.cst/.sdc (copia 1:1 de los del 60K)
 #  Uso: cd fpga && gw_sh.exe build.tcl
 # ============================================================================
-set_device -name GW5AT-60B GW5AT-LV60PG484AC1/I0
+set_device -name GW5AST-138B GW5AST-LV138PG484AC1/I0
 
 # ----- Verilog -----
 # F2 (_82): MoonSound FM — core OPL3 de gtaylormb (fork antxiko/mangOPL4 con
@@ -248,7 +254,7 @@ add_file src/usb_direct/pll_12.v
 add_file src/usb_direct/usb_kbd_decode.v
 
 # ----- Constraints (nuevos del 60K — verificar matches>0 tras el 1er PnR) -----
-add_file constraints/msx_console60k.cst
+add_file constraints/msx_console138k.cst
 if {$USE_V9968} {
     # Gowin procesa cada .sdc AISLADO (los relojes del principal no se ven
     # desde otro fichero -> TA2004): se genera un SDC COMBINADO principal +
@@ -260,7 +266,7 @@ if {$USE_V9968} {
     #     Gowin valida la derivacion y el assign se renombra en sintesis;
     #  3. fuera la referencia a clock_audio en los grupos (su create_clock
     #     cae con el filtro vdp4).
-    set fp_a [open constraints/msx_console60k.sdc r]
+    set fp_a [open constraints/msx_console138k.sdc r]
     set sdc_a [read $fp_a]
     close $fp_a
     # ORDEN: primero el filtro de LINEAS (create_generated intactas para
@@ -295,7 +301,7 @@ if {$USE_V9968} {
     close $fp_o
     add_file constraints/msx_v9968_combined.sdc
 } else {
-    add_file constraints/msx_console60k.sdc
+    add_file constraints/msx_console138k.sdc
 }
 
 # Pines dedicados liberados como GPIO (60K): JTAG=SPI del BL616 onboard;
