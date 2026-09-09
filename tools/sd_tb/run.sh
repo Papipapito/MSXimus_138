@@ -26,8 +26,12 @@ vvp -n tb_mstimer.vvp | tee log_mstimer.txt | grep -v -E '^\s*$'
 echo "---- pegamento bus/puertos/ventana ----"
 iverilog -g2012 -o tb_glue.vvp tb_glue.sv $SRC/sdc_ioport.sv
 vvp -n tb_glue.vvp | tee log_glue.txt | grep -v -E '^\s*$'
+echo "---- Game Master 2 en el slot 1 ----"
+iverilog -g2012 -o tb_gm2.vvp tb_gm2.sv ../../fpga/src/gm2_slot1.v
+vvp -n tb_gm2.vvp | tee log_gm2.txt | grep -v -E '^\s*$'
 echo "---- resumen ----"
 grep -h -E '^=== tb_sd .*(TODO OK|FALLOS)' log_[0-9]*.txt
 grep -h -E '^=== tb_sdio:' log_sdio.txt
 grep -h -E '^=== tb_mstimer:' log_mstimer.txt
 grep -h -E '^=== tb_glue:' log_glue.txt
+grep -h -E '^=== tb_gm2:' log_gm2.txt

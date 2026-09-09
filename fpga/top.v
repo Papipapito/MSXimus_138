@@ -1062,6 +1062,7 @@ assign keyboard_addr = ppi_port_c[3:0];
                  `endif
                 `ifdef ENABLE_SOUND
                      ( megaram_req == 1 ) ? ram_dout:
+                     ( gm2_mem_req == 1 ) ? ram_dout:      // V3.5f: Game Master 2 en el slot 1
                      ( scc_rd_r == 1 ) ? scc_dout:
                      ( scc2x_rd_r == 1 ) ? scc2x_dout:
                     `ifdef ENABLE_Y8950
@@ -2622,6 +2623,7 @@ assign keyboard_addr = ppi_port_c[3:0];
                         (megarom_req == 1 ) ? { 6'b111010, megarom_addr[16:0] } : //bank D
                 `endif
                         (megaram_req == 1 ) ? { ~megaram_addr[21], megaram_addr[21], megaram_addr[20:0] } :  //bank C (A21=0) / bank B (A21=1)
+                        (gm2_mem_req == 1 ) ? { 2'b01, gm2_addr[20:0] } :  //bank B: V3.5f Game Master 2 (segs 480-496 de la megaram, A21=1)
                         (menu2_req == 1 ) ? { 8'b11101110, 1'b0, bus_addr[13:0] } : //bank D: 2a pagina del menu (pack 0x70000, V3.5)
                         (kanji_data_ram_req == 1 ) ? { 5'b11100, kanji_data_ram_addr[17:0] } : //bank D
                 `ifdef ENABLE_WIFI
@@ -2647,7 +2649,7 @@ assign keyboard_addr = ppi_port_c[3:0];
                 `ifdef ENABLE_SDCARD
                       megarom_req |
                 `endif
-                      megaram_req | menu2_req | kanji_data_ram_req |
+                      megaram_req | gm2_mem_req | menu2_req | kanji_data_ram_req |
                 `ifdef ENABLE_WIFI
                       wifi_req |
                 `endif
@@ -2657,7 +2659,7 @@ assign keyboard_addr = ppi_port_c[3:0];
                 `ifdef ENABLE_SDCARD
                       megarom_req |
                 `endif
-                      megaram_req | menu2_req | kanji_data_ram_req |
+                      megaram_req | gm2_mem_req | menu2_req | kanji_data_ram_req |
                 `ifdef ENABLE_WIFI
                       wifi_req |
                 `endif
@@ -2666,7 +2668,7 @@ assign keyboard_addr = ppi_port_c[3:0];
                 `ifdef ENABLE_MAPPER
                       mapper_write |
                 `endif
-                      megaram_wrt;
+                      megaram_wrt | gm2_mem_wrt;
 
     assign ram_read  = (~flash_idle) ? 1'b0      : (any_ram_rd_req & ~bus_rd_n);
 
@@ -3982,7 +3984,34 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
     reg [7:0] scc2x_bank3;
     reg [7:0] scc2x_modeb;
     wire scc2x_slot_hit;
-    assign scc2x_slot_hit = ( config_enable_ghost_scc == 1 && pri_slot == scc2x_slot ) ? 1 : 0;
+    // V3.5f: si el Game Master 2 esta armado, el slot 1 es suyo (Ajustes lo hace
+    // excluyente con el 2o SCC; esto es el cinturon por si el menu no lo hiciera)
+    assign scc2x_slot_hit = ( config_enable_ghost_scc == 1 && pri_slot == scc2x_slot && config6_ff[6] == 0 ) ? 1 : 0;
+
+    // ===== V3.5f: Konami GAME MASTER 2 emulado en el slot 1 (bloque 6) =====
+    // Memoria en la mitad alta de la megaram (segs 480-495 ROM, 496 SRAM): el
+    // menu la carga con el cargador del bloque 5 y luego arma el bit6 de #46.
+    // gm2_req se registra como scc2_req: el decode que cuelga del bus del Z80
+    // NO puede ir combinacional a 98% de CLS (leccion de la v3.5d).
+    reg gm2_req;
+    always @ (posedge clk_54m) begin
+        gm2_req <= ( config6_ff[6] == 1 && bus_mreq_n == 0 && (bus_rd_n == 0 || bus_wr_n == 0) && pri_slot == 2'b01 ) ? 1 : 0;
+    end
+    wire gm2_mem_req;
+    wire gm2_mem_wrt;
+    wire [21:0] gm2_addr;
+    gm2_slot1 gm2_1 (
+        .clk (clk_54m),
+        .reset_n (bus_reset_n),
+        .bus_addr (bus_addr),
+        .cpu_dout (cpu_dout),
+        .bus_rd_n (bus_rd_n),
+        .bus_wr_n (bus_wr_n),
+        .gm2_req (gm2_req),
+        .gm2_mem_req (gm2_mem_req),
+        .gm2_mem_wrt (gm2_mem_wrt),
+        .gm2_addr (gm2_addr)
+    );
 
     always @ (posedge clk_54m or negedge bus_reset_n) begin   // v2.6: glue SCC a 54M (bus mismo dominio)
         if (bus_reset_n == 0) begin
@@ -4412,7 +4441,10 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
         config_reset_ff <= 0;
         config_flash_write_ff <= 0;
         config_update <= 0;
-        if (clk_enable_3m6_27 == 1 ) begin
+        if (bus_reset_n == 0) begin
+            config6_ff <= 8'h00;        // V3.5f: #46 es VOLATIL (NEO, mitad alta, GM2 armado):
+        end                             // a cero en cada reset, o el escaneo de slots de la
+        if (clk_enable_3m6_27 == 1 ) begin  // BIOS se toparia con el "AB" del GM2 en el slot 1
             if (config0_req == 1 ) begin
                 config0_ff <= ~cpu_dout;
             end
@@ -4536,7 +4568,7 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
                          ( bus_addr[3:0] == 4'h3 ) ? config3_ff :
                          ( bus_addr[3:0] == 4'h4 ) ? {5'b0, snd_gain_ff} :
                          ( bus_addr[3:0] == 4'h5 ) ? {7'b0, config_turbo_boot_ff} :
-                         ( bus_addr[3:0] == 4'h6 ) ? config6_ff :
+                         ( bus_addr[3:0] == 4'h6 ) ? { 1'b1, config6_ff[6:0] } :   // V3.5f: bit7 = 1 -> "este core trae el Game Master 2" (el menu lo sondea)
                 `ifdef ENABLE_SDCARD
                          ( bus_addr[3:0] >= 4'h7 ) ? sdio_dout :     // V3.5c: #47-#4F = SD por puertos
                 `endif

@@ -101,6 +101,7 @@ add_file src/y8950_adpcm.v
 add_file src/adpcm_sdram.v
 add_file src/flash_rw.v
 add_file src/megaram.v
+add_file src/gm2_slot1.v
 add_file src/scc_wave2_ghdl.v
 add_file src/scc_glue.v
 add_file src/scc_wave2v.v
