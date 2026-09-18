@@ -5,6 +5,7 @@
 `define ENABLE_SCAN_LINES
 `define ENABLE_SDCARD
 `define ENABLE_CONFIG
+`define ENABLE_MIXER  //V3.7 (17/09/2026): mezclador por fuente (puerto #44 extendido) traido de la Zynq (5d3b409); niveles persistidos en la cola del pack (bytes 6..10)
 `define ENABLE_WAIT //extra wait state for mreq+wr
 //`define ENABLE_WAIT_ADAPTIVE //wait required
 `define ENABLE_M1_WAIT //STANDALONE: 1 wait-state per M1 opcode fetch (the real-MSX brake). Comment out to disable.
@@ -38,6 +39,21 @@
 //`define ENABLE_VRAM_DDR3   // _128X EXPERIMENTO: la VRAM del V9968 en la DDR3 del SOM (v9968_ddr3_backend; requiere ENABLE_V9968_VDP y USE_VRAM_DDR3=1 en build.tcl). ADVERTENCIA: DDR3 analogicamente marginal en esta placa (saga _94-_103)
 //`define TURBO_SIN_GUARDA_SDRAM  // 🧪 EXPERIMENTO 26/08 — **PROBADO Y DESCARTADO**: sin la guarda el MSX SE CUELGA al poner el turbo (placa, 26/08). La guarda NO estaba obsoleta pese a que la VRAM se mudo a la DDR3: lo que la justifica no es la CONTENCION del VDP sino la LATENCIA de la SDRAM (y su refresco), que a 5,37 no cabe en un T-estado de 186 ns. Se deja el define por si algun dia se acelera el controlador. Coste medido de la guarda: 18% (4,41 de 5,37).
 `define ENABLE_TURBOR_ID   // V3.1: S1990 del turboR (E4h-E7h) — la maquina se identifica como turboR y CHGCPU mueve el turbo. NO hay R800: ver fpga/src/msx_s1990.v
+// ---- DIETA 16/09 (V3.6h): fuera de produccion la telemetria COM11, la tira
+// WS2812, el ventilador por temperatura y el segundo PSG, y un solo
+// decodificador de teclado. RETIRADA el 17/09: con un 5 % menos de logica el
+// placer 1 rutaba PEOR (0 de 13 colocaciones distintas sin rutar, contra 9 de
+// 16 con el netlist completo; el control v36q sin dieta dio 2 de 2 al primer
+// intento, dado 4001 con 0,771 ns). Es la leccion del 08/08 otra vez: al 96-98 %
+// de CLS manda la congestion local, no el area. Queda como opcion por si sirve
+// en una caza: DIETA_V36H enciende el conjunto.
+//`define DIETA_V36H
+`ifndef DIETA_V36H
+`define ENABLE_TELEMETRIA  // dbg_uart por E22/USB-C con los contadores del shim, DDR3, audio, fan
+`define ENABLE_WS2812      // tira de 8 LEDs WS2812 en la carcasa
+`define ENABLE_FAN_TEMP    // ventilador por temperatura (fan_ctrl + oscilador de anillo); sin el, fijo a ON
+`define ENABLE_PSG2        // segundo PSG (OCM 2a gen) en 10h-12h con su filtro
+`endif
 `define ENABLE_IOSYS       // V3.1 PELDANO 1 (TangCore): iosys_bl616 + textdisp por la UART del BL616 (V14/U15) y overlay sobre el HDMI. Sin firmware en el MCU todavia: el overlay se enciende solo unos segundos al arrancar para demostrar la cadena y luego se aparta.
 //`define DISABLE_BOOT_MENU  // _127D: arranque MSX DIRECTO (enmascara la firma AB del menu; tambien salta el init FM de esa pagina). Solo builds de prueba.
 
@@ -424,6 +440,7 @@ end
     // El fan_ctrl se queda instanciado SOLO como termometro: fan_dbg_cnt
     // sigue saliendo por el COM11 (columna T), su decision se ignora.
     wire fan_en_ctrl;  // decision del control, hoy ignorada (telemetria)
+`ifdef ENABLE_FAN_TEMP
     fan_ctrl #(.WIN_CYC(32'd262144), .K_ON(10'd3), .K_OFF(10'd1),
                .FORCE_ON_SEC(32'd360)) u_fanctrl (
         .clk        (clk_27m),
@@ -434,6 +451,15 @@ end
         .fan_en     (fan_en_ctrl),
         .dbg_cnt    (fan_dbg_cnt)
     );
+`else
+    // DIETA 16/09: ventilador FIJO a ON (decision de Albert). Fuera el control
+    // por temperatura y su oscilador de anillo (el que daba los holds del
+    // gate). El termometro nunca estuvo calibrado.
+    assign fan_en_ctrl = 1'b1;
+    assign fan_dbg_cnt = 20'd0;
+    assign fan_ro_en   = 1'b0;
+    assign fan_ro_rst  = 1'b0;
+`endif
     // _175: experimento _173 CERRADO — con el pin a 1 el ventilador giro
     // perfecto en placa (03/08): el camino fisico (AB12/conector/fan) esta
     // BIEN. El "no gira nunca" de las s006/s007 tiene explicacion mundana:
@@ -441,11 +467,15 @@ end
     // de FORCE_ON_SEC) + baseline envenenada por reflasheo en caliente
     // (leccion _124). Vuelta al control automatico como en la v2.0.
     assign fan_en_o = fan_en_ctrl;
+`ifdef ENABLE_FAN_TEMP
     ro_osc u_roosc (
         .ro_en   (fan_ro_en),
         .cnt_rst (fan_ro_rst),
         .cnt_out (fan_ro_cnt)
     );
+`else
+    assign fan_ro_cnt = 20'd0;
+`endif
 
     // ================================================================
     //  DEBUG BRING-UP 60K — latidos de reloj y estado vital por PMODs
@@ -597,6 +627,36 @@ end
 //        bus_data <= ex_bus_data;
 //    end
 
+    // ========================================================================
+    // 16/09 (V3.6g): EL MSX NO ARRANCA HASTA QUE LA DDR3 DE LA VRAM HA CALIBRADO
+    // ------------------------------------------------------------------------
+    // La VRAM del V9968 vive en la DDR3 del SOM y su calibracion es una loteria
+    // con reintentos de 335 ms (v9968_ddr3_backend, _131). Hasta hoy NADIE
+    // esperaba a `ready`: la secuencia reset1/2/3 soltaba el streamer del pack y
+    // el Z80 a los ~120 ms, y si la calibracion iba por el 2o o 3er intento la
+    // BIOS escribia la VRAM en el vacio (o el bridge se quedaba esperando un
+    // done que no llega) = PANTALLA EN NEGRO SIN LOGO, y la maquina viva por
+    // debajo. Como cada dado calibra distinto, unos arrancaban y otros no con el
+    // MISMO RTL: el 3557 (v36e) y el 3623 (v36h) se quedaban en negro desde el
+    // cargador y arrancaban desde el USB del PC (otra rampa, otro tiempo); el
+    // 3593 arrancaba siempre. Puede que la V3.6d nunca tuviera la culpa.
+    // Ahora el paso a reset3_n espera a `vddr_ready` (sincronizado a 27 MHz),
+    // con un tope de ~5 s (127 pasos de rst_step de ~39 ms) para que una DDR3
+    // que no calibre nunca deje arrancar a ciegas como hasta ahora, en vez de
+    // dejar la placa muerta.
+    // ========================================================================
+    wire vddr_ready_por;                       // ready del backend DDR3 (1 sin DDR3)
+    reg  [1:0] vddr_rdy_s = 2'b00;             // 2 FF a clk_27m (viene del dominio x1)
+    always @(posedge clk_27m) vddr_rdy_s <= {vddr_rdy_s[0], vddr_ready_por};
+    // V3.7b: tope de ~10 s (255 pasos de ~39 ms): el motor de reintentos de la
+    // DDR3 ya escalona las ventanas y un dado lento (4139: >10 s) calibra sin
+    // que el MSX haya arrancado a ciegas y perdido el logo. Sin video no hay
+    // nada que hacer antes, asi que esperar no cuesta.
+    reg  [7:0] vddr_wait_steps = 8'd0;         // pasos de rst_step esperando (255 = tope)
+    // V3.7b: diagnostico del arranque de la DDR3 (puertos 2Ah-2Ch, ver ver_req_r)
+    wire [6:0] vddr_att;                       // intentos de calibracion fallidos
+    wire [7:0] vddr_calib10, vddr_boot100;     // duracion del intento bueno (10 ms) / arranque (100 ms)
+
     //startup logic
     reg reset1_n_ff;
     reg reset2_n_ff;
@@ -631,23 +691,30 @@ end
             reset1_n_ff <= 0;
             reset2_n_ff <= 0;
             reset3_n_ff <= 0;
+            vddr_wait_steps <= 8'd0;
         end
         else begin
             case ( rst_seq )
-                2'b00: 
+                2'b00:
                     if (rst_step == 1 ) begin
                         reset1_n_ff <= 1;
                         rst_seq <= 2'b01;
                     end
-                2'b01: 
+                2'b01:
                     if (rst_step == 1) begin
                         reset2_n_ff <= 1;
                         rst_seq <= 2'b10;
                     end
                 2'b10:
+                    // V3.6g: reset3_n (streamer del pack + Z80) solo cuando la
+                    // DDR3 de la VRAM esta calibrada, o tras ~10 s a ciegas (V3.7b).
                     if (rst_step == 1) begin
-                        reset3_n_ff <= 1;
-                        rst_seq <= 2'b11;
+                        if (vddr_rdy_s[1] || vddr_wait_steps == 8'd255) begin
+                            reset3_n_ff <= 1;
+                            rst_seq <= 2'b11;
+                        end
+                        else
+                            vddr_wait_steps <= vddr_wait_steps + 8'd1;
                     end
             endcase
         end
@@ -993,7 +1060,7 @@ assign keyboard_addr = ppi_port_c[3:0];
     // version desemparejada. Es cosmetico -- el sistema arranca igual -- pero
     // hay que cerrarlo antes de publicar la 3.0.
     // V3.5 (06/09/2026): 0x30 -> 0x35. Ajustes lo muestra como "3.5".
-    localparam [7:0] FPGA_VERSION = 8'h35;
+    localparam [7:0] FPGA_VERSION = 8'h37;   // V3.7: mezclador por fuente (puerto #44). La 3.6 = DMA de la SD
     wire ver_req_r = (bus_iorq_n == 1'b0 && bus_m1_n == 1'b1 && bus_rd_n == 1'b0 && bus_addr[7:0] == 8'h2F);
 
     // Puerto 0x2E — DIAGNOSTICO DEL RATON. Desde BASIC: PRINT HEX$(INP(&H2E))
@@ -1023,12 +1090,35 @@ assign keyboard_addr = ppi_port_c[3:0];
     // clasificaban como gamepad).
     wire udbg_req_r = (bus_iorq_n == 1'b0 && bus_m1_n == 1'b1 && bus_rd_n == 1'b0 && bus_addr[7:0] == 8'h2D);
     wire [7:0] usb_dbg = {usb2_conerr, usb1_conerr, usb2_typ, usb1_typ, any_rep_cnt[1:0]};
+    // V3.7b: puertos 2Ah-2Ch = DIAGNOSTICO DEL ARRANQUE DE LA DDR3 (la VRAM). Desde BASIC:
+    //   ?INP(&H2C) AND 127  -> intentos de calibracion FALLIDOS (0 = a la primera)
+    //   ?INP(&H2C) AND 128  -> 128 = la DDR3 esta calibrada
+    //   ?INP(&H2B)*10       -> ms que tardo el intento que calibro (255 = 2,55 s o mas)
+    //   ?INP(&H2A)/10       -> segundos del arranque a la calibracion (255 = 25 s o mas)
+    // Es la respuesta al negro-desde-el-cargador de los dados 3557/3623/4139/4153.
+    wire ddra_req_r = (bus_iorq_n == 1'b0 && bus_m1_n == 1'b1 && bus_rd_n == 1'b0 && bus_addr[7:0] == 8'h2A);
+    wire ddrb_req_r = (bus_iorq_n == 1'b0 && bus_m1_n == 1'b1 && bus_rd_n == 1'b0 && bus_addr[7:0] == 8'h2B);
+    wire ddrc_req_r = (bus_iorq_n == 1'b0 && bus_m1_n == 1'b1 && bus_rd_n == 1'b0 && bus_addr[7:0] == 8'h2C);
+    reg [23:0] vddr_dbg_s1 = 24'd0, vddr_dbg_s2 = 24'd0;   // 2 FF desde el dominio g50 (cuasi-estaticos)
+    always @ (posedge clk_54m) begin
+        vddr_dbg_s1 <= {vddr_rdy_s[1], vddr_att, vddr_calib10, vddr_boot100};
+        vddr_dbg_s2 <= vddr_dbg_s1;
+    end
     always @ (posedge clk_54m) begin
         cpu_din <=
                 ( ver_req_r == 1 ) ? FPGA_VERSION :
                 ( mdbg_req_r == 1 ) ? mouse_dbg :
                 ( udbg_req_r == 1 ) ? usb_dbg :
-                ( psg_req_r == 1 ) ? ((psg_addr_latch == 4'd14) ? psg_joy_data : 8'hFF) :
+                ( ddrc_req_r == 1 ) ? vddr_dbg_s2[23:16] :
+                ( ddrb_req_r == 1 ) ? vddr_dbg_s2[15:8] :
+                ( ddra_req_r == 1 ) ? vddr_dbg_s2[7:0] :
+                // 🚨 14/09: el reg. 15 TIENE que releerse (psgPB = lo ultimo escrito). Devolviendo FFh,
+                // la interrupcion de la BIOS (gatillos: `AND AFh OR 03h` puerto 1 / `AND DFh OR 4Ch`
+                // puerto 2, lee-modifica-escribe) conmutaba el pin 8 del puerto 2 CADA FRAME y el
+                // raton MSX (msx_mouse) perdia sus deltas en ciclos fantasma (PAD(17/18) = 0).
+                // Cazado en la Zynq con la telemetria de escrituras al reg. 15 (valores DF/AF/DF...).
+                ( psg_req_r == 1 ) ? ((psg_addr_latch == 4'd14) ? psg_joy_data :
+                                      (psg_addr_latch == 4'd15) ? psgPB : 8'hFF) :
                 `ifdef ENABLE_SOUND
                      ( psg2_req_r == 1 ) ? psg2_dout :
                 `endif
@@ -1561,6 +1651,16 @@ assign keyboard_addr = ppi_port_c[3:0];
     reg [1:0] v68_wait_s = 2'b11;
     always @(posedge clk_54m) v68_wait_s <= {v68_wait_s[0], v68_wait86_n};
     wire vdp_wait54_n = v68_wait_s[1];
+    // V3.6: DMA de la SD (sd_dma.sv). frz = CPU congelada con el bus en reposo:
+    // el puerto de RAM de la CPU pasa a la DMA por el camino del streamer de la
+    // flash (stream_*, mas abajo). Se declaran aqui porque el T80 y el mux de
+    // ram_addr los usan antes de la instancia (Gowin crea implicitos de 1 bit).
+    wire        dma_frz;
+    wire        dma_active;
+    wire        dma_rfsh_ok;
+    wire        dma_ram_req;
+    wire [22:0] dma_ram_addr;
+    wire [7:0]  dma_ram_din;
     // (reg turbo_eff adelantado junto al FSM de waits, P1-iter.2)
     always @ (posedge clk_54m) begin
         if (!(bus_reset_n & reset3_n & flash_idle & esp_boot_ok))
@@ -1598,20 +1698,20 @@ assign keyboard_addr = ppi_port_c[3:0];
       `ifdef ENABLE_M1_WAIT
         // v1.9: M1 wait is NOT bypassed in turbo (real WSX keeps it at 5.37 MHz);
         // the speed change comes only from the 3.6/5.37 cadence mux.
-        .clk_enable (clk_enable_cpu_54 & wait_io & wait_m1),
-        .clk_falling (clk_falling_cpu_54 & wait_io & wait_m1),
+        .clk_enable (clk_enable_cpu_54 & wait_io & wait_m1 & ~dma_frz),
+        .clk_falling (clk_falling_cpu_54 & wait_io & wait_m1 & ~dma_frz),
       `else
-        .clk_enable (clk_enable_3m6_54 & wait_io ),
-        .clk_falling (clk_falling_3m6_54 & wait_io ),
+        .clk_enable (clk_enable_3m6_54 & wait_io & ~dma_frz),
+        .clk_falling (clk_falling_3m6_54 & wait_io & ~dma_frz),
       `endif
     `else
       `ifdef ENABLE_M1_WAIT
         // (inactive branch) v1.9 semantics: cadence mux + M1 wait always on
-        .clk_enable (clk_enable_cpu_54 & wait_m1),
-        .clk_falling (clk_falling_cpu_54 & wait_m1),
+        .clk_enable (clk_enable_cpu_54 & wait_m1 & ~dma_frz),
+        .clk_falling (clk_falling_cpu_54 & wait_m1 & ~dma_frz),
       `else
-        .clk_enable (clk_enable_3m6_54),
-        .clk_falling (clk_falling_3m6_54),
+        .clk_enable (clk_enable_3m6_54 & ~dma_frz),
+        .clk_falling (clk_falling_3m6_54 & ~dma_frz),
       `endif
     `endif
     `ifdef ENABLE_WIFI
@@ -1957,7 +2057,9 @@ assign keyboard_addr = ppi_port_c[3:0];
     // [3:2]=10 (0x88-8B libre en el MSXimus; vecinos PSG A0-A2/PPI A8-AA/
     // Y8950 C0-C1). mode = bus_addr[1:0] es identico en ambos rangos, asi
     // que el glue recibe el mismo puerto; BIOS/DOS siguen en 98-9B intactos.
-    assign vdp_io_hit = ( bus_addr[7:5] == 3'b100 && bus_addr[3:2] == 2'b10 );
+    // 15/09 (gen C de HRA, ceeecd7): + puerto #4 = 9Ch (y su espejo 8Ch): flags de
+    // interrupcion y el bit 7 que desbloquea R#20/R#21. 9Dh-9Fh/8Dh-8Fh siguen fuera.
+    assign vdp_io_hit = ( bus_addr[7:5] == 3'b100 && (bus_addr[3:2] == 2'b10 || bus_addr[3:0] == 4'b1100) );
 `else
     assign vdp_io_hit = ( bus_addr[7:2] == 6'b100110 );
 `endif
@@ -2057,7 +2159,7 @@ assign keyboard_addr = ppi_port_c[3:0];
     v9968_cpu_glue u_v68glue (
         .clk_86(clk_86), .rst_n(rst86_n),
         .csw_n(vdp_csw_n), .csr_n(vdp_csr_n),
-        .mode(bus_addr[1:0]), .cdo(cpu_dout), .cdi_r(vdp_dout),
+        .mode(bus_addr[2:0]), .cdo(cpu_dout), .cdi_r(vdp_dout),   // [2] = puerto #4 (9Ch)
         .wait_n(v68_wait86_n),   // _177: /WAIT del puerto CPU del V9968
         .bus_address(v68_bus_address), .bus_ioreq(v68_ioreq),
         .bus_write(v68_write), .bus_valid(v68_valid), .bus_ready(v68_ready),
@@ -2157,6 +2259,7 @@ assign keyboard_addr = ppi_port_c[3:0];
     wire        vddr_a_done, vddr_b_done;
     wire        vddr_ready;
     wire [7:0]  vddr_diag;
+    assign vddr_ready_por = vddr_ready;    // V3.6g: la secuencia de arranque espera a esto
     wire [31:0] vddr_ops;      // _129b: {lecturas[31:16], escrituras[15:0]}
 
     v9968_sdram_bridge u_v68bridge (
@@ -2187,6 +2290,7 @@ assign keyboard_addr = ppi_port_c[3:0];
         .b_dout(vddr_b_dout), .b_done(vddr_b_done),
         .clk_x1_out(vddr_clk_x1), .clk_7425_out(clk_7425), .ready(vddr_ready), .diag(vddr_diag),
         .dbg_ops(vddr_ops),        // _129b: {lecturas, escrituras} servidas
+        .dbg_att(vddr_att), .dbg_calib_10ms(vddr_calib10), .dbg_boot_100ms(vddr_boot100),   // V3.7b
         .recal_req(1'b0),
         .clk_27(clk27_video),      // misma topologia que wave_ddr3/_86
         // _130 FIDELIDAD nand2mario: clk/mdclk del controlador desde el PAD
@@ -2203,6 +2307,8 @@ assign keyboard_addr = ppi_port_c[3:0];
         .ddr_dq(ddr_dq), .ddr_dqs(ddr_dqs), .ddr_dqs_n(ddr_dqs_n)
     );
 `else
+    assign vddr_ready_por = 1'b1;          // V3.6g: sin DDR3 no hay que esperar a nadie
+    assign vddr_att = 7'd0; assign vddr_calib10 = 8'd0; assign vddr_boot100 = 8'd0;
     // _148 FIX B — CAMINO LEGACY (VRAM en la SDRAM compartida, respaldo _137).
     // memory.v solo sabe escribir 1 BYTE por operacion en wv2/wv3 (SdrDat =
     // {wdata,wdata} con la DQM sacada de addr[0]) y NO se toca. El bridge se
@@ -2285,6 +2391,20 @@ assign keyboard_addr = ppi_port_c[3:0];
     wire        iosys_overlay;
     wire [7:0]  iosys_ovl_x, iosys_ovl_y;
     wire [14:0] iosys_ovl_color;
+
+// 16/09: MANDOS HID POR LOS USB-A DEL FABRIC. usb_hid_host saca `game_snes` en
+// el MISMO formato SNES de 12 bits que la palabra del BL616 (bit 4 arriba, 5
+// abajo, 6 izquierda, 7 derecha, 8 A, 0 B, 9 X, 1 Y, 10/11 hombros), asi que se
+// OR-ea con el mando 1 del MCU: cualquier mando en un USB-A cae en el puerto 1
+// del MSX. Hasta hoy los USB-A solo servian teclado y raton ("gamepads USB-A =
+// pieza futura") y el unico camino para un mando era el USB-C del BL616 con un
+// hub con alimentacion; Albert lo descubrio el 16/09 con el panel de F12
+// diciendo "USB: nada" y el mando enchufado en el USB-A. Limite: usb_hid_host
+// es HID puro y solo entiende el informe de los mandos "SNES USB" (ejes
+// 00/7F/FF en los bytes 3-4, botones en 5-6); un mando XInput (Xbox y los
+// dongles que lo imitan, como el del Lenovo C01) sigue necesitando el BL616.
+// Se asigna en el bloque ENABLE_USB_KBD, ya sincronizado a clk_54m.
+wire [11:0] usb_joy_snes;
 
 `ifdef ENABLE_IOSYS
 
@@ -2375,23 +2495,37 @@ assign keyboard_addr = ppi_port_c[3:0];
 
     // ---- gamepads USB del BL616 -> puertos de joystick del MSX -------------
     // El MCU manda el estado de los mandos con el comando 9. El formato lo dice
-    // usb_gamepad.cpp: "SNES: R L X A RT LT DN UP ST SE Y B", o sea bit 11 -> 0.
-    // 🚨 NO es el mismo mapa que usa joy_choice para el menu: alli las flechas
-    // izquierda/derecha son los bits 6/7 (los gatillos, que hacen de pagina
-    // anterior/siguiente), mientras que la CRUCETA de verdad son los bits 10/11.
-    // Confundirlos deja los mandos girados 90 grados.
+    // usb_gamepad.cpp: "SNES: R L X A RT LT DN UP ST SE Y B", o sea bit 11 -> 0:
+    //     bit 4 arriba · 5 abajo · 6 izquierda · 7 derecha   (la CRUCETA)
+    //     bit 8 A · 9 X · 0 B · 1 Y · 2 Select · 3 Start
+    //     bit 10 L · 11 R                                    (los HOMBROS)
+    // Comprobado en el firmware, no en el comentario: hidparser.cpp mete
+    // right/left/down/up en los bits 0..3 del byte joy y usb_gamepad.cpp:337
+    // los sube a 7/6/5/4; los botones 5 y 6 (hombros) van a 10/11. Y es el
+    // MISMO mapa que usa joy_choice para el menu del MCU (izquierda/derecha =
+    // pagina anterior/siguiente = bits 6/7; kbd_to_joy pone ahi las flechas).
     //
-    // Nuestro joystick0/1: [0]=arriba [1]=abajo [2]=izq [3]=der
+    // Nuestro joystick0/1: [3]=arriba [2]=abajo [1]=izq [0]=der (asi lo consume
+    //                      joy0_msx: PSG bit0=arriba=~joystick0[3] ... bit3=der=~joystick0[0])
     //                      [4]=disparo A [5]=disparo B [6]/[7]=autofire
+    // 🚨 Historia: desde la v3.1 (25/08) esto estaba escrito como [0]=arriba
+    // y con la cruceta en los bits 10/11: en la Console 60K arriba/abajo daban
+    // derecha/izquierda, izquierda/derecha no hacian NADA y los hombros movian
+    // arriba/abajo. El 14/09 se giro arriba/abajo (cazado en la Zynq) pero se
+    // dejo la cruceta en 10/11, que en el BL616 son los hombros; corregido el
+    // mismo dia leyendo el firmware. El companion de la Zynq (hid_pad.c) sigue
+    // este mismo formato.
     wire [15:0] mcu_hid1, mcu_hid2;
-    assign joystick0 = { mcu_hid1[9],  mcu_hid1[1],    // autofire  <- X, Y
-                         mcu_hid1[0],  mcu_hid1[8],    // TrigB/A   <- B, A
-                         mcu_hid1[11], mcu_hid1[10],   // der / izq
-                         mcu_hid1[5],  mcu_hid1[4] };  // abajo / arriba
+    // 16/09: el mando 1 es el del BL616 O el de cualquier USB-A (mismo formato).
+    wire [11:0] hid1_all = mcu_hid1[11:0] | usb_joy_snes;
+    assign joystick0 = { hid1_all[9],  hid1_all[1],    // autofire  <- X, Y
+                         hid1_all[0],  hid1_all[8],    // TrigB/A   <- B, A
+                         hid1_all[4],  hid1_all[5],    // [3] arriba / [2] abajo
+                         hid1_all[6],  hid1_all[7] };  // [1] izq    / [0] der
     assign joystick1 = { mcu_hid2[9],  mcu_hid2[1],
                          mcu_hid2[0],  mcu_hid2[8],
-                         mcu_hid2[11], mcu_hid2[10],
-                         mcu_hid2[5],  mcu_hid2[4] };
+                         mcu_hid2[4],  mcu_hid2[5],
+                         mcu_hid2[6],  mcu_hid2[7] };
 
     iosys_bl616 #(
         .FREQ      (27_000_000),      // dominio de clk_27m; el baud (2 Mbps) lo
@@ -2613,7 +2747,18 @@ assign keyboard_addr = ppi_port_c[3:0];
     // mitad baja sigue en el banco C: todo lo de <=2 MB cae en las mismas
     // direcciones fisicas que antes. Sin sumador: A21 elige {~A21, A21}.
 
-    assign ram_addr = (~flash_idle) ? rom_addr :
+    reg cpu_run_r = 1'b0;   // V3.7: ver .cpu_run() de mem1
+    always @(posedge clk_54m)
+        cpu_run_r <= bus_reset_n & reset3_n & flash_idle & esp_boot_ok & ~iosys_frz & ~dma_rfsh_ok;
+
+    // V3.6: el camino "stream" (CPU parada) lo comparten el streamer de la flash
+    // del arranque y la DMA de la SD. El mux de arriba sigue siendo de dos ramas:
+    // la eleccion flash/DMA va por debajo, sobre registros, fuera del cono de la CPU.
+    wire        stream_active = ~flash_idle | dma_frz;
+    wire [22:0] stream_addr   = (~flash_idle) ? rom_addr[22:0] : dma_ram_addr;
+    wire [7:0]  stream_dout   = (~flash_idle) ? rom_dout : dma_ram_din;
+    wire        stream_write  = (~flash_idle) ? rom_write : dma_ram_req;
+    assign ram_addr = (stream_active) ? stream_addr :
                 `ifdef ENABLE_MAPPER
                         (mapper_req == 1) ? { 2'b00, mapper_addr[20:0] } :  //bank A (2 MB)
                 `endif
@@ -2670,9 +2815,9 @@ assign keyboard_addr = ppi_port_c[3:0];
                 `endif
                       megaram_wrt | gm2_mem_wrt;
 
-    assign ram_read  = (~flash_idle) ? 1'b0      : (any_ram_rd_req & ~bus_rd_n);
+    assign ram_read  = (stream_active) ? 1'b0      : (any_ram_rd_req & ~bus_rd_n);
 
-    assign ram_write = (~flash_idle) ? rom_write : (any_ram_wr & ~bus_wr_n);
+    assign ram_write = (stream_active) ? stream_write : (any_ram_wr & ~bus_wr_n);
 
     // _125c: se EVALUO registrar any_ram_req (el cono T80 ISet/IStatus ->
     // mux A -> mapper -> aceptacion, ~13 niveles, familia final de timing de
@@ -2681,9 +2826,9 @@ assign keyboard_addr = ppi_port_c[3:0];
     // retrasado del req hace perder una ventana entre lecturas back-to-back)
     // y T9b pierde 13% de lecturas en 1T @5.369. El turbo manda: la familia
     // se contiene con syn_maxfan (ISet/IStatus en t80.vhd) + sembrado.
-    assign ram_req   = (~flash_idle) ? rom_write : any_ram_req;
+    assign ram_req   = (stream_active) ? stream_write : any_ram_req;
 
-    assign ram_din = (~flash_idle) ? { rom_dout, rom_dout }  : { cpu_dout, cpu_dout };
+    assign ram_din = (stream_active) ? { stream_dout, stream_dout }  : { cpu_dout, cpu_dout };
 
 // SDCLK_INVERT=1 CONFIRMADO EN HW (2026-07-08): con fase normal el auto-test
 // da ROJO (errores CPU) y con 180 grados VERDE; el core arranca (serial _18inv).
@@ -2749,7 +2894,18 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
     .bus_rfsh_n(bus_rfsh_n),
     // _181: mismo termino que el RESET_n del T80 — el refresco autonomo solo
     // puede disparar cuando el Z80 esta provadamente parado (ver memory.v)
-    .cpu_run(bus_reset_n & reset3_n & flash_idle & esp_boot_ok & ~iosys_frz),
+    // V3.6: con la DMA, el refresco autonomo SOLO en sus ventanas de espera (dma_rfsh_ok),
+    // nunca durante la rafaga de escrituras (memory.v _175/_181: pisaria una aceptacion)
+    // V3.7 (vuelve la V3.6d, 74f95de): el termino va REGISTRADO a clk_54m. Juntaba seis
+    // senales de clk_54m y entraba combinacional al RESET de rfsh_gap/rfsh_auto (clk_108m):
+    // un cruce 54 -> 108 con 9,26 ns que ha sido EL peor camino de casi todos los dados
+    // (0,913 y 0,039 en v36c; 0,771 en el 4001; 0,005 y -0,006 en v36q; -1,1/-3,1/-1,2 en
+    // tres de los cuatro dados rutados de v37a). La V3.6d se retiro por el 3557 negro desde
+    // el cargador, que resulto ser la calibracion de la DDR3 (3623 sin ella tambien negro;
+    // con la espera de la 3.6g el 4001 arranca). memory.v lo resincroniza ademas a 108 MHz:
+    // el cruce queda FF -> FF sin logica. El retraso (~37 ns) es inocuo en los dos sentidos
+    // (el T80 tarda >= 280 ns en su primer ciclo de bus; sd_dma espera 40 ciclos en S_GUARD).
+    .cpu_run(cpu_run_r),
 
     .ram_dout(ram_dout),
     .vram_dout(VrmDbi2),
@@ -2798,6 +2954,34 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
     // Se escribe por el puerto #44 del bloque config y se persiste en el
     // byte[5] del bloque de config de la flash (hoy sin usar, se escribe 0xFF).
     reg [2:0] snd_gain_ff = 3'd5;
+
+`ifdef ENABLE_MIXER
+    // ===== V3.7 MEZCLADOR POR FUENTE (17/09/2026; Albert: "un settings de volumenes de psg, scc, wave,
+    // opll, opl3 y opl4 wave"). Atenuador k/8 por fuente (k = 0..8: 8 = x1 = defecto, 0 = mudo) ANTES de
+    // la suma; la ganancia maestra (canal 0) y el limitador no cambian. Puerto #44 extendido:
+    //   OUT #44, {solo_sel[7], canal[6:4], nivel[3:0]}
+    //     canal 0 = ganancia maestra (nivel[2:0] = la tabla x1..x8 de siempre: el OUT #44,0..7 legado
+    //               sigue significando lo mismo)
+    //     1 = PSG, 2 = SCC, 3 = OPLL (FM-PAC), 4 = MSX-AUDIO (Y8950 + ADPCM), 5 = OPL4 FM (OPL3),
+    //     6 = OPL4 wave (PCM del MoonSound), 7 = WaveGame (solo ZYNQ: aqui se lee #F = "no existe"
+    //         y la escritura se ignora; el menu esconde la fila)
+    //     bit 7 = 1: no escribe nada, solo deja el canal seleccionado para la lectura
+    //   IN #44 -> {0, canal_sel[6:4], nivel[3:0]}; canal 0 -> {0, 000, 0, ganancia[2:0]} = la lectura
+    //   legada. SONDA del menu: OUT #44,#F0 + IN #44 = #7n con mezclador; un core sin el devuelve #0g.
+    //   Los niveles no se resetean (como snd_gain_ff): se siembran del bloque de config de la flash
+    //   (bytes 6..9 LE + 10 = xor ^ #A5, ver flash_write_din) y los guarda el Save & Restart del menu.
+    reg  [27:0] mix_lvl = 28'h8888888;   // canales 1..7, 4 bits cada uno en [(canal-1)*4 +: 4]
+    reg  [2:0]  mix_sel = 3'd0;          // canal seleccionado para la lectura
+    wire [3:0]  mix_rd  = (mix_sel == 3'd0) ? {1'b0, snd_gain_ff} :
+                          (mix_sel == 3'd7) ? 4'hF :              // Tang: sin WaveGame
+                          mix_lvl[{mix_sel - 3'd1, 2'b00} +: 4];
+    // La lectura va REGISTRADA a 27 MHz: la hoja 27->54 hacia cpu_din sigue siendo un FF
+    // (como snd_gain_ff antes) y el mux 8:1 de mix_sel no entra en la cadena de cpu_din
+    // (18,52 ns, la familia io40->cpu_din que ya dio -0,119 ns en un dado). El IN llega
+    // >= 1 us despues del OUT: 37 ns de retardo no se ven.
+    reg  [3:0]  mix_rd_r = 4'd0;
+    always @(posedge clk_27m) mix_rd_r <= mix_rd;
+`endif
 
 `ifdef ENABLE_SOUND
 
@@ -2937,7 +3121,9 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
 
     wire [7:0] psg2Sound1;
     wire [7:0] psg2_dout;
-
+    wire [7:0] psg2Sound3;
+    wire psg2_req_r;
+`ifdef ENABLE_PSG2
     YM2149 psg2 (
         .I_DA(cpu_dout),
         .O_DA(psg2_dout),
@@ -2963,7 +3149,6 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
         .debug ()
     );
 
-    wire [7:0] psg2Sound3;
     psg_filter filter2 (
         .clk_27m (clk_27m),
         .reset (~bus_reset_n),
@@ -2972,8 +3157,15 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
     );
 
     // PSG2 register read-back at port 12h (detection by players/trackers)
-    wire psg2_req_r;
     assign psg2_req_r = ( bus_addr[7:0] == 8'h12 && bus_iorq_n == 0 && bus_m1_n == 1 && bus_rd_n == 0 ) ? 1 : 0;
+`else
+    // DIETA 16/09: sin segundo PSG. 10h/11h se ignoran, 12h no se decodifica
+    // (lee FFh como cualquier puerto vacio) y el mezclador recibe silencio.
+    assign psg2Sound1 = 8'd0;
+    assign psg2_dout  = 8'hFF;
+    assign psg2Sound3 = 8'd0;
+    assign psg2_req_r = 1'b0;
+`endif
 
     //opll
     wire opll_req_n; 
@@ -4229,21 +4421,65 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
     // Y8950/ADPCM) pasa por gmul; el OPL4 (FM + wave) entra x1 DESPUES de la
     // ganancia. El mando del puerto #44 vuelve a significar lo que Albert
     // ajusto a oido: el volumen de los clasicos RESPECTO al MoonSound.
-    wire signed [18:0] mixL_st = {{2{psg1_ac[16]}}, psg1_ac}
-        + {{3{scc_term[15]}}, scc_term} + {{3{opll_term[15]}}, opll_term}
-        + {{3{y8950_wav[15]}}, y8950_wav} + {{3{y8950_adpcm_term[15]}}, y8950_adpcm_term};
-    wire signed [18:0] mixR_st = {{2{psg2_ac[16]}}, psg2_ac}
-        + {{3{scc2x_wav[14]}}, scc2x_wav, 1'b0} + {{3{opll_term[15]}}, opll_term}
-        + {{3{y8950_wav[15]}}, y8950_wav} + {{3{y8950_adpcm_term[15]}}, y8950_adpcm_term};
-    wire signed [18:0] mix_mono = {{2{psg1_ac[16]}}, psg1_ac}
-        + {{2{psg2_ac[16]}}, psg2_ac}
-        + {{3{scc_term[15]}}, scc_term} + {{3{scc2x_wav[14]}}, scc2x_wav, 1'b0}
-        + {{3{opll_term[15]}}, opll_term} + {{3{y8950_wav[15]}}, y8950_wav}
-        + {{3{y8950_adpcm_term[15]}}, y8950_adpcm_term};
-    // _180: suma propia del OPL4 (FM + wave), fuera de la ganancia maestra
-    wire signed [16:0] o4mix_l    = {opl4fm_term[15], opl4fm_term} + {opl4pcm_term_l[15], opl4pcm_term_l};
-    wire signed [16:0] o4mix_r    = {opl4fm_term[15], opl4fm_term} + {opl4pcm_term_r[15], opl4pcm_term_r};
-    wire signed [16:0] o4mix_mono = {opl4fm_term[15], opl4fm_term} + {opl4pcm_term[15], opl4pcm_term};
+    // V3.7 MEZCLADOR: cada fuente entra por su atenuador k/8 (mix_lvl, puerto #44 canales 1..6).
+    // mixk: v * k / 8 con k = 0..8 (8 = v intacto). Producto en 24 bits con signo (leccion _85/_115: nada
+    // de operandos unsigned en la expresion) y p[21:3] = p >>> 3 (|p| <= 2^21). Exacto en Icarus (Zynq).
+    function signed [18:0] mixk(input signed [18:0] v, input [3:0] k);
+        reg signed [23:0] p;
+        begin
+            p    = v * $signed({1'b0, k});
+            mixk = p[21:3];
+        end
+    endfunction
+`ifdef ENABLE_MIXER
+    // Las diez entradas del atenuador se REGISTRAN a clk_27m (libres, sin CE) antes del
+    // multiplicador: las fuentes viven en clk_54m y el camino 54->27 hasta snd_mix_* se tasa
+    // a 18,52 ns; con el DSP y las sumas dentro no cabria. Asi las fuentes llegan a un FF como
+    // antes (misma clase de camino que la suma vieja, menos logica) y el DSP + las sumas son
+    // 27->27 (37 ns). Un ciclo de 27 MHz de retardo para las diez a la vez: inaudible.
+    reg signed [18:0] mi_psg1 = 19'sd0, mi_psg2 = 19'sd0, mi_scc = 19'sd0, mi_scc2x = 19'sd0, mi_opll = 19'sd0,
+                      mi_y8950 = 19'sd0, mi_o4fm = 19'sd0, mi_o4pl = 19'sd0, mi_o4pr = 19'sd0, mi_o4pm = 19'sd0;
+    always @(posedge clk_27m) begin
+        mi_psg1  <= {{2{psg1_ac[16]}}, psg1_ac};
+        mi_psg2  <= {{2{psg2_ac[16]}}, psg2_ac};
+        mi_scc   <= {{3{scc_term[15]}}, scc_term};
+        mi_scc2x <= {{3{scc2x_wav[14]}}, scc2x_wav, 1'b0};
+        mi_opll  <= {{3{opll_term[15]}}, opll_term};
+        mi_y8950 <= {{3{y8950_wav[15]}}, y8950_wav} + {{3{y8950_adpcm_term[15]}}, y8950_adpcm_term};
+        mi_o4fm  <= {{3{opl4fm_term[15]}}, opl4fm_term};
+        mi_o4pl  <= {{3{opl4pcm_term_l[15]}}, opl4pcm_term_l};
+        mi_o4pr  <= {{3{opl4pcm_term_r[15]}}, opl4pcm_term_r};
+        mi_o4pm  <= {{3{opl4pcm_term[15]}}, opl4pcm_term};
+    end
+    wire signed [18:0] mx_psg1  = mixk(mi_psg1,  mix_lvl[3:0]);    // 1 PSG
+    wire signed [18:0] mx_psg2  = mixk(mi_psg2,  mix_lvl[3:0]);
+    wire signed [18:0] mx_scc   = mixk(mi_scc,   mix_lvl[7:4]);    // 2 SCC
+    wire signed [18:0] mx_scc2x = mixk(mi_scc2x, mix_lvl[7:4]);
+    wire signed [18:0] mx_opll  = mixk(mi_opll,  mix_lvl[11:8]);   // 3 OPLL
+    wire signed [18:0] mx_y8950 = mixk(mi_y8950, mix_lvl[15:12]);  // 4 MSX-AUDIO (Y8950 + ADPCM)
+    wire signed [18:0] mx_o4fm  = mixk(mi_o4fm,  mix_lvl[19:16]);  // 5 OPL4 FM
+    wire signed [18:0] mx_o4pl  = mixk(mi_o4pl,  mix_lvl[23:20]);  // 6 OPL4 wave
+    wire signed [18:0] mx_o4pr  = mixk(mi_o4pr,  mix_lvl[23:20]);
+    wire signed [18:0] mx_o4pm  = mixk(mi_o4pm,  mix_lvl[23:20]);
+`else
+    wire signed [18:0] mx_psg1  = {{2{psg1_ac[16]}}, psg1_ac};
+    wire signed [18:0] mx_psg2  = {{2{psg2_ac[16]}}, psg2_ac};
+    wire signed [18:0] mx_scc   = {{3{scc_term[15]}}, scc_term};
+    wire signed [18:0] mx_scc2x = {{3{scc2x_wav[14]}}, scc2x_wav, 1'b0};
+    wire signed [18:0] mx_opll  = {{3{opll_term[15]}}, opll_term};
+    wire signed [18:0] mx_y8950 = {{3{y8950_wav[15]}}, y8950_wav} + {{3{y8950_adpcm_term[15]}}, y8950_adpcm_term};
+    wire signed [18:0] mx_o4fm  = {{3{opl4fm_term[15]}}, opl4fm_term};
+    wire signed [18:0] mx_o4pl  = {{3{opl4pcm_term_l[15]}}, opl4pcm_term_l};
+    wire signed [18:0] mx_o4pr  = {{3{opl4pcm_term_r[15]}}, opl4pcm_term_r};
+    wire signed [18:0] mx_o4pm  = {{3{opl4pcm_term[15]}}, opl4pcm_term};
+`endif
+    wire signed [18:0] mixL_st  = mx_psg1 + mx_scc + mx_opll + mx_y8950;
+    wire signed [18:0] mixR_st  = mx_psg2 + mx_scc2x + mx_opll + mx_y8950;
+    wire signed [18:0] mix_mono = mx_psg1 + mx_psg2 + mx_scc + mx_scc2x + mx_opll + mx_y8950;
+    // _180: suma propia del OPL4 (FM + wave), fuera de la ganancia maestra (|fm| < 2^15, |pcm| < 2^14: cabe en 17)
+    wire signed [16:0] o4mix_l    = $signed(mx_o4fm[16:0]) + $signed(mx_o4pl[16:0]);
+    wire signed [16:0] o4mix_r    = $signed(mx_o4fm[16:0]) + $signed(mx_o4pr[16:0]);
+    wire signed [16:0] o4mix_mono = $signed(mx_o4fm[16:0]) + $signed(mx_o4pm[16:0]);
     // _127H: TONO DE TEST del bug #14 (440Hz cuadrada -12dB directa al puente,
     // puenteando el mezclador). DESARMADO en release (niquelado B, bug #4 del
     // informe): iba colgado del toggle "Sprite Limit" del menu (config2[3]) y
@@ -4482,6 +4718,14 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
     end
 
     reg config_init_delay = 0;
+`ifdef ENABLE_MIXER
+    reg       cfg4_req_r  = 1'b0;   // V3.7: etapa de registro del OUT #44 (ver abajo)
+    reg [7:0] cfg4_dout_r = 8'd0;
+    always @ (posedge clk_27m) begin
+        cfg4_req_r  <= config4_req;
+        cfg4_dout_r <= cpu_dout;
+    end
+`endif
     always @ (posedge clk_27m) begin
         config_init_delay <= config_init;
         if (config_init == 1 ) begin
@@ -4490,6 +4734,9 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
                 config2_ff <= CONFIG2_DEFAULT;
                 config_turbo_boot_ff <= 0;      // rescate S2: boot turbo off
                 snd_gain_ff <= 3'd5;            // rescate S2: ganancia por defecto x5
+`ifdef ENABLE_MIXER
+                mix_lvl <= 28'h8888888;         // rescate S2: mezclador a 8/8 (como la ganancia)
+`endif
             end
             else begin
                 config1_ff <= config_sig[2];
@@ -4498,6 +4745,12 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
                 // byte[5] de la flash: 0xC0..0xC7 = ganancia valida; 0xFF/0x00
                 // (bloques legados) => defecto x3. Mismo patron que 'T'=0x54.
                 snd_gain_ff <= (config_sig[5][7:3] == 5'b11000) ? config_sig[5][2:0] : 3'd5;
+`ifdef ENABLE_MIXER
+                // V3.7: bytes 6..9 = niveles LE, 10 = xor ^ A5. Un bloque de 6 bytes
+                // (flash borrada detras: FF FF FF FF FF -> xor = A5 != FF) o uno con un
+                // nivel > 8 va a los defectos 8/8.
+                mix_lvl <= cfg_mix_ok ? cfg_mix_lvl : 28'h8888888;
+`endif
             end
         end
         // escritura del puerto #45 (menu): mismo bloque que la carga init para un
@@ -4506,9 +4759,25 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
         if (config5_req == 1 ) begin
             config_turbo_boot_ff <= cpu_dout[0];
         end
+`ifdef ENABLE_MIXER
+        // V3.7: la escritura del #44 va con UNA ETAPA de registro (cfg4_req_r/cfg4_dout_r,
+        // capturados juntos): el decodificador del OUT (WR_n del T80 -> config4_req ->
+        // canal -> CE de 28 FF de mix_lvl) salio a -0,154 ns en el 4133 (cruce 54 -> 27 de
+        // 9,26 ns). El OUT dura ~20 ciclos de 27 MHz y el par (req, dato) se relatchea
+        // coherente cada ciclo, asi que llegar un ciclo tarde no cambia nada.
+        if (cfg4_req_r == 1 ) begin
+            mix_sel <= cfg4_dout_r[6:4];        // {solo_sel, canal, nivel} (ver mix_lvl)
+            if (!cfg4_dout_r[7]) begin
+                if (cfg4_dout_r[6:4] == 3'd0) snd_gain_ff <= cfg4_dout_r[2:0];
+                else if (cfg4_dout_r[6:4] != 3'd7)   // 7 = WaveGame: no existe en el Tang
+                    mix_lvl[{cfg4_dout_r[6:4] - 3'd1, 2'b00} +: 4] <= (cfg4_dout_r[3:0] > 4'd8) ? 4'd8 : cfg4_dout_r[3:0];
+            end
+        end
+`else
         if (config4_req == 1 ) begin
             snd_gain_ff <= cpu_dout[2:0];       // _161: ganancia de audio 0..7
         end
+`endif
         if (config_update == 1) begin
             config1_ff <= config1_temp_ff;
             config2_ff <= config2_temp_ff;
@@ -4566,7 +4835,11 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
                          ( bus_addr[3:0] == 4'h1 ) ? config1_ff :
                          ( bus_addr[3:0] == 4'h2 ) ? config2_ff :
                          ( bus_addr[3:0] == 4'h3 ) ? config3_ff :
+`ifdef ENABLE_MIXER
+                         ( bus_addr[3:0] == 4'h4 ) ? {1'b0, mix_sel, mix_rd_r} : // V3.7: canal seleccionado + su nivel
+`else
                          ( bus_addr[3:0] == 4'h4 ) ? {5'b0, snd_gain_ff} :
+`endif
                          ( bus_addr[3:0] == 4'h5 ) ? {7'b0, config_turbo_boot_ff} :
                          ( bus_addr[3:0] == 4'h6 ) ? { 1'b1, config6_ff[6:0] } :   // V3.5f: bit7 = 1 -> "este core trae el Game Master 2" (el menu lo sondea)
                 `ifdef ENABLE_SDCARD
@@ -4643,8 +4916,10 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
     //  LAYOUT DE FLASH DE LA CONSOLE 60K (W25Q64, 8 MB, compartida BL616):
     //    0x000000 - 0x3FFFFF  bitstream GW5AT-60 (.bin = ~2.26 MB; margen a 4 MB)
     //    0x400000 - 0x47FFFF  pack BIOS (512 KB)          <- antes 0x200000 (TN20K)
-    //    0x480000 - 0x480005  config (6 bytes, cola del pack) <- antes 0x280000
-    //    0x480006 - 0x7FFFFF  libre (~3.5 MB: futuro SRM/ROMs)
+    //    0x480000 - 0x48000A  config (11 bytes, cola del pack) <- antes 0x280000
+    //                         'A','B', config1, config2, 'T'/00, C0|ganancia,
+    //                         V3.7: niveles del mezclador LE (4 bytes), xor ^ A5
+    //    0x48000B - 0x7FFFFF  libre (~3.5 MB: futuro SRM/ROMs)
     //  El bitstream del GW5AT-60 PISA el 0x200000 del TN20K (aviso del audit
     //  §5.B confirmado). El pack se flashea ahora en 0x400000.
     // ------------------------------------------------------------------
@@ -4658,7 +4933,8 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
     localparam FLASH_START_ADDRESS = 24'h800000;
     localparam FLASH_CONFIG_ADDRESS = 24'h880000;   // = FLASH_START + 512KB
     localparam RAM_START_ADDRESS = 23'h6fffff;
-    localparam GOAULD_ROM_SIZE = 512*1024 + 6; //512KB + signature (AB) + config
+    localparam CONFIG_BYTES    = 11;           // V3.7: 6 de siempre + 4 niveles + xor
+    localparam GOAULD_ROM_SIZE = 512*1024 + CONFIG_BYTES; //512KB + signature (AB) + config
     reg ff_rom_wr = 0;
     reg [24:0] ff_rom_addr;
     
@@ -4690,12 +4966,25 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
                              (flash_write_counter == 8'd02) ? config1_ff :
                              (flash_write_counter == 8'd03) ? config2_ff :
                              (flash_write_counter == 8'd04) ? (config_turbo_boot_ff ? 8'h54 : 8'h00) :
-                             (flash_write_counter == 8'd05) ? {5'b11000, snd_gain_ff} : 8'hff;
+                             (flash_write_counter == 8'd05) ? {5'b11000, snd_gain_ff} :
+                        `ifdef ENABLE_MIXER
+                             // V3.7: niveles 1..7 (28 bits LE) + xor ^ A5 como suma
+                             (flash_write_counter == 8'd06) ? mix_lvl[7:0] :
+                             (flash_write_counter == 8'd07) ? mix_lvl[15:8] :
+                             (flash_write_counter == 8'd08) ? mix_lvl[23:16] :
+                             (flash_write_counter == 8'd09) ? {4'b0, mix_lvl[27:24]} :
+                             (flash_write_counter == 8'd10) ? (mix_lvl[7:0] ^ mix_lvl[15:8] ^ mix_lvl[23:16] ^ {4'b0, mix_lvl[27:24]} ^ 8'hA5) :
+                        `endif
+                             8'hff;
                         `else
                              (flash_write_counter == 8'd02) ? CONFIG1_DEFAULT :
                              (flash_write_counter == 8'd03) ? CONFIG2_DEFAULT : 8'hff;
                         `endif
-    assign flash_write_terminate = (flash_write_counter == 8'd6) ? 1 : 0;
+    // flash_rw evalua terminate DESPUES de incrementar: manda CONFIG_BYTES+1 bytes, el
+    // ultimo el FF del defecto (= flash borrada, inocuo). Con 6 bytes ya mandaba 7. El
+    // lector solo captura CONFIG_BYTES. Y el guardado BORRA el sector de 4 KB entero
+    // (0x480000-0x480FFF): lo "libre" de verdad empieza en 0x481000.
+    assign flash_write_terminate = (flash_write_counter == CONFIG_BYTES) ? 1 : 0;
 
     flash # (
         .STARTUP_WAIT(1)
@@ -4840,36 +5129,45 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
         endcase
     end
 
-    // configuration + signature
-    reg [7:0] config_sig [0:5];
-    reg [2:0] last_bytes_cnt;
+    // configuration + signature (la cola del pack: CONFIG_BYTES bytes tras los 512 KB)
+    reg [7:0] config_sig [0:CONFIG_BYTES-1];
+    reg [3:0] last_bytes_cnt;
+    reg [3:0] cfg_init_sr = 4'd0;
     wire new_byte;
     wire config_init;
     assign new_byte = (~ff_flash_rd && flash_busy == 0);
-    assign config_init = (config_sig[0] == 8'h41 && config_sig[1] == 8'h42 && last_bytes_cnt == 3'd1) ? 1 : 0;
+    // V3.7: config_init es un PULSO de 4 ciclos (2 de clk_27m) que arranca en el
+    // ciclo siguiente a la captura del ULTIMO byte, con todo config_sig ya
+    // estable. Antes era "last_bytes_cnt == 1", que es la ventana ENTRE la
+    // captura del penultimo byte y la del ultimo: los consumidores (27 MHz)
+    // leian el ultimo byte (la ganancia, byte 5) todavia viejo. Con 6 bytes
+    // solo se perdia la ganancia; con los niveles del mezclador detras no vale.
+    assign config_init = (config_sig[0] == 8'h41 && config_sig[1] == 8'h42 && cfg_init_sr[0]) ? 1 : 0;
+`ifdef ENABLE_MIXER
+    wire [27:0] cfg_mix_lvl = {config_sig[9][3:0], config_sig[8], config_sig[7], config_sig[6]};
+    wire        cfg_mix_ok  = ((config_sig[6] ^ config_sig[7] ^ config_sig[8] ^ config_sig[9] ^ 8'hA5) == config_sig[10])
+                              && (config_sig[9][7:4] == 4'd0)
+                              && (cfg_mix_lvl[3:0] <= 4'd8) && (cfg_mix_lvl[7:4] <= 4'd8) && (cfg_mix_lvl[11:8] <= 4'd8)
+                              && (cfg_mix_lvl[15:12] <= 4'd8) && (cfg_mix_lvl[19:16] <= 4'd8) && (cfg_mix_lvl[23:20] <= 4'd8)
+                              && (cfg_mix_lvl[27:24] <= 4'd8);
+`endif
 
+    integer cfg_i;
     always @(posedge clk_54m or negedge reset3_n) begin
         if (!reset3_n) begin
-            last_bytes_cnt <= 3'd0;
-            config_sig[0] <= 8'd0;
-            config_sig[1] <= 8'd0;
-            config_sig[2] <= 8'd0;
-            config_sig[3] <= 8'd0;
-            config_sig[4] <= 8'd0;
-            config_sig[5] <= 8'd0;
+            last_bytes_cnt <= 4'd0;
+            cfg_init_sr    <= 4'd0;
+            for (cfg_i = 0; cfg_i < CONFIG_BYTES; cfg_i = cfg_i + 1)
+                config_sig[cfg_i] <= 8'd0;
         end else begin
-            if (ff_flash_counter == 32'd6)
-                last_bytes_cnt <= 3'd6;
-            if (new_byte && last_bytes_cnt != 3'd0) begin
-                case (last_bytes_cnt)
-                    3'd6: config_sig[0] <= flash_dout;
-                    3'd5: config_sig[1] <= flash_dout;
-                    3'd4: config_sig[2] <= flash_dout;
-                    3'd3: config_sig[3] <= flash_dout;
-                    3'd2: config_sig[4] <= flash_dout;
-                    3'd1: config_sig[5] <= flash_dout;
-                endcase
-                last_bytes_cnt <= last_bytes_cnt - 1;
+            cfg_init_sr <= {1'b0, cfg_init_sr[3:1]};
+            if (ff_flash_counter == CONFIG_BYTES)
+                last_bytes_cnt <= CONFIG_BYTES;
+            if (new_byte && last_bytes_cnt != 4'd0) begin
+                config_sig[CONFIG_BYTES - last_bytes_cnt] <= flash_dout;
+                if (last_bytes_cnt == 4'd1)
+                    cfg_init_sr <= 4'b1111;
+                last_bytes_cnt <= last_bytes_cnt - 4'd1;
             end
         end
     end
@@ -5078,7 +5376,13 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
     wire [8:0] sdio_ptr;
     wire       sdio_ack;
     wire [7:0] sdio_count;
-    wire [4:0] sdio_idx;
+    wire [5:0] sdio_idx;          // V3.6c: 6 bits
+    wire [22:0] sdio_dma_addr;    // V3.6: destino de la DMA (OUT #4F,80h + 3 bytes)
+    wire        sdio_dma_log;     // V3.6c: modo logico (bit7 del byte alto)
+    wire [15:0] dma_cnt_scc, dma_cnt_kon, dma_cnt_a8, dma_cnt_a16;   // V3.6c: patrones de mapper
+    wire        dma_buf_rd, dma_ack;
+    wire [8:0]  dma_buf_addr;
+    wire [7:0]  dma_blocks;
     // V3.5d: la seleccion del dispositivo va REGISTRADA. Combinacional colgaba
     // MAS CARGA del IORQ_n del Z80, que es de donde salen los peores caminos del
     // chip desde siempre (los CE de config2/config6/snd_gain, clk_54m->clk_27m):
@@ -5109,7 +5413,9 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
         .ptr(sdio_ptr),
         .buf_ack(sdio_ack),
         .count(sdio_count),
-        .info_idx(sdio_idx)
+        .info_idx(sdio_idx),
+        .dma_addr(sdio_dma_addr),
+        .dma_log(sdio_dma_log)
     );
     // estado por puerto: bit7 busy · bit4 bloque listo/bufer libre (multibloque) ·
     // bit3 SIEMPRE 1 (sonda: un core sin puertos devuelve FFh en #47, con los bits 6:5 a 1)
@@ -5130,7 +5436,17 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
                               (sdio_idx == 5'd25) ? ms_snap[7:0] :
                               (sdio_idx == 5'd26) ? ms_snap[15:8] :
                               (sdio_idx == 5'd27) ? ms_snap[23:16] :
-                              (sdio_idx == 5'd28) ? 8'h54 : 8'hFF;   // firma 'T' = hay cronometro
+                              (sdio_idx == 5'd28) ? 8'h54 :          // firma 'T' = hay cronometro
+                              (sdio_idx == 6'd29) ? 8'h44 :          // V3.6: firma 'D' = hay DMA de lectura
+                              (sdio_idx == 6'd31) ? 8'h4D :          // V3.6c: firma 'M' = modo logico + contadores
+                              (sdio_idx == 6'd32) ? dma_cnt_scc[7:0] :
+                              (sdio_idx == 6'd33) ? dma_cnt_scc[15:8] :
+                              (sdio_idx == 6'd34) ? dma_cnt_kon[7:0] :
+                              (sdio_idx == 6'd35) ? dma_cnt_kon[15:8] :
+                              (sdio_idx == 6'd36) ? dma_cnt_a8[7:0] :
+                              (sdio_idx == 6'd37) ? dma_cnt_a8[15:8] :
+                              (sdio_idx == 6'd38) ? dma_cnt_a16[7:0] :
+                              (sdio_idx == 6'd39) ? dma_cnt_a16[15:8] : 8'hFF;
     // ---- V3.5d: CRONOMETRO LIBRE DE MILISEGUNDOS ----------------------------
     // POR QUE: el menu media la carga con el JIFFY de la BIOS (#FC9E), que solo
     // avanza con las interrupciones ACTIVAS; la carga corre con DI, asi que el
@@ -5204,8 +5520,11 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
     
         .clock_b(clk_27m),
         .wren_b(ff_sd_rstart && sd_outen_w),
-        .rden_b(ff_sd_wstart && sd_outen_w),
-        .address_b(sd_outaddr_w),
+        // V3.6: la DMA lee el bufer por ESTE puerto (el de la tarjeta, ocioso en
+        // RHOLD/IDLING): el mux del puerto A, que es el del camino critico de la
+        // v3.5c (cpu1/IORQ_n -> dpram1 ADA), no se toca. Solo mientras dma_buf_rd.
+        .rden_b((ff_sd_wstart && sd_outen_w) || dma_buf_rd),
+        .address_b(dma_buf_rd ? dma_buf_addr : sd_outaddr_w),
         .data_b(sd_outbyte_w),
         .q_b(sd_inbyte_w)
     );
@@ -5259,8 +5578,48 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
         .init(ff_sd_init),
         // V3.5c: multibloque (CMD18/CMD25) gobernado desde los puertos de E/S
         .rcount(sdio_count),
-        .buf_ack(sdio_ack),
+        .buf_ack(sdio_ack | dma_ack),      // V3.6: la DMA tambien vacia el bufer
         .blk_rdy(sd_blk_rdy_w)
+    );
+
+    // ---- V3.6: DMA de LECTURA SD -> RAM (sd_dma.sv) ----------------------------
+    // Orden: OUT #4F,80h + 3 bytes de destino fisico (bajo, medio, alto), OUT #4D,n
+    // y OUT #47,05h (leer + DMA). La CPU se congela con el bus en reposo, el core
+    // copia cada bloque del bufer a la RAM (~150 us por bloque) y da el buf_ack;
+    // al acabar la orden (busy=0) suelta la CPU, que sigue en la instruccion
+    // siguiente al OUT. Errores como siempre: bits 1-2 del estado.
+    sd_dma u_sddma (
+        .clk(clk_54m),
+        .rstn(bus_reset_n),
+        .start(sdio_cmd_wr && sdio_cmd_val[2] && sdio_cmd_val[0]),
+        .dest(sdio_dma_addr),
+        .logical(sdio_dma_log),
+        .mreg0(mapper_reg0),
+        .mreg1(mapper_reg1),
+        .mreg2(mapper_reg2),
+        .mreg3(mapper_reg3),
+        .cnt_en(sdio_cmd_val[3]),
+        .cnt_rst(sdio_cmd_val[4]),
+        .bus_idle(wait_io & wait_m1 & bus_rd_n & bus_wr_n & bus_mreq_n & ex_bus_iorq_n & (ram_busy == 0)),
+        .blk_rdy(sd_blk_rdy_w),
+        .rbusy(sd_busy_w),
+        .sd_err(sd_rcrc_error_w | sd_timeout_error_w),
+        .buf_q(sd_inbyte_w),
+        .ram_busy(ram_busy),
+        .active(dma_active),
+        .frz(dma_frz),
+        .buf_addr(dma_buf_addr),
+        .buf_rd(dma_buf_rd),
+        .ack(dma_ack),
+        .ram_req(dma_ram_req),
+        .ram_addr(dma_ram_addr),
+        .ram_din(dma_ram_din),
+        .blocks(dma_blocks),
+        .rfsh_ok(dma_rfsh_ok),
+        .cnt_scc(dma_cnt_scc),
+        .cnt_kon(dma_cnt_kon),
+        .cnt_a8(dma_cnt_a8),
+        .cnt_a16(dma_cnt_a16)
     );
     
     assign sd_dat1 = 1;
@@ -5543,6 +5902,8 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
     // consume el HDMI, desde msx2hdmi_v9968) discrimina durante un corte
     // audible: ambos picos altos = receptor; fuente alta y hdmi bajo =
     // CDC congelado; ambos bajos = el mezclador se calla de verdad.
+    wire usb_uart_tx_int;
+`ifdef ENABLE_TELEMETRIA
     reg  [15:0] amp_src_acc = 16'd0, amp_src = 16'd0;
     reg  [22:0] amp_src_win = 23'd0;
     wire [15:0] asrc_abs = audio_sample[15] ? (~audio_sample + 16'd1)
@@ -5556,7 +5917,6 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
         else if (asrc_abs > amp_src_acc) amp_src_acc <= asrc_abs;
     end
 
-    wire usb_uart_tx_int;
     // el pulso nace en clk_27m y el dbg_uart vive en clk_54m: 2FF y flanco
     reg [2:0] sd_wr_tog_s = 3'b000;
     always @(posedge clk_54m) sd_wr_tog_s <= {sd_wr_tog_s[1:0], sd_wr_tog};
@@ -5630,6 +5990,20 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
         .cnt_g(32'd0),                  // (eran los testigos del SPI del S3)
         .tx(usb_uart_tx_int)
     );
+`else
+    // DIETA 16/09: SIN telemetria en produccion (decision de Albert). Queda el
+    // dbg_uart en modo MINIMO: un latido en E22/USB-C con el periodo del dado
+    // (PERIOD_MS, el que siembra el placement de cada campana: ese tiene que
+    // seguir en el netlist) y NADA de contadores: la sintesis poda todo lo que
+    // solo alimentaba a la telemetria (vumetro, misses del shim, ops DDR3...).
+    // Para una caza: descomentar ENABLE_TELEMETRIA y vuelve todo.
+    dbg_uart #(.CLK_HZ(53_996_000), .MINIMO(1)) u_dbguart (
+        .trig(1'b0), .clk(clk_54m), .rst_n(bus_reset_n),
+        .cnt_a(32'd0), .cnt_b(32'd0), .cnt_c(32'd0), .cnt_d(32'd0),
+        .cnt_e(32'd0), .cnt_f(32'd0), .cnt_g(32'd0),
+        .tx(usb_uart_tx_int)
+    );
+`endif
     assign usb_uart_tx = usb_uart_tx_int;   // (por si el USB-C tambien escucha)
 `else
     assign usb_uart_tx = 1'b1;      // UART idle
@@ -5654,7 +6028,11 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
     // telemetria UART: byte15 nibble alto = {pll27_lock, frame_cnt[2:0]},
     // lector tools/dbg_video_reader.py — diagnostico de HDMI sin cables).
     assign led[0] = turbo ? led_cnt[18] : led_cnt[20];  // VISIBLE (G11): rapido=turbo, lento=normal
-    assign led[1] = ~sd_busy_w;                         // VISIBLE (U12): actividad SD
+    // V3.6g: el LED de la SD hace ademas de chivato de la DDR3 de la VRAM: mientras
+    // la calibracion NO ha terminado parpadea solo (~3 Hz); calibrada, vuelve a ser
+    // la actividad de la SD. Un dado que arranca en negro con este LED parpadeando
+    // = la DDR3 no calibra en esa placa/alimentacion (no es el core MSX).
+    assign led[1] = vddr_rdy_s[1] ? ~sd_busy_w : led_cnt[19];   // VISIBLE (U12); [19] a 3,58 MHz = ~3,4 Hz
     assign led[5] = turbo ? 1'b0 : led_cnt[20];         // sin pin en el 60K (semantica nano conservada)
     assign led[4] = ~sd_busy_w;
     assign led[3] = ~joystick0[5];
@@ -5810,12 +6188,17 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
     wire [23:0] ws_c6 = joy_on   ? 24'h202000 : 24'h000000;  // 6 JOY    : yellow
     wire [23:0] ws_c7 = kbd_act  ? 24'h181818 : 24'h000000;  // 7 KBD    : white flash
 
+`ifdef ENABLE_WS2812
     ws2812 #(.NUM_LEDS(8), .CLK_FRE(27)) ws_strip (
         .clk   (clk_27m),
         .rst_n (bus_reset_n),
         .rgb   ({ws_c0, ws_c1, ws_c2, ws_c3, ws_c4, ws_c5, ws_c6, ws_c7}),
         .dout  (ws2812_led)
     );
+`else
+    // DIETA 16/09: sin tira (decision de Albert; nadie la monta). El pin en reposo.
+    assign ws2812_led = 1'b0;
+`endif
 
     // ===== STANDALONE MERGE: USB host (BL616 FPGA Companion) — from MSXnano =====
     wire [127:0] keyboard;
@@ -5842,6 +6225,7 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
     wire signed [7:0] usb1_mdx, usb2_mdx, usb1_mdy, usb2_mdy;
     wire [7:0] usb1_mods, usb1_k1, usb1_k2, usb1_k3, usb1_k4;
     wire [7:0] usb2_mods, usb2_k1, usb2_k2, usb2_k3, usb2_k4;
+    wire [11:0] usb1_game, usb2_game;       // game_snes de cada host (clk_usb12)
     usb_hid_host usb_host1 (
         .usbclk (clk_usb12), .usbrst_n (pll12_lock),
         .usb_dm (usb1_dn), .usb_dp (usb1_dp),
@@ -5849,7 +6233,7 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
         .key_modifiers (usb1_mods),
         .key1 (usb1_k1), .key2 (usb1_k2), .key3 (usb1_k3), .key4 (usb1_k4),
         .mouse_btn (usb1_mbtn), .mouse_dx (usb1_mdx), .mouse_dy (usb1_mdy),
-        .game_snes (), .game_l (), .game_r (), .game_u (), .game_d (),
+        .game_snes (usb1_game), .game_l (), .game_r (), .game_u (), .game_d (),
         .game_a (), .game_b (), .game_x (), .game_y (), .game_sel (), .game_sta (),
         .game_lb (), .game_rb (),
         .dbg_hid_report ()
@@ -5861,11 +6245,24 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
         .key_modifiers (usb2_mods),
         .key1 (usb2_k1), .key2 (usb2_k2), .key3 (usb2_k3), .key4 (usb2_k4),
         .mouse_btn (usb2_mbtn), .mouse_dx (usb2_mdx), .mouse_dy (usb2_mdy),
-        .game_snes (), .game_l (), .game_r (), .game_u (), .game_d (),
+        .game_snes (usb2_game), .game_l (), .game_r (), .game_u (), .game_d (),
         .game_a (), .game_b (), .game_x (), .game_y (), .game_sel (), .game_sta (),
         .game_lb (), .game_rb (),
         .dbg_hid_report ()
     );
+
+    // 16/09: mandos HID por USB-A -> puerto 1 del MSX. Solo cuenta el host que
+    // tiene un mando (typ 3): al desenchufarlo typ vuelve a 0 y la palabra cae
+    // a cero aunque game_* se quedara con la ultima pulsacion. Dos FF en
+    // clk_54m para el cruce desde clk_usb12 (senal humana, cuasi-estatica).
+    wire [11:0] usb_game_raw = ((usb1_typ == 2'd3) ? usb1_game : 12'd0) |
+                               ((usb2_typ == 2'd3) ? usb2_game : 12'd0);
+    reg  [11:0] usb_game_s0 = 12'd0, usb_game_s1 = 12'd0;
+    always @(posedge clk_54m) begin
+        usb_game_s0 <= usb_game_raw;
+        usb_game_s1 <= usb_game_s0;
+    end
+    assign usb_joy_snes = usb_game_s1;
 
     // =======================================================================
     //  RATON MSX sobre raton USB — cruce de dominios e instancia
@@ -5947,6 +6344,30 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
     always @(posedge clk_54m)
         if (any_tog_s[2] ^ any_tog_s[1]) any_rep_cnt <= any_rep_cnt + 8'd1;
 
+`ifdef DIETA_V36H
+    // DIETA 16/09: UN solo decodificador de teclado para los dos USB-A (antes
+    // habia dos identicos, 430 LUT cada uno, y sus mapas se OR-eaban). Los dos
+    // hosts viven en clk_usb12, asi que el mux es del mismo dominio: manda el
+    // USB-A 1 si tiene teclado; si no, el 2. Dos teclados a la vez ya no suman
+    // (nadie los tiene).
+    wire        kb_from2 = (usb1_typ != 2'd1) && (usb2_typ == 2'd1);
+    wire [1:0]  kb_typ   = kb_from2 ? usb2_typ    : usb1_typ;
+    wire        kb_rep   = kb_from2 ? usb2_report : usb1_report;
+    wire [7:0]  kb_mods  = kb_from2 ? usb2_mods   : usb1_mods;
+    wire [7:0]  kb_k1    = kb_from2 ? usb2_k1     : usb1_k1;
+    wire [7:0]  kb_k2    = kb_from2 ? usb2_k2     : usb1_k2;
+    wire [7:0]  kb_k3    = kb_from2 ? usb2_k3     : usb1_k3;
+    wire [7:0]  kb_k4    = kb_from2 ? usb2_k4     : usb1_k4;
+    wire [127:0] kbd_usb1;
+    wire [127:0] kbd_usb2 = 128'd0;
+    usb_kbd_decode dec_usb1 (
+        .clk12 (clk_usb12), .rst_n (pll12_lock),
+        .typ (kb_typ), .report (kb_rep), .mods (kb_mods),
+        .k1 (kb_k1), .k2 (kb_k2), .k3 (kb_k3), .k4 (kb_k4),
+        .bitmap (kbd_usb1)
+    );
+`else
+    // Un decodificador por USB-A y sus mapas OR-eados (lo de siempre, v3.6g).
     wire [127:0] kbd_usb1, kbd_usb2;
     usb_kbd_decode dec_usb1 (
         .clk12 (clk_usb12), .rst_n (pll12_lock),
@@ -5960,6 +6381,7 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
         .k1 (usb2_k1), .k2 (usb2_k2), .k3 (usb2_k3), .k4 (usb2_k4),
         .bitmap (kbd_usb2)
     );
+`endif
     // cruce 12M -> 27M: bits cuasi-estaticos (pulsaciones de ms), 2FF por bit
     reg [127:0] kbd_usb_s1 = 128'd0, kbd_usb_s2 = 128'd0;
     always @(posedge clk_27m) begin
@@ -5970,6 +6392,7 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
 `else
     // Sin el companion no queda otra fuente: el teclado del MSX se apaga.
     assign keyboard = 128'd0;
+    assign usb_joy_snes = 12'd0;    // sin host en el fabric no hay mando por USB-A
 `endif
     // F1 (_73): el pad U15 (spi_irqn) se entrega a la UART del BL616 cuando el
     // WiFi onboard esta activo; el companion (ya sin SPI: jtagseln=0) pierde su

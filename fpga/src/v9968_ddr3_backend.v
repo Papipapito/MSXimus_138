@@ -36,7 +36,11 @@
 // (nand2mario ddr3_framebuffer, Apache-2.0).
 // ============================================================================
 
-module v9968_ddr3_backend (
+module v9968_ddr3_backend #(
+    // V3.7b: solo para el banco de pruebas: acorta las ventanas del motor de
+    // reintentos 2^WD_SIM_SHIFT veces (0 en el chip).
+    parameter integer WD_SIM_SHIFT = 0
+) (
     // ---- canales VRAM (dominio clk_x1_out; protocolo wv2 nivel/pulso) ----
     input  wire        a_req,         // NIVEL: se mantiene hasta ver a_done
     input  wire        a_we,
@@ -68,6 +72,10 @@ module v9968_ddr3_backend (
     // cada 730ns) y escrituras a ritmo de la CPU. Si sale 0, el camino de
     // datos esta muerto aunque la calibracion diga OK.
     output wire [31:0] dbg_ops,
+    // ---- V3.7b DIAGNOSTICO DEL ARRANQUE (puertos 2Ah-2Ch del MSX) ----
+    output wire [6:0]  dbg_att,        // intentos de calibracion FALLIDOS (satura en 127)
+    output wire [7:0]  dbg_calib_10ms, // duracion del intento que calibro, en 10 ms (satura 255)
+    output wire [7:0]  dbg_boot_100ms, // del arranque a la calibracion, en 100 ms (satura 255)
 
     // ---- recalibracion forzada (_100; toggle, dominio libre) ----
     input  wire        recal_req,
@@ -128,34 +136,110 @@ wire       init_calib_complete;
 // El watchdog da a cada intento 335ms LIMPIOS (sin settle, sin POR, sin
 // tocar el PLL — todo lo que las _129* demostraron que mata la calib) y si
 // no completa, pulso de reset de 256 ciclos a la IP = billete nuevo.
-reg [24:0] wd_cnt = 25'd0;
+// V3.7b (17/09 noche) MOTOR DE REINTENTOS ESCALONADO. Lo que dio la placa
+// con la 3.6g/3.7: dados que calibran a la primera (3593, 4001), uno que
+// tarda >10 s (4139: el MSX arranca a ciegas a los 5 s y se pierde el logo) y
+// dados que no calibran NUNCA con el pulso de 335 ms (3557, 3623, 4153),
+// con el cargador peor que con el USB del PC. La probabilidad por intento
+// depende del dado y de la alimentacion (~1/7 en la _128Z, ~1 en el 4001,
+// ~0 en el 4153). Dos palancas, ninguna DURANTE un intento (leccion _129*):
+//   1. VENTANAS CRECIENTES: 8 intentos de 335 ms (como hasta hoy: un dado
+//      normal calibra en los primeros), 4 de 671 ms, 4 de 1,34 s y despues
+//      2,68 s. Si un intento necesita mas de 335 ms, aqui lo consigue.
+//   2. RESET DEL PLL en el pulso de reset a partir del 17o intento (~11 s
+//      fallando): la IP mueve la fase del PLL con la danza mDRP y un intento
+//      abortado la deja donde estuviera; el siguiente arranca con la IP en su
+//      estado inicial y el PLL en otro. El remedio de nand2mario para un
+//      fallo es el power-cycle, que es exactamente esto. La IP se queda en
+//      reset hasta que el PLL vuelve a enganchar (tope 20 ms), asi nunca ve
+//      una caida de lock que no haya pedido ella.
+// Un dado que calibra a la primera no nota nada. Diagnostico por puertos:
+// intentos fallidos, duracion del intento bueno y tiempo total de arranque.
+localparam integer WB0 = 24 - WD_SIM_SHIFT;   // 335 ms  (2^24 / 50 MHz)
+localparam integer WB1 = 25 - WD_SIM_SHIFT;   // 671 ms
+localparam integer WB2 = 26 - WD_SIM_SHIFT;   // 1,34 s
+localparam integer WB3 = 27 - WD_SIM_SHIFT;   // 2,68 s
+localparam integer WBL = 20 - WD_SIM_SHIFT;   // tope de espera del lock del PLL (~20 ms)
+reg [27:0] wd_cnt = 28'd0;
 reg        wd_rst = 1'b0;
 reg        wd_rst_d = 1'b0;
-reg [2:0]  wd_fires = 3'd0;
+reg [2:0]  wd_fires = 3'd0;         // telemetria vieja (satura en 7)
+reg [6:0]  wd_att = 7'd0;           // intentos fallidos (satura en 127)
+reg [1:0]  wd_st = 2'd0;            // 0 intento en curso, 1 pulso de reset, 2 esperando lock del PLL
+reg        wd_pll_rst = 1'b0;
+wire       wd_win_end = (wd_att < 7'd8)  ? wd_cnt[WB0] :
+                        (wd_att < 7'd12) ? wd_cnt[WB1] :
+                        (wd_att < 7'd16) ? wd_cnt[WB2] : wd_cnt[WB3];
+wire       wd_pll_due = (wd_att >= 7'd16);
 always @(posedge clk_g50) begin
-    if (init_calib_complete) begin
-        wd_cnt <= 25'd0;
-        wd_rst <= 1'b0;
+    case (wd_st)
+    2'd0: begin
+        if (init_calib_complete)
+            wd_cnt <= 28'd0;
+        else if (wd_win_end) begin
+            wd_cnt     <= 28'd0;
+            wd_rst     <= 1'b1;
+            wd_pll_rst <= wd_pll_due;
+            if (wd_att != 7'd127) wd_att <= wd_att + 7'd1;
+            wd_st      <= 2'd1;
+        end
+        else
+            wd_cnt <= wd_cnt + 28'd1;
     end
-    // _144 CADENCIA UNIFORME: al terminar el pulso de reset (256 ciclos, en
-    // wd_cnt[7:0]==0xFF dentro de la ventana bit24) rearmamos el contador a 0.
-    // Antes wd_cnt corria libre toda la vuelta de 2^25 -> el 1er intento duraba
-    // 335ms pero los siguientes 671ms (el fallo lo cazo la investigacion DDR3).
-    // Con el rearme TODOS los intentos duran 335ms (umbral YA probado bueno: el
-    // 1er intento siempre uso 335ms y calibra) -> ~2x muestreo del ojo termico,
-    // ~mitad del peor caso. NO se toca PLL/POR/settle/mDRP (respeta _129/_130).
-    else if (wd_cnt[24] && (wd_cnt[23:8] == 16'd0) && (wd_cnt[7:0] == 8'hFF)) begin
-        wd_cnt <= 25'd0;
-        wd_rst <= 1'b0;
+    2'd1: begin                          // pulso de 256 ciclos (IP y, si toca, PLL)
+        wd_cnt <= wd_cnt + 28'd1;
+        if (wd_cnt[7:0] == 8'hFF) begin
+            wd_cnt <= 28'd0;
+            if (wd_pll_rst) begin
+                wd_pll_rst <= 1'b0;      // el PLL sale de reset; la IP sigue en el
+                wd_st      <= 2'd2;
+            end
+            else begin
+                wd_rst <= 1'b0;
+                wd_st  <= 2'd0;
+            end
+        end
     end
-    else begin
-        wd_cnt <= wd_cnt + 25'd1;
-        wd_rst <= (wd_cnt[24] && (wd_cnt[23:8] == 16'd0));
+    default: begin                       // 2: el PLL reengancha; la IP sale con lock (o al tope)
+        wd_cnt <= wd_cnt + 28'd1;
+        if (pll_lk_s2 || wd_cnt[WBL]) begin
+            wd_cnt <= 28'd0;
+            wd_rst <= 1'b0;
+            wd_st  <= 2'd0;
+        end
     end
+    endcase
     wd_rst_d <= wd_rst;
     if (wd_rst && !wd_rst_d && wd_fires != 3'd7) wd_fires <= wd_fires + 3'd1;
 end
 wire       ip_rst_n = ~wd_rst;
+
+// ---- diagnostico del arranque (dominio g50, 54 MHz; lo lee el MSX por puertos) ----
+localparam integer MS10 = (540000 >> WD_SIM_SHIFT) - 1;
+reg [19:0] ms10_pre = 20'd0;
+wire       ms10_tick = (ms10_pre == MS10[19:0]);
+reg [3:0]  ms10_dec = 4'd0;
+wire       ms100_tick = ms10_tick && (ms10_dec == 4'd9);
+reg [7:0]  att_10ms = 8'd0;         // duracion del intento en curso
+reg [7:0]  calib_10ms = 8'd0;       // la del intento que calibro (la primera vez)
+reg [7:0]  boot_100ms = 8'd0;       // del arranque a la primera calibracion
+reg        calib_done_g = 1'b0;
+always @(posedge clk_g50) begin
+    ms10_pre <= ms10_tick ? 20'd0 : ms10_pre + 20'd1;
+    if (ms10_tick) ms10_dec <= (ms10_dec == 4'd9) ? 4'd0 : ms10_dec + 4'd1;
+    if (wd_st != 2'd0)
+        att_10ms <= 8'd0;                              // reset de la IP: intento nuevo
+    else if (init_calib_complete) begin
+        if (!calib_done_g) begin calib_10ms <= att_10ms; calib_done_g <= 1'b1; end
+    end
+    else if (ms10_tick && att_10ms != 8'd255)
+        att_10ms <= att_10ms + 8'd1;
+    if (!calib_done_g && ms100_tick && boot_100ms != 8'd255)
+        boot_100ms <= boot_100ms + 8'd1;
+end
+assign dbg_att        = wd_att;
+assign dbg_calib_10ms = calib_done_g ? calib_10ms : att_10ms;   // sin calibrar: el intento en curso
+assign dbg_boot_100ms = boot_100ms;
 
 
 // ---------------------------------------------------------------------------
@@ -173,7 +257,7 @@ pll_ddr3 pll_ddr3_inst (
     .clkout1 (clk_7425_out),
     .clkout2 (memory_clk),
     .clkin   (clk_27),
-    .reset   (~pll27_lock),
+    .reset   (~pll27_lock | wd_pll_rst),   // _130: el arranque del arbol de 27; V3.7b: y el reintento tardio
     .init_clk(clk_g50),
     .enclk0  (1'b1),
     .enclk2  (pll_stop)

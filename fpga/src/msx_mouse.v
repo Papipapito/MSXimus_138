@@ -54,7 +54,10 @@ module msx_mouse (
     output wire [7:0]  data,
 
     // diagnostico (puerto 0x2E): en que fase esta la maquina
-    output wire [2:0]  dbg_phase
+    output wire [2:0]  dbg_phase,
+    // diagnostico (telemetria de la Zynq): acumulador y delta capturado en X
+    output wire [11:0] dbg_cur_x,
+    output wire [7:0]  dbg_rel_x
 );
 
     // Si algun dia el movimiento sale invertido en placa, este es el unico
@@ -201,6 +204,8 @@ module msx_mouse (
     assign data = {2'b11, ~btn[1], ~btn[0], nib};
 
     assign dbg_phase = phase;
+    assign dbg_cur_x = cur_x;
+    assign dbg_rel_x = rel_x;
 
 endmodule
 `default_nettype wire

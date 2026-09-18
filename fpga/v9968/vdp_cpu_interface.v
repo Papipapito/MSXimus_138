@@ -273,6 +273,12 @@ module vdp_cpu_interface (
 	reg		[1:0]		ff_button1 = 2'd0;
 	reg		[1:0]		ff_button2 = 2'd0;
 	reg					ff_force_page2 = 1'b0;
+	//	Upstream gen C (hra1129 ceeecd7, 04/08/2026): R#20 y R#21 quedan BLOQUEADOS tras el
+	//	reset y solo se escriben si el software ha puesto a 0 el bit 7 del puerto #4 (9Ch).
+	//	Motivo (cazado en la Zynq el 15/09 con el marcador de Xevious): la BIOS MSX2 escribe
+	//	R#20..R#23 = 0 por 9Bh en cada init del VDP, y R#21[0]=0 encendia el modo nativo (ID 3,
+	//	A17 vivo en las bases de tabla) sin que nadie lo pidiera.
+	reg					ff_lock_extregs = 1'b1;
 
 	always @( posedge clk ) begin
 		ff_button1 <= button;
@@ -762,18 +768,22 @@ module vdp_cpu_interface (
 			//	diagnostico de HRA programan el VDP con el mapa viejo.
 			8'd20:	//	R#20 = [S16][CEIE][ILN][EPAL][SCOL][ILNS][SVNS][HS]
 				begin
-					ff_command_high_speed_mode <= ff_1st_byte[0];
-					ff_sprite_nonR23_mode <= ff_1st_byte[1];
-					ff_interrupt_line_nonR23_mode <= ff_1st_byte[2];
-					ff_sprite_mode3 <= ff_1st_byte[3];
-					ff_ext_palette_mode <= ff_1st_byte[4];
-					ff_flat_interlace_mode <= ff_1st_byte[5];
-					ff_command_end_interrupt_enable <= ff_1st_byte[6];
-					ff_sprite16_mode <= ff_1st_byte[7];
+					if( !ff_lock_extregs ) begin	//	gen C: solo desbloqueado por el puerto #4
+						ff_command_high_speed_mode <= ff_1st_byte[0];
+						ff_sprite_nonR23_mode <= ff_1st_byte[1];
+						ff_interrupt_line_nonR23_mode <= ff_1st_byte[2];
+						ff_sprite_mode3 <= ff_1st_byte[3];
+						ff_ext_palette_mode <= ff_1st_byte[4];
+						ff_flat_interlace_mode <= ff_1st_byte[5];
+						ff_command_end_interrupt_enable <= ff_1st_byte[6];
+						ff_sprite16_mode <= ff_1st_byte[7];
+					end
 				end
 			8'd21:	//	R#21 = [N/A][N/A][N/A][N/A][N/A][N/A][N/A][V58]
 				begin
-					ff_v9958_mode <= ff_1st_byte[0];
+					if( !ff_lock_extregs ) begin	//	gen C: la BIOS escribe R#21=0 en cada init y NO debe cambiar el modo
+						ff_v9958_mode <= ff_1st_byte[0];
+					end
 				end
 			8'd23:	//	R#23 = [DO7][DO6][DO5][DO4][DO3][DO2][DO1][DO0]
 				begin
@@ -943,7 +953,7 @@ module vdp_cpu_interface (
 				ff_bus_rdata_en	<= 1'b1;
 			end
 			else if( ff_port4 ) begin
-				ff_bus_rdata	<= { 5'd0, ff_command_end_interrupt, ff_line_interrupt, ff_frame_interrupt };
+				ff_bus_rdata	<= { ff_lock_extregs, 4'd0, ff_command_end_interrupt, ff_line_interrupt, ff_frame_interrupt };
 				ff_bus_rdata_en	<= 1'b1;
 			end
 			else begin
@@ -986,6 +996,7 @@ module vdp_cpu_interface (
 			ff_frame_interrupt			<= 1'b0;
 			ff_line_interrupt			<= 1'b0;
 			ff_command_end_interrupt	<= 1'b0;
+			ff_lock_extregs				<= 1'b1;
 		end
 		else begin
 			//	---- frame (F) ----
@@ -1011,6 +1022,11 @@ module vdp_cpu_interface (
 				//	Clear line interrupt flag (lectura de S#1, puerto 4 bit1,
 				//	o escritura de R#0/R#19)
 				ff_line_interrupt <= 1'b0;
+			end
+
+			//	---- bloqueo de R#20/R#21 (gen C): bit 7 de cada escritura al puerto #4 ----
+			if( w_write && ff_port4 ) begin
+				ff_lock_extregs <= ff_bus_wdata[7];
 			end
 
 			//	---- fin de comando (CE-int) ----
@@ -1060,11 +1076,20 @@ module vdp_cpu_interface (
 	assign reg_sprite_magify						= ff_sprite_magify;
 	assign reg_sprite_16x16							= ff_sprite_16x16;
 	assign reg_display_on							= ff_display_on;
-	assign reg_pattern_name_table_base				= ff_force_page2 ? 8'h5F : ff_pattern_name_table_base;
-	assign reg_color_table_base						= ff_color_table_base;
-	assign reg_pattern_generator_table_base			= ff_pattern_generator_table_base;
-	assign reg_sprite_attribute_table_base			= ff_sprite_attribute_table_base;
-	assign reg_sprite_pattern_generator_table_base	= ff_sprite_pattern_generator_table_base;
+	//	MSXimus 15/09/2026 (Xevious Fardraut Saga, marcador en blanco en la 60K y en la Zynq):
+	//	en modo V9958 (R#21[0]=1, el de arranque) el bit A17 de las CINCO bases de tabla se
+	//	IGNORA, como ya hace el puerto de VRAM de la CPU (ff_vram_address <= {1'b0, ...}).
+	//	El V9968 lo define como A17 para los 256 KB (R#2[7], R#4[6], R#6[6], R#10[3],
+	//	R#11[2]), pero en un V9938/V9958 esos bits no existen y el software los pone a 1
+	//	sin mas: el Xevious muestra su marcador con R#2=FFh (pagina 3) durante las 13
+	//	primeras lineas y aqui se buscaba en 38000h, que esta vacio. Con R#21[0]=0
+	//	(modo V9968 nativo) se conserva el direccionamiento completo.
+	wire	w_a17_ok = ~ff_v9958_mode;
+	assign reg_pattern_name_table_base				= ff_force_page2 ? 8'h5F : { ff_pattern_name_table_base[17] & w_a17_ok, ff_pattern_name_table_base[16:10] };
+	assign reg_color_table_base						= { ff_color_table_base[17] & w_a17_ok, ff_color_table_base[16:6] };
+	assign reg_pattern_generator_table_base			= { ff_pattern_generator_table_base[17] & w_a17_ok, ff_pattern_generator_table_base[16:11] };
+	assign reg_sprite_attribute_table_base			= { ff_sprite_attribute_table_base[17] & w_a17_ok, ff_sprite_attribute_table_base[16:7] };
+	assign reg_sprite_pattern_generator_table_base	= { ff_sprite_pattern_generator_table_base[17] & w_a17_ok, ff_sprite_pattern_generator_table_base[16:11] };
 	assign reg_backdrop_color						= ff_backdrop_color;
 	assign reg_sprite_disable						= ff_sprite_disable;
 	assign reg_color0_opaque						= ff_color0_opaque;

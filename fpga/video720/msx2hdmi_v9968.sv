@@ -885,6 +885,21 @@ module msx2hdmi_v9968 #(
     // El serializer del árbol (tn_vdp_v3_v9958/src/hdmi/serializer.sv) lleva
     // los OSER10 con RESET=1'b0 constante: el reset por-frame (hdmi_rst) solo
     // realinea cx/cy de los hdmi, nunca el gearbox de serialización.
+`ifdef ZYNQ
+    // ZYNQ (Xilinx): el reloj TMDS sale del propio serializer (OSERDESE2 con
+    // 0000011111, alineado con los datos), NO el clk_pixel crudo: un BUFG
+    // directo al pad no garantiza la fase. Validado en zynq/bringup/hdmi720.
+    // ELVDS_OBUF es aqui el envoltorio de OBUFDS de zynq/gowin_prims.v.
+    wire tmds_clock_ser;
+    serializer #(.NUM_CHANNELS(NUM_CHANNELS), .VIDEO_RATE(0)) serializer(
+        .clk_pixel(clk_pixel), .clk_pixel_x5(clk_5x_pixel), .reset(1'b0),
+        .tmds_internal(tmds_internal), .tmds(tmds), .tmds_clock(tmds_clock_ser) );
+    ELVDS_OBUF tmds_bufds [3:0] (
+        .I({tmds_clock_ser, tmds}),
+        .O({tmds_clk_p, tmds_d_p}),
+        .OB({tmds_clk_n, tmds_d_n})
+    );
+`else
     serializer #(.NUM_CHANNELS(NUM_CHANNELS), .VIDEO_RATE(0)) serializer(
         .clk_pixel(clk_pixel), .clk_pixel_x5(clk_5x_pixel), .reset(1'b0),
         .tmds_internal(tmds_internal), .tmds(tmds) );
@@ -895,6 +910,7 @@ module msx2hdmi_v9968 #(
         .O({tmds_clk_p, tmds_d_p}),
         .OB({tmds_clk_n, tmds_d_n})
     );
+`endif
 
 `else
 

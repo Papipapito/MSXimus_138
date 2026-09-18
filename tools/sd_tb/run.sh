@@ -29,9 +29,13 @@ vvp -n tb_glue.vvp | tee log_glue.txt | grep -v -E '^\s*$'
 echo "---- Game Master 2 en el slot 1 ----"
 iverilog -g2012 -o tb_gm2.vvp tb_gm2.sv ../../fpga/src/gm2_slot1.v
 vvp -n tb_gm2.vvp | tee log_gm2.txt | grep -v -E '^\s*$'
+echo "---- DMA de lectura SD -> RAM (V3.6) ----"
+iverilog -g2012 -o tb_sddma.vvp tb_sddma.sv sd_card_model.sv $SRC/sdc_ioport.sv $SRC/sd_reader.sv $SRC/sdcmd_ctrl.sv $SRC/crc16.v ../../fpga/src/sd_dma.sv
+vvp -n tb_sddma.vvp | tee log_sddma.txt | grep -v -E '^\s*$'
 echo "---- resumen ----"
 grep -h -E '^=== tb_sd .*(TODO OK|FALLOS)' log_[0-9]*.txt
 grep -h -E '^=== tb_sdio:' log_sdio.txt
 grep -h -E '^=== tb_mstimer:' log_mstimer.txt
 grep -h -E '^=== tb_glue:' log_glue.txt
 grep -h -E '^=== tb_gm2:' log_gm2.txt
+grep -h -E '^=== tb_sddma:' log_sddma.txt

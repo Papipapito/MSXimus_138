@@ -66,7 +66,7 @@ module tb_ddr3_backend;
     wire ddr_cs, ddr_ras, ddr_cas, ddr_we_p, ddr_ck, ddr_ck_n, ddr_cke, ddr_odt, ddr_reset_n;
     wire [1:0] ddr_dm; wire [15:0] ddr_dq; wire [1:0] ddr_dqs, ddr_dqs_n;
 
-    v9968_ddr3_backend dut (
+    v9968_ddr3_backend #(.WD_SIM_SHIFT(13)) dut (
         .a_req(a_req_w), .a_we(a_we_w), .a_addr(a_addr_w), .a_wdata(a_wdata_w),
         .a_wmask(a_wmask_w),
         .a_dout(a_dout_w), .a_done(a_done_w),
@@ -195,11 +195,26 @@ module tb_ddr3_backend;
     integer i;
     localparam [21:0] BASE = 22'h280000;
 
+    // V3.7b: contador de resets del PLL pedidos por el motor de reintentos
+    integer pll_rsts = 0;
+    always @(posedge dut.wd_pll_rst) pll_rsts++;
+
     initial begin
+        // V3.7b MOTOR DE REINTENTOS: la IP falla 18 intentos seguidos. Con las
+        // ventanas acortadas (WD_SIM_SHIFT) tienen que escalar (8 cortas, 4
+        // dobles, 4 cuadruples, luego x8), y los intentos 17 y 18 llevan reset
+        // del PLL. El 19o calibra: wd_att = 18, pll_rsts = 2.
+        dut.u_ddr3.calib_fail_left = 18;
         repeat (20) @(posedge clk_vdp);
         rst_n = 1;
         wait (ready_w);
-        $display("CALIB OK t=%0t diag=%h", $time, diag_w);
+        repeat (4) @(posedge clk_g50);      // que el diagnostico latchee (ready sale en el mismo instante)
+        $display("CALIB OK t=%0t diag=%h intentos_fallidos=%0d pll_resets=%0d calib_10ms=%0d boot_100ms=%0d",
+                 $time, diag_w, dut.wd_att, pll_rsts, dut.calib_10ms, dut.boot_100ms);
+        if (dut.wd_att !== 7'd18) $display("FALLO REINTENTOS: wd_att=%0d (esperado 18)", dut.wd_att);
+        if (pll_rsts !== 2)       $display("FALLO REINTENTOS: pll_resets=%0d (esperado 2)", pll_rsts);
+        if (dut.wd_st !== 2'd0 || dut.wd_rst !== 1'b0) $display("FALLO REINTENTOS: motor no en reposo");
+        if (dut.calib_10ms < 8'd8 || dut.calib_10ms > 8'd14) $display("FALLO REINTENTOS: calib_10ms=%0d (esperado ~11 ticks)", dut.calib_10ms);
 
         // T4 primero: poblar 64 bytes con escrituras (tambien es el test DM)
         for (i = 0; i < 64; i++) begin
@@ -412,14 +427,13 @@ module tb_ddr3_backend;
 endmodule
 
 // ---- stubs de PLL para el TB (la IP-modelo autogenera clk_out) ----
+// 138K: el envoltorio pll138/pll_ddr3 (PLL + PLL_INIT, sin mDRP): init_clk, enclk0/2, clkout1
 module pll_ddr3 (
-    output wire lock, output wire clkout0, output wire clkout2,
-    input wire clkin, input wire reset, input wire mdclk,
-    input wire [1:0] mdopc, input wire mdainc, input wire [7:0] mdwdi,
-    output wire [7:0] mdrdo
+    output wire lock, output wire clkout0, output wire clkout1, output wire clkout2,
+    input wire clkin, input wire reset, input wire init_clk,
+    input wire enclk0, input wire enclk2
 );
-    assign lock = 1'b1; assign clkout0 = 1'b0; assign clkout2 = 1'b0;
-    assign mdrdo = 8'd0;
+    assign lock = 1'b1; assign clkout0 = 1'b0; assign clkout1 = 1'b0; assign clkout2 = 1'b0;
 endmodule
 
 module pll_mDRP_intf (

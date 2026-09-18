@@ -228,6 +228,14 @@ module memory_ctrl #(
     //-- calibrada en _121): en marcha normal el RFSH del Z80 llega antes y
     //-- nada cambia; con el Z80 parado la matriz entera se refresca en ~39ms.
     reg [4:0] rfsh_auto = 5'd0;
+    //-- V3.7: cpu_run llega de clk_54m (ya registrado en top.v) y aqui se
+    //-- resincroniza a clk_108m: el cruce 54 -> 108 es FF -> FF sin logica y
+    //-- deja de ser el peor camino de la campana (era el RESET de rfsh_gap/
+    //-- rfsh_auto a traves de esta condicion). Dos ciclos de 108 MHz de
+    //-- retraso: el Z80 tarda >= 280 ns en su primer ciclo de bus tras el
+    //-- reset y la DMA espera 40 ciclos antes de escribir (top.v, S_GUARD).
+    reg [1:0] cpu_run_s = 2'b00;
+    always @ ( posedge clk_108m ) cpu_run_s <= { cpu_run_s[0], cpu_run };
     reg [4:0]  RstSeq = 0;
     // SDRAM control signals
     reg  [2:0] SdrSta = 3'b000;
@@ -340,7 +348,7 @@ module memory_ctrl #(
             //-- exactamente el mundo pre-_174 que fue estable durante anyos.
             //-- Guardian: sdr16_tb test TZ (tormenta Z80: 222 disparos sin el
             //-- gate, 0 con el).
-            else if( (bus_rfsh_n == 0 || (rfsh_auto[4] == 1 && ram_busy == 0 && enable_sdram == 0 && cpu_run == 0)) && video_dlclk == 1 && rfsh_gap[4] == 1 && (vram_write == 0 || rfsh_skip_cnt[5] == 1) ) begin
+            else if( (bus_rfsh_n == 0 || (rfsh_auto[4] == 1 && ram_busy == 0 && enable_sdram == 0 && cpu_run_s[1] == 0)) && video_dlclk == 1 && rfsh_gap[4] == 1 && (vram_write == 0 || rfsh_skip_cnt[5] == 1) ) begin
                 //-- refresh roba el slot VDP SOLO si el VDP va a LEER (display/
                 //-- sprite, recuperable al siguiente frame). Si va a ESCRIBIR
                 //-- (comando del blitter HMMV/HMMM o acceso CPU por puerto), NO:

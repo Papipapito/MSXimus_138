@@ -151,6 +151,8 @@ set_false_path -from [get_clocks {clk_54m}] -to [get_pins {kanji1/?*?/?*}]
 set_false_path -from [get_clocks {clk_54m}] -to [get_pins {ocm_ports/?*?/CE}]
 set_false_path -from [get_clocks {clk_54m}] -to [get_pins {ocm_ports/?*?/D}]
 set_false_path -from [get_clocks {clk_54m}] -to [get_pins {psg1/?*?/?*}]
+# OJO: si se compila con DIETA_V36H (sin PSG2) hay que comentar esta linea:
+# Gowin ABORTA (TA2003) ante un objeto inexistente, no lo ignora (v36k, 5 dados).
 set_false_path -from [get_clocks {clk_54m}] -to [get_pins {psg2/?*?/?*}]
 # v3.4 (_44): chips SCC de vuelta a 27M (config TN20K, fase alineada v3.0) —
 # misma clase cuasi-estatica por protocolo de bus que rtc/kanji/psg

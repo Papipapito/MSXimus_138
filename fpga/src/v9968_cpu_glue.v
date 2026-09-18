@@ -35,7 +35,7 @@ module v9968_cpu_glue (
     // --- lado T80 (señales cuasi-estaticas durante el ciclo I/O) ---
     input  wire       csw_n,         // escritura VDP (98-9B), activo bajo
     input  wire       csr_n,         // lectura VDP, activo bajo
-    input  wire [1:0] mode,          // bus_addr[1:0]
+    input  wire [2:0] mode,          // bus_addr[2:0]: 0-3 = 98h-9Bh, 4 = puerto #4 (9Ch, gen C: flags de INT y bloqueo de R#20/21)
     input  wire [7:0] cdo,           // dato del T80 (escrituras)
     output reg  [7:0] cdi_r,         // dato al T80 (lecturas, estable)
     output wire       wait_n,        // _177: retener al Z80 (re-sincronizar
@@ -95,7 +95,7 @@ module v9968_cpu_glue (
             else if( (io_wr || io_rd) && !served ) begin
                 // addr/dato llevan >=2 ciclos de 85.9 estables (viajaron con
                 // el propio cs): latch directo
-                bus_address <= { 1'b0, mode };
+                bus_address <= mode;
                 bus_wdata   <= cdo;
                 bus_write   <= io_wr;
                 bus_ioreq   <= 1'b1;

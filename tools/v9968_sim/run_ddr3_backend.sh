@@ -2,7 +2,7 @@
 # run_ddr3_backend.sh — banco del backend DDR3 de la VRAM (bridges reales +
 # backend real + modelo conductual de la IP)
 set -e
-W=/mnt/c/Users/alber/proyectosAI/msx/MSX_up_th9958
+W=/mnt/c/Users/alber/proyectosAI/msx/MSXimus_138
 cd /tmp && rm -rf ddr3bk && mkdir ddr3bk && cd ddr3bk
 verilator --binary --timing -j 4 -Wno-fatal -Wno-BLKANDNBLK \
     --top-module tb_ddr3_backend \

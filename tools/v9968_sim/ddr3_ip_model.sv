@@ -67,6 +67,7 @@ module DDR3_Memory_Interface_Top (
     parameter int LAT_MAX  = 18;
 
     bit fail_mode = 0;                   // el TB lo fuerza via jerarquia
+    int calib_fail_left = 0;             // V3.7b: intentos de calibracion que FALLAN (el TB lo fuerza)
     bit glitch_rdy = 1;                  // _132: readys que caen (refresh &co)
 
     // clk_out 74.25MHz autogenerado
@@ -80,13 +81,15 @@ module DDR3_Memory_Interface_Top (
         repeat (50) @(posedge clk_out);
         ddr_rst = 1'b0;
         # (CALIB_US * 1000);
-        init_calib_complete = 1'b1;
+        if (calib_fail_left > 0) calib_fail_left--; else init_calib_complete = 1'b1;
     end
     // recalibracion si la IP recibe reset externo
     always @(negedge rst_n) begin
         init_calib_complete = 1'b0;
         # (CALIB_US * 1000);
-        if (rst_n !== 1'b0) init_calib_complete = 1'b1;
+        if (rst_n !== 1'b0) begin
+            if (calib_fail_left > 0) calib_fail_left--; else init_calib_complete = 1'b1;
+        end
     end
 
     // memoria por lineas de 128b (indice = addr[27:3] = linea)

@@ -200,6 +200,15 @@ esptool --chip esp32c6 --port COMx write_flash 0x0 firmware_esp32c6_v3.2_merged.
 
 > There is no drag-and-drop route like the Raspberry Pi Pico's `.uf2`: the ESP32 has no mass-storage bootloader in ROM, so a file you copy onto a drive is not an option on any ESP32. The web flasher above is as close as it gets — one page, two clicks, nothing to install.
 
+## The case
+
+A 3D-printable case in the shape of a Spectravideo SVI-728, with the Console 60K inside, a bay with a lid for the ESP32-C6 and its display, a fan, and the connectors brought out to the back and the front. It derives from Palver's [SVI-728 Retropie case](https://www.thingiverse.com/thing:4066021).
+
+<p align="center"><img src="docs/img/carcasa/carcasa_teclado.jpg" alt="The printed case, display lid open" width="820"/></p>
+<p align="center"><img src="docs/img/carcasa/carcasa_abierta_pantalla.jpg" alt="Inside: the Console 60K, the C6 in its bay, the wiring" width="820"/></p>
+
+The Bambu Studio project, the STLs, the print settings and the assembly notes are in [`carcasa/`](carcasa/README.md).
+
 ## Status
 
 This version has been validated on hardware with HRA!'s V9968 test suite, the DEVCON demos, Metal Gear 2, Aleste 2 and the usual MSX2+ catalogue. The V9968 tracks HRA!'s **latest published revision**; its provenance and every local patch are documented in [`fpga/v9968/ORIGEN.txt`](fpga/v9968/ORIGEN.txt).
@@ -207,7 +216,8 @@ This version has been validated on hardware with HRA!'s V9968 test suite, the DE
 ## Repository layout
 
 ```
-docs/            Plans, audits, logo, screenshots
+carcasa/         The 3D-printable case (3MF, STLs, assembly)
+docs/            Manual, technical reference, history, logo, photos
 fpga/            top.v, build.tcl
   v9968/         The V9968 VDP (+ ORIGEN.txt: provenance and local patches)
   video720/      HDMI bridge and scaler
