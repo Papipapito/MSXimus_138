@@ -1,12 +1,12 @@
 # 05. ROMs y mappers
 
-Cómo lanza el MSXimus un cartucho desde un fichero: qué mappers emula, cómo elige uno, qué pasa con la SRAM de los cartuchos que guardan partida y cómo funciona el Game Master 2. Las teclas concretas de la pantalla de lanzar están en el [capítulo 04](04-menu.md).
+Cómo lanza el MSXimus_138 un cartucho desde un fichero: qué mappers emula, cómo elige uno, qué pasa con la SRAM de los cartuchos que guardan partida y cómo funciona el Game Master 2. Todo este capítulo es idéntico al del MSXimus para la Tang Console 60K: el menú, la megaram, los mappers y el DMA son los mismos en el porte a la Console 138K. Las teclas concretas de la pantalla de lanzar están en el [capítulo 04](04-menu.md).
 
 ## 1. La megaram: el cartucho emulado
 
 Al lanzar una ROM, el menú la copia de la tarjeta a una memoria de **4 MB** dentro de la máquina, la megaram, y le dice al core con qué mapper tiene que comportarse. A partir de ahí la máquina se reinicia y encuentra la ROM en el **slot 2**, como si hubiera un cartucho pinchado. Un juego no puede distinguirlo de un cartucho real.
 
-La carga va por DMA: unos 640 KB por segundo, así que un megarom de 512 KB tarda menos de un segundo y uno de 4 MB unos seis. La barra de la pantalla de lanzar la muestra.
+La carga va por DMA: en el 60K se midieron unos 640 KB por segundo, así que un megarom de 512 KB tarda menos de un segundo y uno de 4 MB unos seis. El camino del DMA es el mismo en el 138K, así que se esperan cifras parecidas (pendiente de verificar en placa). La barra de la pantalla de lanzar la muestra.
 
 ## 2. Los mappers
 

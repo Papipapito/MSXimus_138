@@ -16,7 +16,7 @@ La tarjeta se maneja en **modo SD nativo de un bit**, no en SPI: líneas CMD, CL
 
 Dos relojes. La inicialización va a 69,6 kHz, por debajo de los 400 kHz que exige la norma. La transferencia va a **6,75 MHz**: el divisor rápido está a cero, que es el mínimo del diseño actual porque el periodo de `sdclk` son `2 × divisor + 4` ciclos de 27 MHz. Subir a 13,5 MHz exigiría rehacer el divisor y el muestreo, y es la fase 3 pendiente.
 
-Todo el módulo va en `clk_27m` y sus salidas están registradas, con las órdenes convertidas en pulsos de un ciclo con el dato ya capturado. No es una elección de estilo: los nodos IORQ_n y WR_n del Z80 están saturados en esta FPGA, y colgar de ellos un decodificador combinacional se llevó por delante tres campañas de síntesis seguidas antes de hacerlo así.
+Todo el módulo va en `clk_27m` y sus salidas están registradas, con las órdenes convertidas en pulsos de un ciclo con el dato ya capturado. No es una elección de estilo: en el 60K los nodos IORQ_n y WR_n del Z80 estaban saturados, y colgar de ellos un decodificador combinacional se llevó por delante tres campañas de síntesis seguidas antes de hacerlo así. El 138K hereda el módulo tal cual, con los mismos relojes.
 
 Un detalle de arranque que costó encontrar: el lector solo acepta la orden de inicializar estando en reposo. Si algo arranca la tarjeta antes que Nextor, la petición de Nextor se ignora en silencio y el MSX no arranca. El menú, que monta la tarjeta antes que Nextor, la deja en reposo al terminar.
 
@@ -48,9 +48,9 @@ Con N mayor que 1 en 4Dh, la orden de 47h lanza un CMD18 o CMD25 y la tarjeta en
 
 ### Camino 4: la DMA
 
-Con el bit 2 en la orden de lectura, el búfer no lo vacía el Z80 sino el core. La cuenta que lo motivó: la tarjeta tarda 0,6 ms en traer un bloque y el Z80 tardaba 3 ms en vaciarlo, así que la tarjeta esperaba parada el 80 % del tiempo. Con la DMA el vaciado son 150 µs y el cuello vuelve a ser la tarjeta.
+Con el bit 2 en la orden de lectura, el búfer no lo vacía el Z80 sino el core. La cuenta que lo motivó, medida en el 60K: la tarjeta tarda 0,6 ms en traer un bloque y el Z80 tardaba 3 ms en vaciarlo, así que la tarjeta esperaba parada el 80 % del tiempo. Con la DMA el vaciado son 150 µs y el cuello vuelve a ser la tarjeta.
 
-Las velocidades medidas en placa con la prueba 1 del menú de pruebas, sobre los mismos 128 KB:
+Las velocidades medidas en placa **en el 60K** con la prueba 1 del menú de pruebas, sobre los mismos 128 KB (el controlador, la DMA y los relojes de 27 y 54 MHz son los mismos en el 138K, así que cabe esperar las mismas cifras, pero no se han medido: pendiente de verificar en placa):
 
 | Camino | KB/s |
 |---|---|
@@ -72,9 +72,9 @@ La máquina de estados vive en `clk_54m`, el dominio de la RAM:
 
 Si la orden falla, por timeout o por CRC, el bloque no se copia y la máquina termina igual: nunca se queda colgada, y el estado dice qué pasó.
 
-**El refresco de la SDRAM** es la parte delicada. Con la CPU parada, el controlador entra en refresco autónomo, y ese refresco puede pisar una escritura en vuelo. Por eso la DMA solo lo permite mientras está esperando a la tarjeta, que son 600 µs por bloque, de sobra para varios refrescos, y lo prohíbe durante la ráfaga de escrituras. Esa señal entra en la misma `cpu_run` que gobierna el refresco en todos los demás casos, y desde la 3.6d va registrada porque era el peor camino de temporización de la campaña.
+**El refresco de la SDRAM** es la parte delicada. Con la CPU parada, el controlador entra en refresco autónomo, y ese refresco puede pisar una escritura en vuelo. Por eso la DMA solo lo permite mientras está esperando a la tarjeta, que son 600 µs por bloque, de sobra para varios refrescos, y lo prohíbe durante la ráfaga de escrituras. Esa señal entra en la misma `cpu_run` que gobierna el refresco en todos los demás casos, y desde la 3.6d va registrada porque era el peor camino de temporización de la campaña del 60K.
 
-**Coste**: unos 150 registros y ninguna BSRAM, que está al 100 %. Nada en el cono de la CPU: el mux de la RAM sigue teniendo dos ramas, y la elección entre flash y DMA va por debajo, sobre registros.
+**Coste**: unos 150 registros y ninguna BSRAM (en el 60K está al 100 %; en el 138K sobra, 116 de 340, pero el módulo es el mismo). Nada en el cono de la CPU: el mux de la RAM sigue teniendo dos ramas, y la elección entre flash y DMA va por debajo, sobre registros.
 
 ### Los dos modos de destino
 
@@ -127,4 +127,4 @@ Un mismo pack de BIOS funciona con cualquier core desde la 3.5c: cada pieza sond
 ## 6. Verificación
 
 - `tools/sd_tb/`: bancos en Icarus Verilog con un modelo de tarjeta. `tb_sd` para el lector en sus tres velocidades, `tb_sdio` para los puertos, `tb_mstimer` para el cronómetro, `tb_glue` para el pegamento con el bus y `tb_sddma` para la DMA: registro de destino, CMD17, CMD18 de cuatro bloques, espera con el bus ocupado, orden normal tras una DMA, guarda del refresco, modo lógico cruzando de página y contadores contra una cuenta por software.
-- En placa: tecla T, prueba 1, mide los cuatro caminos sobre los mismos 128 KB con el cronómetro del core. Solo lee.
+- En placa: tecla T, prueba 1, mide los cuatro caminos sobre los mismos 128 KB con el cronómetro del core. Solo lee. En el 138K esta prueba está pendiente de placa; el RTL de la SD y de la DMA es el mismo que el del 60K.

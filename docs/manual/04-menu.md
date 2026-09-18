@@ -2,7 +2,7 @@
 
 El MSXimus lleva un menú dentro de la BIOS. No es un programa que se cargue de la tarjeta: va en el pack de BIOS, en la ROM del cartucho interno, y arranca antes que MSX-DOS. Desde él se navega por la tarjeta SD, se lanzan ROMs y discos, se cambian los ajustes de la máquina, se configura la WiFi y se descargan ficheros.
 
-Todo lo que hay en este capítulo está sacado del código del menú (`menu_main.asm`, `gm2.asm`, `srm_saves.asm` y `test_menu.asm` del repositorio `bios-msxnano-msximus`), no de memoria.
+Todo lo que hay en este capítulo está sacado del código del menú (`menu_main.asm`, `gm2.asm`, `srm_saves.asm` y `test_menu.asm` del repositorio `bios-msxnano-msximus`), no de memoria. El pack de BIOS, y con él el menú, es **el mismo fichero** que en el MSXimus de la Tang Console 60K: en la 138K solo cambia la dirección de la flash donde se graba (`0x800000`, ver el capítulo de instalación). Por eso el menú se comporta igual en las dos máquinas; lo que aún no se ha hecho es verlo funcionar en una placa 138K (pendiente de verificar en placa).
 
 ## 1. Qué pasa al encender
 
@@ -102,7 +102,7 @@ Los mensajes que se ven: *"SRAM: cargando ..."*, *"SRAM: nueva (FF) -> FHUNT"*, 
 
 El Game Master 2 es el cartucho de Konami que añadía guardado de partidas a sus juegos. El MSXimus lo emula en el slot 1 cuando se lanza un juego Konami con **GM2 On**. Necesita dos ficheros en `FHUNT`: `GM2.ROM` (la ROM original del cartucho, 128 KB, la pone el usuario) y `GM2.SRM` (8 KB, se crea solo la primera vez). El guardado a la tarjeta funciona igual que el de la SRAM: en el siguiente arranque, y tras un RESET.
 
-Si falta algo, el juego se lanza sin GM2 y la línea de estado dice por qué: *"GM2: falta FHUNT/GM2.ROM"*, *"GM2: GM2.ROM no mide 128 KB"*, *"GM2: sin FHUNT"*, o *"GM2: este core no lo trae"* si el core es anterior a la 3.5f. Los juegos de 4 MB no dejan sitio y con ellos no se arma.
+Si falta algo, el juego se lanza sin GM2 y la línea de estado dice por qué: *"GM2: falta FHUNT/GM2.ROM"*, *"GM2: GM2.ROM no mide 128 KB"*, *"GM2: sin FHUNT"*, o *"GM2: este core no lo trae"* si el core es anterior a la 3.5f (en el porte 138, anterior a la v2). Los juegos de 4 MB no dejan sitio y con ellos no se arma.
 
 ## 4. Lanzar un disco
 
@@ -131,7 +131,7 @@ La pantalla **MSXimus - Ajustes** tiene estas opciones:
 | **Mezclador de audio** | | Abre la página del mezclador (v3.7): la ganancia maestra y el nivel de cada chip, con nota de prueba. Ver el [capítulo 08](08-audio.md) |
 | **Save & Restart** | | Guardar en la flash y reiniciar |
 
-Debajo se muestra *"Version FPGA (.fs): x.y"*, la versión del core que hay flasheado, o *"desconocida"* si el core no la publica.
+Debajo se muestra *"Version FPGA (.fs): x.y"*, la versión del core que hay flasheado, o *"desconocida"* si el core no la publica. El porte 138 v3.7 publica 3.7 (el puerto 2Fh devuelve 37h), igual que la V3.7b del 60K de la que procede.
 
 | Tecla | Qué hace |
 |---|---|
@@ -166,7 +166,7 @@ La pantalla **MSXimus - Pruebas** sirve para comprobar que la máquina va bien y
 
 | Tecla | Prueba |
 |---|---|
-| **1** | Velocidad de lectura de la SD. Lee los mismos 128 KB por cada uno de los cuatro caminos posibles (ventana, puertos sector a sector, puertos en multibloque y DMA a RAM) y da los KB/s de cada uno. No escribe nada en la tarjeta. Con un core sin DMA la cuarta fila dice *"(este core no trae la DMA)"* |
+| **1** | Velocidad de lectura de la SD. Lee los mismos 128 KB por cada uno de los cuatro caminos posibles (ventana, puertos sector a sector, puertos en multibloque y DMA a RAM) y da los KB/s de cada uno. No escribe nada en la tarjeta. Con un core sin DMA (en el porte 138, la v1 y la v2; la DMA entra con la v3.7) la cuarta fila dice *"(este core no trae la DMA)"*. Los KB/s que se citan en otros capítulos son medidas del 60K: en la 138K están pendientes de placa |
 | **2** | Sonido: una nota por el PSG y otra por el OPLL (MSX-MUSIC) |
 | **3** | Game Master 2 en el slot 1: vuelca lo que ve en el slot 1 con la ROM y la SRAM del último lanzamiento, para comprobar que el mapeo es correcto |
 | **4** | VDP: cuenta cuántas veces se ven los bits HR y VR del registro de estado S#2 en 20000 lecturas, y da la referencia de un V9938 real |

@@ -1,8 +1,66 @@
-# 09. Changelog de la era v3
+# 09. Changelog
 
-Versión a versión, qué cambió, qué dado se entregó y con qué hashes. Sale de los LEEME de cada entrega en `files/<fecha>/`, que quedan fuera de git, y de las notas de `mi_release/`. Las versiones publicadas en GitHub llevan tag; las intermedias son entregas internas probadas en placa.
+Versión a versión, qué cambió, qué dado se entregó y con qué hashes. La primera parte es la **línea 138K**, la del porte que vive en este repositorio; la segunda es el historial de la era v3 del MSXimus en la Tang Console 60K, del que deriva el core y del que el 138 hereda cada cambio por merge. Sale de los LEEME de cada entrega en `files/<fecha>/`, que quedan fuera de git (los del 138 en este repo, los del 60K en `MSX_up_v3`), y de las notas de `mi_release/`.
 
-Los hashes son md5, los ocho primeros dígitos salvo donde se indica. El "dado" es el número primo con que se sembró el place and route ([capítulo 07](07-sintesis-campanas.md)); el margen es el peor setup del informe de temporización.
+Los hashes son md5, los ocho primeros dígitos salvo donde se indica. El "dado" es el número primo con que se sembró el place and route ([capítulo 07](07-sintesis-campanas.md)); el margen es el peor setup del informe de temporización. En el 138 el `clk_86` del V9968 está sobre-restringido a 11,30 ns en `msx_v9968.sdc` (el periodo real es 11,64), así que un margen "contra 11,30" lleva unos 0,34 ns escondidos: se indica cuál es el real.
+
+## Línea 138K
+
+El MSXimus_138 es el MSXimus portado a la Tang Console 138K: la misma placa base (dock con HDMI, SD, dos USB-A, PMOD, BL616, ESP32-C6 y el módulo SDRAM W9825 de 32 MB) con el SOM Tang Mega 138K (GW5AST-LV138PG484A: 138.240 LUT, 340 BSRAM, 12 PLL, 298 DSP, 1 GB de DDR3, flash SPI de 16 MB) en vez del Mega 60K. Menú, tarjeta, mappers, audio, V9968, packs y puertos son los del 60K; lo que cambia está en el [capítulo 01](01-arquitectura.md) y en el `README.138.md`. Las versiones del porte se numeraron aparte (v1, v2) hasta la v3.7, que toma el número del 60K porque es la V3.7b traída entera por merge. Gowin EDA 1.9.12.03 edición Standard con licencia (la Education no soporta el 138K).
+
+**Nada de esta línea ha corrido nunca en una placa 138K**: la placa era prestada, la v1 y la v2 se entregaron sin validar y la v3.7 está en campaña. Lo que hay es síntesis limpia, gate pasado y los bancos de simulación del 60K. Todo lo que en el historial del 60K de más abajo es "validado en placa" aquí es "compilado y verificado en simulación, pendiente de placa"; no se repite en cada entrada.
+
+Lo que cuesta un dado en el 138: CLS ~57 % (el 60K va al 98 %), PnR ~7 min, BSRAM 116/340, bitstream de 4,88 MB (el del 60K, 2,47). No hay problema de área ni de rutado: el listón es el dominio de 86 MHz del V9968 y su shim, que cierra alrededor de 1 de cada 3 dados. Campañas de 3 dados (`p138a`..`p138j`), con el gate del 60K (setup ≥ 0, holds solo en la IP DDR3) contra el `clk_86` sobre-restringido.
+
+### v1 (7 de septiembre de 2026, interna): el porte
+
+Es la **V3.5d del 60K** (rama `V3.5`, commit `dd8d8ff`, más los cambios de la v3.5d) compilada para el GW5AST-138B. Lo que hubo que tocar para que compilara y cerrara:
+
+- **Dispositivo** `GW5AST-138B GW5AST-LV138PG484AC1/I0` en `build.tcl`. Los chips fabricados desde julio de 2025 son versión C y Gowin pide `GW5AST-138C`: hay que mirar la serigrafía del SOM; las entregas dicen con qué versión se compilaron.
+- **Pines**: `msx_console138k.cst/.sdc`, copia 1:1 de los del 60K (el SOM Mega 138K saca a la placa base las mismas bolas, dock y DDR3 incluidos; verificado contra los cst de nand2mario para la Console 138K) con tres retoques que el chip exigió: `IO_TYPE` de la DDR3 a `SSTL15`/`SSTL15D` (el 138 rechaza el sufijo `_I`), `s1`/`s2`/`fan_en_o` a `LVCMOS33` (en el 138 caen en el banco 5, que va a 3,3 V) y fuera las `INS_LOC` del DLL/PLL de la DDR3 del 60K. Sin contrastar contra el esquemático: `sd_*`, `spi_irqn`, `s2`, `fan_en_o`, `esp_*`.
+- **PLL + PLL_INIT en cascada** (`fpga/pll138/`): el GW5AST no tiene `PLLA` (error RP0008) y su `PLL` tiene dos límites nuevos, VCO 650-1300 MHz y frecuencia de comparación 19-81,25 MHz, con los que desde el pad de 50 MHz no salen 108/54/27 ni 371,25 exactos. `pll_27` (50/2 ×27, VCO 675) da 27,000 exactos; de ahí `pll_main` (×40, VCO 1080: 108, 54, 27, 135 y **36 MHz para el motor del OPL4**, que ya no puede ser 37,5; CE de 44,1 kHz = 14112/15000), `pll_86` (VCO 945: 85,9) y `pll_ddr3` (VCO 891: 297 para la DDR3 y `CLKOUT1` = 74,25 sin gatear, del que cuelga `pll_74` ×10 con 74,25 y 371,25 para el HDMI). Sin mDRP: el `pll_stop` de la IP DDR3 va directo a `ENCLK2` del PLL, donde en el 60K estaba la danza mDRP con `pll_mDRP_intf`.
+- **La salida del OPLL (jt2413) se registra en `clk_27m`** antes del mezclador (`jt2413_wav_r27`): el árbol de sumas de 22 ns de `opll/u_acc` (54) a `snd_mix` (27), que en el 60K cabía por poco en la relación 54→27, aquí daba −4,3 ns en todos los dados.
+- **Mapa de flash +4 MB**: el bitstream del 138 se comía el pack en 0x400000. Pack en **0x800000**, bloque de configuración en **0x880000**, YRW801 del OPL4 en **0x900000** (tres `localparam` en `top.v`). Los packs son los mismos ficheros que en el 60K; solo cambia la dirección donde se graban.
+
+Campañas: `p138a` (RP0008, no hay PLLA), `p138b`/`p138c` (constraints: IO_TYPE, INS_LOC, banco 5), `p138d` (gate OK pero con el VCO fuera de rango: no se entrega; de aquí salen el CLS del 57 %, el BSRAM 116/340 y los 7 min de PnR), `p138e` (PA2078: dividir el pad de 50 por 5 se sale del PFD), `p138f` (cascada de PLL, cero avisos, pero los dados rechazados por el OPLL a −4,3 ns), `p138g` (OPLL registrado; 3359/3361/3371 pasan los tres el gate, con 0,013-0,029 ns en el shim del V9968: el rutador cumple el periodo y para; el 3361 se entregó un primer momento y hoy está en `superados/`), `p138h` (`clk_86` sobre-restringido a 11,30 ns; 3389 gate OK con 0,07 ns contra 11,30, ~0,41 reales; 3373 con 0,014, ~0,35 reales; 3391 rechazado con −0,475, ni el periodo real). La sobre-restricción se queda en el sdc. En el 3389 el STA marca el fMax de `clk_54m` como FAIL sin ningún camino negativo: el artefacto conocido de Gowin.
+
+| | |
+|---|---|
+| Core | `msximus138_v1_dado3389.fs` eba70f2b (`_jtag.bin` d6f4e217), ~0,41 ns reales en `clk_86`, cero holds, compilado como 138B. Respaldo 3373: f60fea96 / b7dd7492 |
+| Packs | los del 60K de la misma fecha, en 0x800000 |
+| BL616 | pendiente: el firmware del 60K no se ha compilado para la 138K; la Console 138K trae el partner firmware de Sipeed |
+
+Entrega en `files/20260907/`, con el plan de pruebas en placa en `LEEME_138_v1.txt`.
+
+### v2 (8 de septiembre de 2026, entregada el 9; interna): Game Master 2
+
+La v1 más el bloque 6 de la **v3.5f del 60K**, portado tal cual: mismo `gm2_slot1.v`, mismos enganches en `top.v`, mismo puerto 46h (bits 6 y 7), misma memoria en los segmentos 480-496 de la megaram (ROM en 480-495, SRAM en el 496); como el pack es común, el menú es el mismo. Commit cc719a5.
+
+Campaña `p138i` (3463/3467/3469), con `clk_86` a 11,30 ns: 3469 gate OK con 0,006 ns contra 11,30 (~0,35 reales); 3463 rechazado (−0,699, es decir −0,36 reales); 3467 rechazado (−0,992, −0,65 reales, y además −0,94 en `clk_54m`, `cpu RD → cpu_din`). Uno de tres, como en la `p138h`. El GM2 no aparece en ninguna lista de caminos.
+
+Core: dado 3469, `msximus138_v2_gm2_dado3469.fs` d5a7a485 (`_jtag.bin` 400c6e02); sin respaldo. Packs regenerados con el menú del GM2 (2.1.4 c2c16cd8, Nextor 3 d763ec36), los mismos ficheros del 60K. Entrega en `files/20260909/`; el porte quedó aparcado ese mismo día.
+
+### v3.7 (18 de septiembre de 2026, en campaña): la V3.7b del 60K por merge
+
+Retomado el 18 de septiembre: **todo lo que el 60K hizo entre la v3.5f y la v3.7b entra de una vez**, por merge y no por copia. El 138 no compartía historia con `MSX_up_v3` (su base d4b9343 era un squash), así que se injertó con `git replace --graft d4b9343 1306d86` (la V3.5d del 60K, el commit más cercano) y se fusionó la rama `V3.5` (ad38c1f). Cuatro conflictos: `.gitignore`, `build.tcl` (`add_file sd_dma.sv`), `sd_tb/run.sh` y el PLL del backend DDR3, donde se conserva la instanciación del 138 (`init_clk`/`enclk`) y entra el `.reset(~pll27_lock | wd_pll_rst)` del 60K. `top.v` se fusionó solo conservando el mapa de flash, `jt2413_wav_r27` e `init_clk`. Commit 268d99a. Desde aquí la historia del 60K está dentro del repo y los siguientes portes son `git fetch ../MSX_up_v3 V3.5 && git merge`.
+
+Lo que trae, con el detalle en el historial del 60K de abajo:
+
+- **DMA de lectura de la SD** (v3.6 y v3.6c): a la RAM sin pasar por el Z80, modo lógico por los registros del mapper, contadores de patrones y el driver de Nextor leyendo por DMA.
+- **Mandos HID por los USB-A** (v3.6f) y los dos arreglos de la v3.6e (cruceta y relectura del registro 15 del PSG).
+- **El MSX espera a la DDR3** y el LED de la SD (U12) parpadea mientras no calibra (v3.6g, dentro de la v3.6h).
+- **Generación C del V9968** (v3.6h): R#20/R#21 bloqueados por el bit 7 del puerto #4 (9Ch/8Ch) y máscara del A17.
+- **Mezclador de audio por fuente** (v3.7): puerto 44h extendido, persistencia de 11 bytes en el bloque de configuración (aquí en **0x880000**), `config_init` arreglado, `cpu_run` registrado y resincronizado a 108 MHz.
+- **Motor de reintentos escalonado de la DDR3 y puertos 2Ah-2Ch** (v3.7b), con la espera del arranque en 10 s. La VRAM vive en la misma IP con el mismo backend, así que la lotería de calibración por dado que se ve en el 60K es igual de aplicable aquí (pendiente de verificar en placa).
+- El puerto 2Fh dice **37h**, como en el 60K. Packs: los de la V3.7 del 60K (bios 6db0cf8: 2.1.4 fb9b6c38, Nextor 3 10321483), obligatorios para ver la página del mezclador, grabados en 0x800000.
+
+Síntesis limpia para GW5AST-138B (LUT 38.468). El banco del backend DDR3 (`tb_ddr3_backend.sv`) lleva el stub del PLL del 138 (`init_clk`, `enclk0`, `enclk2`, `clkout1`) y pasa entero, incluida la secuencia de 18 intentos fallidos de la v3.7b; `run_ddr3_backend.sh` apunta a este repo.
+
+Campaña `p138j` (dados 4339/4349/4357), en marcha con el `lanzar_campana.ps1` del 138 y el gate contra `clk_86` a 11,30 ns. Dado, hash y margen: pendientes; la entrega irá a `files/20260918/` con su LEEME. BL616: sigue pendiente. Y sigue sin pisar placa.
+
+## Historial del 60K (del que deriva el core)
+
+Lo que sigue es el changelog de la era v3 del MSXimus en la Tang Console 60K, tal cual, porque cada cambio del core es también un cambio del 138. Pero los **dados, hashes, márgenes y cifras de placa son del 60K**: las velocidades de la SD, las calibraciones de la DDR3, los negros desde el cargador, las validaciones en placa y las noches de campañas al 98 % de CLS no se han reproducido en el 138, cuyos dados están arriba. Las rutas `files/<fecha>/` y `mi_release/` de esta parte son del repo `MSX_up_v3`, y las direcciones de flash que cita (0x400000, 0x480000) son las del 60K: en el 138 están 4 MB más arriba. Las versiones publicadas en GitHub llevan tag; las intermedias son entregas internas probadas en la placa 60K.
 
 ## v3.1 (26 de agosto de 2026, publicada, tag `v3.1.0`)
 
@@ -62,7 +120,7 @@ Core: dado 3169, eece0162, margen 0,481 ns; respaldo 3109 (0,419 ns). Velocidade
 - Todas las salidas del módulo de puertos de la SD pasan a registradas: la lógica combinacional colgada de IORQ_n y WR_n se llevó por delante tres campañas (0,171 ns, -1,55 ns, -0,791 ns).
 - Una carrera metida al registrar la orden por ventana rompió la carga de ROMs en el dado 3257, que se retiró; el 3319 la lleva arreglada.
 
-Core: dado 3319, de39e213, margen 1,309 ns, el mejor de la serie. Seis campañas y dieciocho dados en una noche: el mismo RTL dio desde 1,19 ns hasta -0,18 según el dado.
+Core: dado 3319, de39e213, margen 1,309 ns, el mejor de la serie. Seis campañas y dieciocho dados en una noche: el mismo RTL dio desde 1,19 ns hasta -0,18 según el dado. Es el punto del que salió la v1 del 138.
 
 ## v3.5e (8 de septiembre, pack de diagnóstico)
 
@@ -74,7 +132,7 @@ Solo el pack: la tecla T también desde el navegador, no solo en el logo. El cor
 - Los packs del MSXimus pasan a **512 KB justos, sin la cola de configuración**: grabar un pack ya no pisa los ajustes.
 - Se cierra la "pantalla negra" de Metal Gear 2: era la ROM [9692], cuyo arranque comprueba si hay MSX-DOS, no el core.
 
-Core: dado 3461, e140f8da, margen 1,299 ns; respaldo 3457 (0,627 ns).
+Core: dado 3461, e140f8da, margen 1,299 ns; respaldo 3457 (0,627 ns). Es la v2 del 138.
 
 ## v3.5g y v3.5h (9 de septiembre, packs)
 
@@ -151,7 +209,7 @@ Pedido de Albert la misma tarde en que la v3.6h arrancó desde el cargador ("ya 
 Core: dado 4139, 6175b7c5, margen **2,012 ns** (uadpcm, clk_54m), el mejor de la era v3; holds solo la IP DDR3 (0,040). RTL = 82b1b9c (el HEAD 4c163f7 solo añade una etapa de registro en la escritura del 44h, sin cambio funcional). Campaña v37c, cinco dados: 4129 sin rutar, 4133 −0,154 ns en el decodificador del 44h (por eso el registro del HEAD), **4139, 4153 (1,243 ns) y 4157 (1,130 ns) pasan el gate**: 3 de 5, contra el 1 de 5 habitual, por el cierre del cruce de `cpu_run` (abajo). Respaldo: 4153. Packs nuevos obligatorios para ver la página (bios 6db0cf8: 2.1.4 fb9b6c38, Nextor 3 10321483).
 
 - **Puerto 44h extendido**: `{solo_sel, canal, nivel}`. Canal 0 = la ganancia maestra de siempre (compatible con `OUT 44h,0..7`), 1-6 = PSG, SCC, OPLL, MSX-Audio, OPL4 FM, OPL4 wave con nivel 0-8 = k/8 aplicado a cada fuente **antes** de la suma; el 7 (WaveGame) no existe en el Tang (lee Fh, la escritura se ignora, el menú esconde la fila porque el 2Fh es < A0h). Lectura `{0, canal, nivel}` y sonda `OUT 44h,F0h`. Los diez multiplicadores 19×4 caen en DSP (MULTALU27X18: 8 → 18 de 118): LUT +94, ALU −47, es decir, área neutra.
-- **Persistencia en la cola del pack**: el bloque de configuración de la flash (0x480000) pasa de 6 a 11 bytes: los 6 de siempre, los 28 bits de niveles en little-endian y un byte de suma (xor ^ A5h). Un bloque viejo de 6 bytes (flash borrada detrás) siembra lo de siempre y deja el mezclador a 8/8; un bloque con la suma mal o un nivel > 8, igual. Testbench en Icarus de la captura y la siembra (cinco escenarios).
+- **Persistencia en la cola del pack**: el bloque de configuración de la flash (0x480000 en el 60K; 0x880000 en el 138) pasa de 6 a 11 bytes: los 6 de siempre, los 28 bits de niveles en little-endian y un byte de suma (xor ^ A5h). Un bloque viejo de 6 bytes (flash borrada detrás) siembra lo de siempre y deja el mezclador a 8/8; un bloque con la suma mal o un nivel > 8, igual. Testbench en Icarus de la captura y la siembra (cinco escenarios).
 - **Error latente arreglado**: `config_init` era la ventana *entre* la captura del penúltimo byte y la del último, así que los consumidores a 27 MHz leían el último byte viejo. Con 6 bytes ese último era la ganancia maestra: probablemente nunca se sembró de la flash en el Tang (nadie lo notó porque el defecto x5 es el valor que se usa). Ahora es un pulso de 4 ciclos tras el último byte, con todo estable; el testbench reproduce el fallo con la ventana vieja.
 - El menú (bios 5568de4 + d991daa): fila *Mezclador de audio* en Ajustes con la página de ocho filas, barra de octavos y nota de prueba por chip; en el Tang sin mezclador (3.6h) ofrece solo la ganancia maestra. Los packs nuevos llevan además el arreglo de los SSID en kana del setup WiFi (724ba64).
 - Versión del core en el 2Fh: 37h.
@@ -172,9 +230,16 @@ Core: dado 4001, c70eae6d, margen 0,771 ns (clk_54m→clk_108m, `u_sddma` → `m
 
 ## Pendiente
 
-- Xevious Fardraut Saga: el marcador en blanco (V9968, ver arriba).
+Del 138, por delante de todo, cuando haya placa:
 
-- Validar la v3.6f con un mando USB HID genérico en un USB-A (Albert compra uno). El ratón sin INDEV quedó validado el 16 de septiembre con el 3593.
+- **Probar el porte en una placa 138K**, en el orden del plan de `files/20260907/LEEME_138_v1.txt`: logo y menú, Ajustes, SD por las tres rutas, ROMs grandes y SRAM, DOS, OPL4 a 36 MHz (velocidad y cortes), V9968/DEVCON, WiFi/File-Hunter, ventilador y botones a 3,3 V; y después lo de la v3.7 (DMA, mandos por USB-A, mezclador, calibración de la DDR3 con `pll_stop→ENCLK2` y sus puertos 2Ah-2Ch).
+- Los pines sin contrastar contra el esquemático (`sd_*`, `spi_irqn`, `s2`, `fan_en_o`, `esp_*`), la versión del chip (B o C, por la serigrafía) y el firmware del BL616 para la 138K.
+- Cerrar la campaña `p138j`: dado, hash y margen de la v3.7 en `files/20260918/`.
+
+Heredado del 60K (el core es el mismo):
+
+- Xevious Fardraut Saga: el marcador en blanco (V9968, ver arriba).
+- Validar los mandos HID por USB-A de la v3.6f y el ratón sin INDEV (en el 60K el ratón quedó validado el 16 de septiembre con el 3593; en el 138, con todo lo demás).
 - Entender por qué el `cpu_run` registrado (v3.6d) deja la SDRAM sin arrancar, si es que es él: un segundo dado con y sin el registro lo cerraría.
 - Fase 3 de la SD: reloj de la tarjeta a 13,5 MHz, que exige rehacer el divisor y el muestreo.
 - Guardado de Manbow 2, que usa una flash AMD en el cartucho en vez de SRAM.

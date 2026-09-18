@@ -1,10 +1,10 @@
 # 03. La tarjeta SD
 
-Cómo preparar la microSD y qué poner en ella. Todo lo que dice este capítulo sale del código del menú y del driver de disco.
+Cómo preparar la microSD y qué poner en ella. Todo lo que dice este capítulo sale del código del menú y del driver de disco, que en el MSXimus_138 son los mismos que en el MSXimus de la Console 60K: el lector de la tarjeta está en el dock, que es el mismo en las dos placas, y el controlador, el DMA y el menú no cambian. Lo que sí cambia es que en la 138K nada de esto se ha probado todavía en placa (pendiente de verificar en placa).
 
 ## 1. Qué tarjeta
 
-**De marca y clase 10**: Samsung, SanDisk, Kingston. Las tarjetas sin marca leen bien, pero rechazan o pierden escrituras en ráfagas largas, que es justo lo que hacen las descargas y los guardados. Está medido en el banco con el mismo código y la misma geometría: una sin marca fallaba escrituras aunque se le diera tiempo; una Samsung EVO+ no falló ninguna. Si las descargas o los guardados hacen cosas raras, la primera sospechosa es la tarjeta.
+**De marca y clase 10**: Samsung, SanDisk, Kingston. Las tarjetas sin marca leen bien, pero rechazan o pierden escrituras en ráfagas largas, que es justo lo que hacen las descargas y los guardados. Está medido en el banco del 60K con el mismo código y la misma geometría de tarjeta: una sin marca fallaba escrituras aunque se le diera tiempo; una Samsung EVO+ no falló ninguna. En la 138K el lector y el driver son los mismos, así que la recomendación vale igual. Si las descargas o los guardados hacen cosas raras, la primera sospechosa es la tarjeta.
 
 El tamaño da igual: el controlador admite SD v1, SD v2 y SDHC, y el menú de pruebas dice cuál ha detectado.
 

@@ -1,6 +1,8 @@
 # 07. WiFi y File-Hunter
 
-La red del MSXimus la pone un módulo **ESP32-C6** externo, conectado por cuatro cables al conector J10 de la placa. Con él, el MSX tiene una pila TCP/IP UNAPI como la de cualquier cartucho de red, y el menú puede buscar y descargar ROMs y discos sin pasar por el PC. El cableado y el firmware están en el [capítulo 02](02-instalacion.md); aquí, cómo se usa.
+La red del MSXimus_138 la pone un módulo **ESP32-C6** externo, conectado por cuatro cables al conector J10 de la placa. Con él, el MSX tiene una pila TCP/IP UNAPI como la de cualquier cartucho de red, y el menú puede buscar y descargar ROMs y discos sin pasar por el PC. El módulo, su firmware, el cableado al J10 y el driver son los mismos que en el MSXimus de la Console 60K: la placa base es la misma y el SOM 138K saca las mismas bolas al J10. El cableado y el firmware están en el [capítulo 02](02-instalacion.md); aquí, cómo se usa.
+
+Como el resto del porte, esta parte está compilada y verificada en simulación, pero pendiente de probar en una placa 138K.
 
 ## 1. Qué pone el módulo
 
@@ -63,5 +65,5 @@ Si algo no va, en este orden:
 
 1. **La pantalla del módulo.** Si dice *Sin WiFi*, la red no está configurada o no llega; tecla W. Si dice *Conectado*, la red está bien.
 2. **El punto de actividad** de la pantalla, o el LED de red de la tira de diagnóstico si se ha montado. Si no parpadea cuando el MSX usa la red, el problema es el cable o el firmware, no la WiFi.
-3. **Los cables TX y RX cruzados.** Es el error más común al montar: el TX del FPGA va al RX del módulo, IO17, y el RX del FPGA al TX del módulo, IO16.
+3. **Los cables TX y RX cruzados.** Es el error más común al montar: el TX del FPGA va al RX del módulo, IO17, y el RX del FPGA al TX del módulo, IO16. En el 138 los pines `esp_*` del J10 son copia de los del 60K y no se han contrastado contra el esquemático de la Console 138K (pendiente de verificar en placa): si con los cables bien puestos sigue sin haber actividad, ese es el siguiente sospechoso.
 4. **La alimentación.** Con el módulo alimentado desde el J10 y a la vez por USB-C puede portarse raro; una sola fuente.

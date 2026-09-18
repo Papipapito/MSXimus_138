@@ -2,6 +2,8 @@
 
 <h1 align="center">MSXimus</h1>
 <p align="center"><b>A complete MSX2+ on a Tang Console 60K — now with the V9968 VDP</b></p>
+
+> **This repository is the port of the MSXimus to the Tang Console 138K (MSXimus_138, v3.7).** What is specific to the port (SOM Mega 138K, flash map, PLL cascade, campaigns, what has and has not been tested) is in [README.138.md](README.138.md); the documentation adapted to the 138K is in [docs/INDICE.md](docs/INDICE.md). The rest of this README describes the MSXimus for the Tang Console 60K it derives from.
 <p align="center">
   <img alt="version" src="https://img.shields.io/badge/version-v3.1-blue">
   <img alt="fpga" src="https://img.shields.io/badge/FPGA-Gowin%20GW5AT--60-green">

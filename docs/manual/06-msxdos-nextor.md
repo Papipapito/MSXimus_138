@@ -2,6 +2,8 @@
 
 El disco del MSXimus es la tarjeta microSD, y quien la sirve es **Nextor**, el sistema de disco de Nestor Soto que sustituye al MSX-DOS 2 y sabe de particiones grandes y FAT16. Este capítulo cuenta qué versión hay, cómo se arranca en DOS, cómo se lanza un disco de imagen y qué esperar del rendimiento.
 
+En el MSXimus_138 todo esto es idéntico al MSXimus de la Tang Console 60K: los packs son los mismos ficheros, el driver de la tarjeta y el DMA son los mismos y el disco está en el mismo slot. La diferencia es de estado: lo que en el 60K está probado en placa, en el 138K está compilado y verificado en simulación, pendiente de placa; las cifras medidas que se citan más abajo son del 60K.
+
 ## 1. Las dos versiones
 
 El pack de BIOS lleva Nextor dentro, en el slot 3-2 de la máquina, y hay dos packs que solo difieren en eso:
@@ -9,9 +11,9 @@ El pack de BIOS lleva Nextor dentro, en el slot 3-2 de la máquina, y hay dos pa
 | Pack | Nextor | Cuándo |
 |---|---|---|
 | `pack_bios_msximus.bin` | **2.1.4** | El de uso diario. Estable, con años de software probado encima |
-| `pack_bios_msximus_nextor3.bin` | **3.0 beta 1** | Para probar la beta. Arranca, lee, escribe y pasa la batería de pruebas del propio Nextor, pero es beta y hay software que todavía no la lleva bien |
+| `pack_bios_msximus_nextor3.bin` | **3.0 beta 1** | Para probar la beta. En el 60K arranca, lee, escribe y pasa la batería de pruebas del propio Nextor, pero es beta y hay software que todavía no la lleva bien |
 
-El driver de la tarjeta es el mismo en los dos, hecho para este core: sondea qué tiene delante y usa lo más rápido que encuentre. Con el core actual, la lectura va por DMA sin que DOS se entere.
+El driver de la tarjeta es el mismo en los dos, hecho para este core: sondea qué tiene delante y usa lo más rápido que encuentre. Con el core actual (v3.7, porte de la V3.7b del 60K), la lectura va por DMA sin que DOS se entere. Los packs se graban en la flash del 138K en 0x800000 (capítulo 02), no en 0x400000 como en el 60K.
 
 Un caso conocido con Nextor 3: **VGMPlay** se cuelga al reproducir un VGM de OPL3, mientras que con Nextor 2.1.4 en el mismo core reproduce bien, y MoonBlaster con OPL4 funciona bajo Nextor 3. Es del reproductor, no del core ni del driver; conviene reportarlo a sus autores citando "Nextor 3.0.0 beta 1".
 
@@ -36,9 +38,9 @@ Los juegos de disco que usan MSX-DOS y música FM, como Aleste, funcionan así c
 
 ## 4. Rendimiento
 
-La tarjeta se lee por DMA: el core copia cada sector a la memoria del MSX sin que el Z80 mueva un byte, a unos 640 KB por segundo, seis veces lo que daba el camino anterior. El arranque de DOS y la carga de programas grandes se notan. La escritura va por el camino clásico, más lenta, pero la escritura en un MSX siempre lo fue.
+La tarjeta se lee por DMA: el core copia cada sector a la memoria del MSX sin que el Z80 mueva un byte. En el 60K se midieron unos 640 KB por segundo, seis veces lo que daba el camino anterior; el 138K lleva el mismo DMA y la misma SD, así que cabe esperar lo mismo (pendiente de verificar en placa). El arranque de DOS y la carga de programas grandes se notan. La escritura va por el camino clásico, más lenta, pero la escritura en un MSX siempre lo fue.
 
-El menú de pruebas (tecla T, opción 1) mide los cuatro caminos de lectura sobre 128 KB, y sirve para ver que la tarjeta y el core están bien:
+El menú de pruebas (tecla T, opción 1) mide los cuatro caminos de lectura sobre 128 KB, y sirve para ver que la tarjeta y el core están bien. Estas son las cifras del 60K:
 
 | Camino | KB/s |
 |---|---|
@@ -49,7 +51,7 @@ El menú de pruebas (tecla T, opción 1) mide los cuatro caminos de lectura sobr
 
 ## 5. Otros sistemas
 
-**SymbOS 4.0** arranca en el MSXimus: hay una imagen de tarjeta preparada, con el driver de disco del WonderTANG que es el que este controlador entiende. Está en su propio repositorio. Y todo lo que corra sobre Nextor, como MSX-DOS 2 con sus herramientas, corre igual.
+**SymbOS 4.0** arranca en el MSXimus del 60K, y el controlador del 138K es el mismo: hay una imagen de tarjeta preparada, con el driver de disco del WonderTANG que es el que este controlador entiende. Está en su propio repositorio. Y todo lo que corra sobre Nextor, como MSX-DOS 2 con sus herramientas, corre igual.
 
 ## 6. Lo que no hay
 

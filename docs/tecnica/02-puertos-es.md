@@ -2,6 +2,8 @@
 
 Todos los puertos a los que responde el core, sacados del decodificador de `fpga/top.v` y de los módulos que cuelgan de él. Los puertos que no aparecen devuelven FFh en lectura y se ignoran en escritura: no hay bus externo.
 
+El mapa es el mismo que el del MSXimus 60K: la Tang Console 138K es la misma placa base con otro SOM (el Tang Mega 138K), y el porte no toca la decodificación de E/S. Lo que cambia entre las dos máquinas (relojes, mapa de flash, licencia de Gowin) no se ve desde el Z80. Como el resto del porte, este mapa está compilado y comprobado en simulación, no en una placa 138K.
+
 ## 1. Resumen
 
 | Puertos | Dispositivo | Estándar MSX |
@@ -44,7 +46,7 @@ Sin dispositivo seleccionado, o con otro identificador, 41h-4Fh caen en el módu
 | 41h | R/W | Config 1. bit 0 mapper activo, bit 1 megaram activa, bit 2 segundo SCC en el slot 1, bit 3 scanlines, bits 5-4 slot del mapper (11 = expandido 3-0), bits 7-6 slot de la megaram (11 = expandido 3-3 al arrancar; el dispositivo OCM la pasa a 10 = slot 2 al lanzar una ROM) |
 | 42h | R/W | Config 2. bit 0 SD activa, bits 2-1 slot de la SD (3-2), bit 3 menú al arrancar, bit 4 Game Master 2 en el slot 1, bit 5 estéreo. En escritura, el bit 6 ordena guardar la configuración en la flash y el bit 7 ordena un reset; solo se almacenan los bits 5-0 |
 | 43h | W | Configuración de la SRAM de la megaram, volátil. En ASCII8 el bit de habilitación; en ASCII16 distinto de cero activa el modo "valor 10h"; 0 la apaga |
-| 44h | R/W | Mezclador de audio (v3.7). Escritura: `{solo_sel[7], canal[6:4], nivel[3:0]}`. Canal 0 = la ganancia maestra de siempre (nivel 0-7 = x1..x8, así que `OUT 44h,0..7` sigue significando lo mismo); canales 1-6 = PSG, SCC, OPLL, MSX-Audio, OPL4 FM, OPL4 wave, nivel 0-8 = k/8 (8 = tal cual, 0 = mudo); el 7 (WaveGame) solo existe en la línea Zynq. Con el bit 7 a 1 no escribe: solo selecciona el canal. Lectura: `{0, canal seleccionado, su nivel}`; el canal 7 lee Fh en el Tang. Sonda del menú: `OUT 44h,F0h` + `IN 44h` = 7nh si hay mezclador. Todo se guarda en la flash con la orden de 42h |
+| 44h | R/W | Mezclador de audio (v3.7). Escritura: `{solo_sel[7], canal[6:4], nivel[3:0]}`. Canal 0 = la ganancia maestra de siempre (nivel 0-7 = x1..x8, así que `OUT 44h,0..7` sigue significando lo mismo); canales 1-6 = PSG, SCC, OPLL, MSX-Audio, OPL4 FM, OPL4 wave, nivel 0-8 = k/8 (8 = tal cual, 0 = mudo); el 7 (WaveGame) solo existe en la línea Zynq. Con el bit 7 a 1 no escribe: solo selecciona el canal. Lectura: `{0, canal seleccionado, su nivel}`; el canal 7 lee Fh en el Tang (60K y 138K). Sonda del menú: `OUT 44h,F0h` + `IN 44h` = 7nh si hay mezclador. Todo se guarda en la flash con la orden de 42h |
 | 45h | R/W | bit 0 = arrancar en turbo. Se guarda en la flash como el byte 'T' |
 | 46h | R/W | Extensión del mapper de la megaram, volátil pero sobrevive al reset del MSX: bit 0 NEO (convierte ASCII8 en NEO-8 y ASCII16 en NEO-16), bit 4 mitad alta de los 4 MB para el cargador, bit 6 Game Master 2 armado. En lectura, el bit 7 a 1 dice que el core trae el Game Master 2 |
 | 47h-4Fh | | El controlador de la SD por puertos, en el apartado siguiente |
@@ -126,15 +128,15 @@ Un segundo YM2149 completo, con la misma decodificación que el principal despla
 | 2Ch | Arranque de la DDR3: bit 7 = calibrada; bits 6-0 = intentos de calibración fallidos antes (0 = a la primera, 127 = saturado) |
 | 2Dh | Estado del USB: bit 7 error de conexión en el USB 2, bit 6 en el USB 1, bits 5-4 tipo del USB 2 y bits 3-2 tipo del USB 1 (0 nada, 1 teclado, 2 ratón, 3 mando), bits 1-0 cuenta de informes recibidos, que cambia si el dispositivo habla |
 | 2Eh | Estado interno del ratón |
-| 2Fh | Versión del core, en BCD: 36h es la 3.6 |
+| 2Fh | Versión del core, en BCD: 37h es la 3.7. El porte 138 devuelve el mismo valor que el 60K de la misma versión: no hay ningún byte que distinga las dos placas |
 
 El menú de Ajustes muestra la versión leyendo 2Fh. Un core anterior a que existiera devuelve FFh, y el menú dice "desconocida".
 
-Los tres de la DDR3 son la respuesta al arranque en negro desde un cargador (capítulo 10 del manual): desde BASIC, `PRINT INP(&H2C) AND 127, INP(&H2B)*10, INP(&H2A)/10` dice cuántos intentos fallaron, cuántos milisegundos duró el bueno y a los cuántos segundos arrancó el vídeo.
+Los tres de la DDR3 son la respuesta al arranque en negro desde un cargador que se vio en el 60K (capítulo 10 del manual); el 138 lleva la misma IP de DDR3 y el mismo motor de reintentos, así que la lotería de calibración por dado es igual de aplicable (pendiente de verificar en placa). Desde BASIC, `PRINT INP(&H2C) AND 127, INP(&H2B)*10, INP(&H2A)/10` dice cuántos intentos fallaron, cuántos milisegundos duró el bueno y a los cuántos segundos arrancó el vídeo.
 
 ### 34h-37h: DDR3 y cargador de ondas
 
-Cuatro puertos de solo lectura que dejó el bring-up de la DDR3 para el OPL4: 34h diagnóstico de la DDR3, 35h diagnóstico del motor, 36h estado del cargador (bit 2 = copiando la YRW801), 37h un byte de la DDR3 leído por anticipado.
+Cuatro puertos de solo lectura que dejó el bring-up de la DDR3 para el OPL4, cuando las ondas vivían en ella (desde la _104 van por la SDRAM del dock, `wave_sdram`, y los puertos conservan el nombre y la interfaz): 34h diagnóstico de la memoria de ondas, 35h diagnóstico del motor, 36h estado del cargador (bit 2 = copiando la YRW801), 37h un byte de la memoria de ondas leído por anticipado.
 
 ### 7Ch-7Dh: OPLL
 
@@ -142,7 +144,7 @@ El YM2413 de MSX-MUSIC, solo escritura: 7Ch registro, 7Dh dato.
 
 ### 7Eh-7Fh: OPL4, ondas
 
-La parte PCM del MoonSound: 7Eh registro y 7Fh dato del motor de 24 slots. La ROM de ondas es la YRW801 de 2 MB, en la DDR3.
+La parte PCM del MoonSound: 7Eh registro y 7Fh dato del motor de 24 slots. La ROM de ondas es la YRW801 de 2 MB, copiada de la flash (0x900000 en el 138K) a la SDRAM del dock al arrancar (capítulo 03).
 
 ### 88h-8Bh y 98h-9Bh: el V9968
 
@@ -152,7 +154,7 @@ Los puertos 9Ch y 8Ch, el "puerto 4" que el V9968 define para los flags de inter
 
 ### A0h-A2h: PSG
 
-El YM2149 principal. En A2h con el registro 14 seleccionado se lee el joystick, que viene del mando o del ratón USB; el bit 6 del registro 15 elige el puerto. Los botones 3 y 4 del mando hacen autodisparo sobre los botones 1 y 2. El registro 15 se relee (lo último escrito): la BIOS lo lee, modifica y escribe en cada interrupción, y devolver FFh conmutaba el pin 8 del puerto 2 a 60 Hz y vaciaba el ratón (arreglado en la v3.6e). Los demás registros siguen devolviendo FFh al leerlos: el `O_DA` del YM2149 está sin conectar, aunque el modelo los sirve.
+El YM2149 principal. En A2h con el registro 14 seleccionado se lee el joystick, que viene del mando o del ratón USB; el bit 6 del registro 15 elige el puerto. Los botones 3 y 4 del mando hacen autodisparo sobre los botones 1 y 2. El registro 15 se relee (lo último escrito): la BIOS lo lee, modifica y escribe en cada interrupción, y devolver FFh conmutaba el pin 8 del puerto 2 a 60 Hz y vaciaba el ratón (arreglado en la v3.6e del 60K, incluido en el porte). Los demás registros siguen devolviendo FFh al leerlos: el `O_DA` del YM2149 está sin conectar, aunque el modelo los sirve.
 
 ### A8h-ABh: PPI
 

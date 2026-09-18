@@ -1,6 +1,6 @@
 # 04. El pack de BIOS
 
-Qué es el fichero de 512 KB que se graba en 0x400000, qué ROMs lleva y en qué orden, cómo se construye y por qué es el mismo para todos los cores desde la 3.5c. Sale del repositorio `bios-msxnano-msximus`: sus scripts `build.sh`, `tools/hacer_packs.py` y `tools/desmontar_pack.py`, y el fuente del menú.
+Qué es el fichero de 512 KB que se graba en 0x800000 de la flash de la 138K (en el 60K, 0x400000), qué ROMs lleva y en qué orden, cómo se construye y por qué es el mismo para todos los cores desde la 3.5c del 60K, el porte 138 incluido: **el pack de la 138K es el mismo fichero que el del 60K**; solo cambia la dirección donde se graba. Sale del repositorio `bios-msxnano-msximus`: sus scripts `build.sh`, `tools/hacer_packs.py` y `tools/desmontar_pack.py`, y el fuente del menú.
 
 ## 1. Qué es
 
@@ -19,7 +19,9 @@ Una **concatenación pura** de diez ROMs, sin cabecera ni índice. El core sabe 
 | 78000 | 16 KB | ROM UNAPI del driver de red | 0-2, página 1 |
 | 7C000 | 16 KB | Logo de arranque | 0-3, página 1 |
 
-El pack del MSXimus mide **512 KB justos**. Detrás, en 0x480000 de la flash, van seis bytes de configuración que escribe el menú con Save & Restart y que el pack no incluye desde el 9 de septiembre de 2026, para que grabar un pack no pise los ajustes. El pack del MSXnano sí lleva esa cola.
+El pack del MSXimus mide **512 KB justos**. Detrás, en 0x880000 de la flash (0x480000 en el 60K), va el bloque de configuración que escribe el menú con Save & Restart: seis bytes hasta la 3.6, once desde la 3.7 (los seis de siempre, los cuatro niveles del mezclador y un byte de comprobación). El pack no lo incluye desde el 9 de septiembre de 2026, para que grabar un pack no pise los ajustes. El pack del MSXnano sí lleva esa cola.
+
+En la 138K el bitstream del GW5AST-138 ocupa unos 4,88 MB (el del 60K, 2,47) y se come los 4 MB que el pack tenía por delante; por eso todo el mapa de la flash sube 4 MB: pack en 0x800000, configuración en 0x880000 y la YRW801 del OPL4 en 0x900000. Son tres `localparam` de `top.v` (`FLASH_START_ADDRESS`, `FLASH_CONFIG_ADDRESS`, `WL_FLASH_BASE`). El fichero del pack es el mismo y el programador de Gowin lo graba igual, solo que en 0x800000 ([capítulo 02 del manual](../manual/02-instalacion.md)).
 
 ## 2. Las ROMs y su procedencia
 
@@ -54,7 +56,7 @@ El menú de la BIOS ([capítulo 04 del manual](../manual/04-menu.md)) es un prog
 
 Los dos bancos de la página 2 llevan guardas (`ds #A000-$` y `ds #C000-$`) que hacen fallar el ensamblado si el código crece más de la cuenta. Una regla de esa estructura que costó una regresión: **nada de lo que se llame durante una sesión de red de File-Hunter puede vivir en la página 1**, porque durante la sesión la página 1 es la ROM del ESP.
 
-Un solo fuente sirve para las dos máquinas: `MSXIMUS=1` o `0` en `menu_main.asm`, y el resto son bloques `IF MSXIMUS`. El MSXnano se queda con el menú de 16 KB descomprimido en RAM; el MSXimus, con el de 32 KB.
+Un solo fuente sirve para las dos máquinas: `MSXIMUS=1` o `0` en `menu_main.asm`, y el resto son bloques `IF MSXIMUS`. El MSXnano se queda con el menú de 16 KB descomprimido en RAM; el MSXimus, con el de 32 KB. El MSXimus_138 va con `MSXIMUS=1` como el 60K: no hay una variante del menú para la 138K, porque lo que el menú sondea es el core, no la placa.
 
 ## 4. Construir
 
@@ -67,13 +69,13 @@ python tools/hacer_packs.py # monta los cuatro packs: 2 maquinas x 2 Nextor
 
 `build.sh` ensambla `menu_main.asm` con `asmsx`, comprueba que la parte de la página 1 no pisa las tablas de la FM-BIOS, y deja `out/bios_msximus.bin` (los 16 KB de 6C000) y `out/bios_msximus_p2.bin` (los de 70000).
 
-`hacer_packs.py` parte del pack anterior de cada máquina, reescribe las ventanas que cambian (menú, segunda página, logo, Nextor) y guarda el anterior en `packs/historico/`. Para la línea de Nextor 3 toma la ROM más nueva que haya en `nextor3/`: para actualizar la beta basta con dejar ahí su ROM de 128 KB. Imprime el md5 de cada pack, que es lo que se anota en cada entrega.
+`hacer_packs.py` parte del pack anterior de cada máquina, reescribe las ventanas que cambian (menú, segunda página, logo, Nextor) y guarda el anterior en `packs/historico/`. Para la línea de Nextor 3 toma la ROM más nueva que haya en `nextor3/`: para actualizar la beta basta con dejar ahí su ROM de 128 KB. Imprime el md5 de cada pack, que es lo que se anota en cada entrega. No existe un pack «138»: el de `packs/msximus/` sirve tal cual para las dos consolas.
 
 El driver de la SD se compila aparte, con `make` en `nextor214/` y en `nextor3/`, usando los ensambladores de cada kernel; el fichero `sd_rw_ports.inc` es común a los dos.
 
 ## 5. Un pack para todos los cores
 
-El menú y el driver sondean el core en cada arranque y usan lo que encuentran, con las firmas del [capítulo 06](06-sd-dma.md): puertos de la SD, cronómetro, DMA, modo lógico. Un core de la 3.5c va con la ventana de memoria y el escaneo por software; uno de la 3.6c con DMA y contadores. Por eso una entrega nueva del core no obliga a regrabar el pack, y una entrega nueva del pack no obliga a regrabar el core, salvo que el LEEME de la entrega diga lo contrario.
+El menú y el driver sondean el core en cada arranque y usan lo que encuentran, con las firmas del [capítulo 06](06-sd-dma.md): puertos de la SD, cronómetro, DMA, modo lógico. Un core de la 3.5c va con la ventana de memoria y el escaneo por software; uno de la 3.6c con DMA y contadores. En el 138: la v1 y la v2 (la V3.5d y la V3.5f del 60K) van por los puertos de la SD y el escaneo por software; la v3.7, con DMA y contadores. Por eso una entrega nueva del core no obliga a regrabar el pack, y una entrega nueva del pack no obliga a regrabar el core, salvo que el LEEME de la entrega diga lo contrario. Ese sondeo está probado en placa en el 60K; en la 138K, como el resto del porte, queda pendiente de placa ([capítulo 09](09-changelog.md)).
 
 Lo que un core tiene que tener para arrancar un pack actual: el menú de 32 KB en ROM exige la ventana de la segunda página en el slot 3-1, que existe desde la 3.5. Con un core anterior el menú no arranca.
 
