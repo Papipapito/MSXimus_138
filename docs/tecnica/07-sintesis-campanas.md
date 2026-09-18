@@ -31,7 +31,7 @@ Lo que la ligera **no** puede validar: cualquier defecto cuya magnitud dependa d
 ## 3. Una campaña
 
 ```powershell
-.\tools\lanzar_campana.ps1 -Campana p138j -Dados 4339,4349,4357
+.\tools\lanzar_campana.ps1 -Campana p138k -Dados 4363,4373,4391,4397,4409
 ```
 
 El lanzador copia el árbol `fpga/` tres veces al directorio temporal, `%LOCALAPPDATA%\Temp\claude\campanas\<nombre>\bx_c1..3`, nunca dentro del repositorio, y en cada copia:
@@ -52,7 +52,7 @@ Dos reglas de operación que no son negociables en el PC de desarrollo: las sín
 Cuando la campaña ha terminado del todo, no cuando aparece el `.fs`, porque Gowin escribe el bitstream antes que los informes:
 
 ```powershell
-.\tools\gate_check.ps1 -Campana $env:LOCALAPPDATA\Temp\claude\campanas\p138j
+.\tools\gate_check.ps1 -Campana $env:LOCALAPPDATA\Temp\claude\campanas\p138k
 ```
 
 Un dado pasa si cumple las dos:
@@ -95,7 +95,8 @@ Del 60K, y que el porte hereda con el código:
 | p138g (3359/3361/3371) | Los tres pasan el gate; peor camino el shim de VRAM con 0,013-0,029 ns. Primera entrega, el 3361 (hoy en `files/20260907/superados/`) |
 | p138h (3373/3389/3391) | `clk_86` a 11,30 ns. 3389 gate OK con 0,07 ns (~0,41 reales), **v1** (`files/20260907`); 3373 respaldo (0,014); 3391 rechazado |
 | p138i (3463/3467/3469) | + Game Master 2. 3469 gate OK con 0,006 ns (~0,35 reales), **v2** (`files/20260909`); 3463 y 3467 rechazados |
-| p138j (4339/4349/4357) | **v3.7** = porte de la V3.7b del 60K por merge (DMA de la SD, mandos HID por USB-A, espera a la DDR3, generación C del V9968, mezclador por fuente, motor de reintentos de la DDR3). En marcha el 18/09/2026; entrega prevista en `files/20260918/` |
+| p138j (4339/4349/4357) | **v3.7** = porte de la V3.7b del 60K por merge (DMA de la SD, mandos HID por USB-A, espera a la DDR3, generación C del V9968, mezclador por fuente, motor de reintentos de la DDR3) | 0 de 3: 4339 −1,12 y 4349 −0,76 en el 86 (contra 11,30); 4357 cerraba el 86 pero `cpu1/DO → mem1/SdrDat` a −4,5 ns |
+| p138k (4363/4373/4391/4397/4409) | la misma v3.7 | **4391 GATE OK**, 0,034 ns contra 11,30 (~0,37 ns real), entregado en `files/20260918/`; 4373 −0,05 (`cpu1/IORQ`); 4363, 4397, 4409 rechazados. PnR 15-19 min por dado |
 
 Ninguno de estos bitstreams se ha probado nunca en una placa 138K: v1, v2 y v3.7 están compilados y verificados en simulación, pendientes de placa.
 

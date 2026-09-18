@@ -10,7 +10,7 @@ El MSXimus_138 es el MSXimus portado a la Tang Console 138K: la misma placa base
 
 **Nada de esta línea ha corrido nunca en una placa 138K**: la placa era prestada, la v1 y la v2 se entregaron sin validar y la v3.7 está en campaña. Lo que hay es síntesis limpia, gate pasado y los bancos de simulación del 60K. Todo lo que en el historial del 60K de más abajo es "validado en placa" aquí es "compilado y verificado en simulación, pendiente de placa"; no se repite en cada entrada.
 
-Lo que cuesta un dado en el 138: CLS ~57 % (el 60K va al 98 %), PnR ~7 min, BSRAM 116/340, bitstream de 4,88 MB (el del 60K, 2,47). No hay problema de área ni de rutado: el listón es el dominio de 86 MHz del V9968 y su shim, que cierra alrededor de 1 de cada 3 dados. Campañas de 3 dados (`p138a`..`p138j`), con el gate del 60K (setup ≥ 0, holds solo en la IP DDR3) contra el `clk_86` sobre-restringido.
+Lo que cuesta un dado en el 138: CLS ~57 % (el 60K va al 98 %), PnR 15-19 min desde la v3.7 (7 min en la v1), BSRAM 116/340, bitstream de 4,88 MB (el del 60K, 2,47). No hay problema de área ni de rutado: el listón es el dominio de 86 MHz del V9968 y su shim, que cierra alrededor de 1 de cada 3 dados. Campañas de 3 dados (`p138a`..`p138j`), con el gate del 60K (setup ≥ 0, holds solo en la IP DDR3) contra el `clk_86` sobre-restringido.
 
 ### v1 (7 de septiembre de 2026, interna): el porte
 
@@ -56,7 +56,7 @@ Lo que trae, con el detalle en el historial del 60K de abajo:
 
 Síntesis limpia para GW5AST-138B (LUT 38.468). El banco del backend DDR3 (`tb_ddr3_backend.sv`) lleva el stub del PLL del 138 (`init_clk`, `enclk0`, `enclk2`, `clkout1`) y pasa entero, incluida la secuencia de 18 intentos fallidos de la v3.7b; `run_ddr3_backend.sh` apunta a este repo.
 
-Campaña `p138j` (dados 4339/4349/4357), en marcha con el `lanzar_campana.ps1` del 138 y el gate contra `clk_86` a 11,30 ns. Dado, hash y margen: pendientes; la entrega irá a `files/20260918/` con su LEEME. BL616: sigue pendiente. Y sigue sin pisar placa.
+Core: dado **4391**, adf693b5, campaña `p138k`. Margen 0,034 ns contra los 11,30 ns del `clk_86` sobre-restringido, es decir, ~0,37 ns reales (la misma clase que el 3389 de la v1 y el 3469 de la v2); holds solo la IP DDR3. Campaña `p138j` (4339/4349/4357): 0 de 3 (dos por el dominio de 86 MHz, −1,12 y −0,76 contra 11,30; el 4357 cerraba el 86 pero colocó la CPU lejos de la SDRAM, `cpu1/DO → mem1/SdrDat` a −4,5 ns). Campaña `p138k` (4363/4373/4391/4397/4409): 1 de 5 (4373 se quedó a −0,05 en `cpu1/IORQ`; 4363, 4397 y 4409 por `ff_flash_state`, `cpu1/DO` y el 86). Con el diseño de la v3.7 el PnR del 138 pasa de 7 a 15-19 minutos por dado. Entrega en `files/20260918/` con `LEEME_138_v3.7.txt`. Sin validar en placa.
 
 ## Historial del 60K (del que deriva el core)
 
