@@ -117,7 +117,7 @@ With the menu on you get the card browser, the ROM and DSK launcher and — if y
 
 > Mounting a `.dsk` rewrites sectors of a file that **already exists**: it never creates directory entries or allocates clusters.
 
-After that, insert a microSD with your ROMs and disk images and you're done.
+After that, insert a microSD with your ROMs and disk images and you're done. The easiest way to prepare it is **[MSX SD Maker](MSXsdmaker/README.md)**, in this repository: a Windows program that partitions the card the way Nextor does, installs Nextor and a set of programs (SofaRun, Multi Mente…) and writes the `AUTOEXEC.BAT`.
 
 > **About microSD cards:** use a **name-brand, Class 10** card (Samsung, SanDisk, Kingston...), formatted **FAT16**. Cheap no-name cards read fine but reject or lose sector writes under sustained bursts — we measured it on the bench: a no-name card kept failing writes even when paced, while a Samsung EVO+ was flawless with the exact same code and geometry. If downloads or saves act up, suspect the card first.
 
@@ -220,6 +220,7 @@ This version has been validated on hardware with HRA!'s V9968 test suite, the DE
 ```
 carcasa/         The 3D-printable case (3MF, STLs, assembly)
 docs/            Manual, technical reference, history, logo, photos
+MSXsdmaker/      MSX SD Maker: prepares the SD card (Windows program + instructions)
 fpga/            top.v, build.tcl
   v9968/         The V9968 VDP (+ ORIGEN.txt: provenance and local patches)
   video720/      HDMI bridge and scaler
