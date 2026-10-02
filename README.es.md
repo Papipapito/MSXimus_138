@@ -64,13 +64,13 @@ El ventilador no hace falta para funcionar. Si lo pones, el core lo controla sol
 
 ## Instalación
 
-Todo va a la **flash SPI** de la placa, en tres direcciones distintas:
+Todo va a la **flash SPI** de la placa, en tres direcciones distintas. ⚠️ **Son las direcciones del 138K**: su bitstream mide el doble, así que el pack y las ondas del OPL4 van 4 MB más arriba que en el 60K (allí, `0x400000` / `0x500000`).
 
 | # | Fichero | Dirección | ¿Obligatorio? |
 |---|---|---|---|
-| 1 | `MSXimus_v3.1.fs` | **`0x000000`** | Sí — es el core |
-| 2 | Pack de BIOS (`pack_bios_msximus*.bin`) | **`0x400000`** | Sí — sin él no arranca el MSX |
-| 3 | `yrw801.rom` | **`0x500000`** | No — solo para MoonSound/OPL4 |
+| 1 | `msximus138_v3.x_dadoNNNN.fs` | **`0x000000`** | Sí — es el core |
+| 2 | Pack de BIOS (`pack_bios_msximus*.bin`) | **`0x800000`** | Sí — sin él no arranca el MSX |
+| 3 | `yrw801.bin` | **`0x900000`** | No — solo para MoonSound/OPL4 |
 
 Hay dos piezas más, **opcionales**, que no van a esa flash: el firmware del **ESP32-C6** (WiFi) y el del **BL616** (el panel de F12). Cada una tiene su sección más abajo.
 
@@ -85,9 +85,9 @@ Hay dos piezas más, **opcionales**, que no van a esa flash: el firmware del **E
 ### Cómo grabarlo
 
 1. Conecta la placa por el **USB-C** y abre el **Gowin Programmer** (va bien el de la versión 1.9.12).
-2. Deja que detecte el dispositivo: debe salir el **GW5AT-60**.
+2. Deja que detecte el dispositivo: debe salir el **GW5AST-138**.
 3. Para **cada** uno de los tres ficheros, configura una operación de escritura en la **flash SPI externa** (las opciones que empiezan por *exFlash*, no las de SRAM), pon el fichero en *Programming File* y **la dirección de la tabla en el campo de dirección de inicio**.
-4. Graba primero el `.fs` y luego los otros dos. El orden entre ellos da igual, pero **las direcciones no**: si el pack no cae exactamente en `0x400000`, el core arranca y se queda en negro.
+4. Graba primero el `.fs` y luego los otros dos. El orden entre ellos da igual, pero **las direcciones no**: si el pack no cae exactamente en `0x800000`, el core arranca y se queda en negro.
 5. **Apaga y enciende la placa.** Un reset **no** basta: la DDR3 necesita recalibrar desde frío y con un reset caliente puede quedarse colgada.
 
 > Si al arrancar ves la pantalla azul y nada más, casi siempre es (a) el pack en la dirección equivocada, o (b) que no has hecho el ciclo de apagado.
