@@ -117,7 +117,7 @@ Con el menú encendido tienes el navegador de la tarjeta, el lanzador de ROM y D
 
 > Montar un `.dsk` reescribe sectores de un fichero **que ya existe**: no crea entradas de directorio ni asigna clústeres.
 
-Después, mete una microSD con tus ROMs y discos y listo. La forma más fácil de prepararla es **[MSX SD Maker](MSXsdmaker/LEEME.md)**, en este repositorio: un programa para Windows que parte la tarjeta como lo hace Nextor, copia Nextor y una colección de programas (SofaRun, Multi Mente…) y escribe el `AUTOEXEC.BAT`.
+Después, mete una microSD con tus ROMs y discos y listo. La mejor forma de prepararla es **[MSX SD Maker](https://github.com/Papipapito/SD_Maker)**, que tiene su propio repositorio (en [`MSXsdmaker/`](MSXsdmaker/LEEME.md) hay una copia con sus instrucciones): un programa para Windows que parte la tarjeta como lo hace Nextor, copia Nextor y una colección de programas (SofaRun, Multi Mente…) y escribe el `AUTOEXEC.BAT`.
 
 > **Sobre las microSD:** usa una tarjeta **de marca y Clase 10** (Samsung, SanDisk, Kingston...), formateada en **FAT16**. Las tarjetas baratas sin marca leen bien pero rechazan o pierden escrituras en ráfagas sostenidas — lo medimos en placa: una sin marca fallaba escrituras incluso con pausas, y una Samsung EVO+ iba perfecta con el mismo código y la misma geometría. Si las descargas o los guardados fallan, sospecha de la tarjeta primero.
 
