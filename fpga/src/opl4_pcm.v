@@ -461,7 +461,20 @@ reg [3:0]  ifw_hits;
 reg [3:0]  alive;                  // avanza con cada CE: latido visible
 assign diag = {ifw_hits, alive};
 
-reg mrd_d1, mwr_d1, done_d1;
+reg mrd_d1, mwr_d1;
+// 05/10/2026 (arreglo de MoonTANG): done_d1 SIN reset. En MoonTANG la cadena de
+// memoria vive en el reset de encendido y sobrevive a un /RESET del MSX: su
+// toggle de "hecho" podia valer 1 al soltar el reset y, con done_d1 reseteado a
+// 0, el primer ciclo veia un "hecho" que no era de ninguna operacion (soltaba el
+// puerto y metia en la cache, con la etiqueta de la direccion 0, la ultima
+// palabra leida antes del reset). En el MSXimus no llega a pasar: wave_sdram
+// (60K/138K) se resetea con bus_reset_n, como el motor, y wave_axi (Zynq) deja
+// eng_done_t a 0 y sin toggles mientras dura el reset del motor. Se lleva igual
+// para no divergir de MoonTANG. Ademas un "hecho" solo cuenta si hay una
+// operacion en el puerto (port_busy): uno que llegue tarde (tras el perro
+// guardian de mem_inflight) ya no ensucia la cache.
+reg done_d1 = 1'b0;
+always @(posedge clk_eng) done_d1 <= mem_done_t;
 reg        fill_pend;              // _96: fill de la cache diferido 1 ciclo
 reg [20:0] fill_tag;
 reg        fill_is_pf;             // _107: el fill viene de un prefetch
@@ -531,7 +544,7 @@ always @(posedge clk_eng) begin
 end
 always @(posedge clk_eng or negedge erst_n) begin
     if (!erst_n) begin
-        mrd_d1 <= 1'b0; mwr_d1 <= 1'b0; done_d1 <= 1'b0;
+        mrd_d1 <= 1'b0; mwr_d1 <= 1'b0;
         mem_req <= 1'b0; mem_we <= 1'b0;
         mem_addr <= 22'd0; mem_wdata <= 8'd0;
         mem_inflight <= 1'b0;
@@ -550,7 +563,6 @@ always @(posedge clk_eng or negedge erst_n) begin
     else begin
         mrd_d1 <= ~e_mrd_n;
         mwr_d1 <= ~e_mwr_n;
-        done_d1 <= mem_done_t;
         mem_req <= 1'b0;
         if (ce) alive <= alive + 4'd1;
         // _95: el done se consume ANTES y en un if INDEPENDIENTE (historia:
@@ -558,7 +570,7 @@ always @(posedge clk_eng or negedge erst_n) begin
         // quedaba clavado). _96: el fill va DIFERIDO 1 ciclo (fill_pend):
         // capturar mem_rword en el primer avistamiento del toggle es una
         // carrera de hold de picosegundos que en placa corrompia lineas.
-        if (mem_done_t != done_d1) begin
+        if (mem_done_t != done_d1 && port_busy) begin
             port_busy <= 1'b0;
             if (op_is_pf) begin
                 op_is_pf <= 1'b0;
