@@ -70,7 +70,7 @@ Lo que el banco no cubre es lo que de verdad cambia en silicio: si con `pll_stop
 
 ### Audio: `tools/opl3_sim/` y `tools/opl4wave_sim/`
 
-El OPL3 se simula con Verilator desde C++: `run_vgm.sh` reproduce un VGM contra el core y saca un WAV, y `tb_opl3_storm` bombardea el interfaz de host. `opl4wave_sim` guarda los volcados con que se depuró el motor PCM y su caché. Ninguno de los dos modela el reloj del motor OPL4, que en el 138 es de 36 MHz en vez de 37,5 (capítulo 01): el cambio de velocidad está pendiente de escuchar en placa.
+El OPL3 se simula con Verilator desde C++: `run_vgm.sh` reproduce un VGM contra el core y saca un WAV, y `tb_opl3_storm` bombardea el interfaz de host. `opl4wave_sim` guarda los volcados con que se depuró el motor PCM y su caché. Ninguno de los dos modela el reloj del motor OPL4, que en el 138 es de 36 MHz en vez de 37,5 (capítulo 01): el cambio de velocidad está pendiente de escuchar en placa. La excepción es `run_slotrd.sh` (`tb_slotrd.v`), que sí pone el motor a 36 MHz: comprueba que los registros de slot del wavetable se releen bien **a la primera** por 7Fh, a través de `opl4_pcm.v` y con un Z80 que respeta /WAIT (los diez grupos por 24 slots, con la fase del acceso barrida por semilla, en reposo y con seis slots sonando).
 
 ### Pequeños: `mouse_sim`, `fan_sim`, `turbo_cadence_equiv`, `dbg_uart_tb`
 

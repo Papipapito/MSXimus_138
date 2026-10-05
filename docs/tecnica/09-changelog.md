@@ -58,6 +58,15 @@ Síntesis limpia para GW5AST-138B (LUT 38.468). El banco del backend DDR3 (`tb_d
 
 Core: dado **4391**, adf693b5, campaña `p138k`. Margen 0,034 ns contra los 11,30 ns del `clk_86` sobre-restringido, es decir, ~0,37 ns reales (la misma clase que el 3389 de la v1 y el 3469 de la v2); holds solo la IP DDR3. Campaña `p138j` (4339/4349/4357): 0 de 3 (dos por el dominio de 86 MHz, −1,12 y −0,76 contra 11,30; el 4357 cerraba el 86 pero colocó la CPU lejos de la SDRAM, `cpu1/DO → mem1/SdrDat` a −4,5 ns). Campaña `p138k` (4363/4373/4391/4397/4409): 1 de 5 (4373 se quedó a −0,05 en `cpu1/IORQ`; 4363, 4397 y 4409 por `ff_flash_state`, `cpu1/DO` y el 86). Con el diseño de la v3.7 el PnR del 138 pasa de 7 a 15-19 minutos por dado. Entrega en `files/20260918/` con `LEEME_138_v3.7.txt`. Sin validar en placa.
 
+### OPL4: la relectura de los registros de slot (5 de octubre de 2026; en la rama `V3.8`, sin core nuevo)
+
+Arreglo de un defecto visto en simulación, traído de la Zynq y del 60K el mismo día (el detalle, en el historial del 60K de su repositorio). Al leer por 7Fh un registro de slot del wavetable, la primera lectura devolvía a menudo el valor del registro leído justo antes, también respetando /WAIT. La causa estaba en el motor (`fpga/opl4wave/YMF278B.sv`): `REG_Q` se cargaba antes de que la BSRAM de los registros hubiese entregado el dato y la corrección llegaba cuando `opl4_pcm.v` ya había capturado. Ahora se carga en el mismo CE con el dato de esa lectura; `opl4_pcm.v` no cambia y /WAIT dura lo mismo. Las escrituras y el sonido no cambian.
+
+- `YMF278B.sv` y `ymf278b_gowin.v` son los mismos ficheros que en el 60K y la Zynq.
+- Banco `tools/opl4wave_sim/tb_slotrd.v` (`run_slotrd.sh`), aquí con el motor a **36 MHz** (CE 14112/15000): con el motor de antes, entre 1.270 y 1.340 de 4.200 lecturas únicas distintas de lo escrito por semilla; con el arreglo, 0 en las tres. /WAIT en un IN 7Fh: 343 ns de mínimo y 376 de media desde que el Z80 baja RD, igual antes que después.
+- `run_sim.sh` y `tb_regrd.sv` en verde, y los ocho volcados de PCM de `run_pitch.sh` y `run_pan.sh` bit a bit iguales antes y después. `run_pan.sh` deja de apuntar a la carpeta `MSX_up`.
+- Síntesis limpia para GW5AST-138B (LUT 40.296, BSRAM 104; el bloque `uopl4pcm` con sus 8 BSRAM). Sin campaña: como el resto de la línea, nada de esto ha corrido en una placa.
+
 ## Historial del 60K (del que deriva el core)
 
 Lo que sigue es el changelog de la era v3 del MSXimus en la Tang Console 60K, tal cual, porque cada cambio del core es también un cambio del 138. Pero los **dados, hashes, márgenes y cifras de placa son del 60K**: las velocidades de la SD, las calibraciones de la DDR3, los negros desde el cargador, las validaciones en placa y las noches de campañas al 98 % de CLS no se han reproducido en el 138, cuyos dados están arriba. Las rutas `files/<fecha>/` y `mi_release/` de esta parte son del repo `MSX_up_v3`, y las direcciones de flash que cita (0x400000, 0x480000) son las del 60K: en el 138 están 4 MB más arriba. Las versiones publicadas en GitHub llevan tag; las intermedias son entregas internas probadas en la placa 60K.
