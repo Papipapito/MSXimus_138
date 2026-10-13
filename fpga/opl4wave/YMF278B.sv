@@ -780,7 +780,8 @@ module YMF278B
 			MEMMODE <= '0;
 			MEMADDR <= '0;
 			MEMDAT <= '0;
-			MIXFM <= '0;
+			MIXFM <= {3'h3,3'h3};   // 13/10/2026: F8 = 1Bh tras el reset, como el chip y openMSX (FM a -9 dB por lado).
+			                        // Antes '0: en MSXimus RST_N e IC_N son la misma senal y esta rama gana a la de RES_N.
 			MIXPCM <= '0;
 			REG_Q <= '0;
 			{BUSY,BUSY2} <= 0;

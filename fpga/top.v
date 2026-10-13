@@ -1076,7 +1076,9 @@ assign keyboard_addr = ppi_port_c[3:0];
     // 3.8   = 01/10/2026: version NUEVA (Albert, 01/10: "ya sera una version nueva"): el OSD del BL616 con color
     //         (textdisp.v, BSRAM 2048x9 con tabla de atributos por fila) y el estado del core con version, ajustes,
     //         USB e idioma del menu; puente de la flash SPI para actualizar el core sin programador.
-    localparam [7:0] FPGA_PATCH   = 8'd0;
+    // 3.8.2 = 13/10/2026: OPL4 en canon: F8 = 1Bh tras el reset (FM a -9 dB, como el chip) y vibrato/tremolo del FM
+    //         como el YMF262.
+    localparam [7:0] FPGA_PATCH   = 8'd2;
     wire ver_req_r = (bus_iorq_n == 1'b0 && bus_m1_n == 1'b1 && bus_rd_n == 1'b0 && bus_addr[7:0] == 8'h2F);
     // 2Fh y 29h en UN solo termino del mux de cpu_din (un escalon mas en esa cadena costo -0,1 ns en el 60K): las dos
     // constantes se eligen por bus_addr[2] (2Fh = ...1111, 29h = ...1001) y la sintesis las pliega por bit.

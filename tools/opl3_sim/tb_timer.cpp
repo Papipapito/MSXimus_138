@@ -197,6 +197,14 @@ static bool vib_canon(const Vib &v) {
 static bool trem_canon(const Trem &t) {
     return t.pp_db > 4 && t.pp_db < 5.6 && t.tasa > 3.4 && t.tasa < 4.0;
 }
+// DVB=0: el desplazamiento se parte a la mitad (+/-6 c); DAM=0: el tremolo se
+// parte entre 4 (6 x 0.1875 = 1.1 dB), como en Nuked (vibshift y tremoloshift)
+static bool vib_canon_mitad(const Vib &v) {
+    return v.prof_c > 4 && v.prof_c < 8 && v.tasa > 5.5 && v.tasa < 6.6 && fabs(v.desplaz_c) < 1;
+}
+static bool trem_canon_mitad(const Trem &t) {
+    return t.pp_db > 0.8 && t.pp_db < 1.5 && t.tasa > 3.4 && t.tasa < 4.0;
+}
 static void informe_vib(const char *quien, const Vib &v) {
     printf("%s: f0=%.3fHz, tono medio %+.2f c, profundidad +/-%.2f c (control +/-%.2f), ",
            quien, v.f0, v.desplaz_c, v.prof_c, v.prof0_c);
@@ -456,6 +464,19 @@ int main(int argc, char **argv) {
     wr(0xA0, 0x41); wr(0xB0, 0x32);
     captura(tron);
     wr(0xB0, 0x12);
+    // mitad de profundidad: VIB con DVB=0 y AM con DAM=0
+    static int32_t vmid[VN], tmid[VN];
+    ticks(200000);
+    wr(0x20, 0x61); wr(0x23, 0x61);    // VIB on, AM off
+    wr(0xBD, 0x00);                    // DVB=0, DAM=0
+    wr(0xA0, 0x41); wr(0xB0, 0x32);
+    captura(vmid);
+    wr(0xB0, 0x12);
+    ticks(200000);
+    wr(0x20, 0xA1); wr(0x23, 0xA1);    // AM on, VIB off
+    wr(0xA0, 0x41); wr(0xB0, 0x32);
+    captura(tmid);
+    wr(0xB0, 0x12);
     volcar("vib_on.raw", von); volcar("vib_off.raw", voff); volcar("trem_on.raw", tron);
     double fs = 27e6 / cpm;
     printf("dumps vib_on/vib_off/trem_on escritos (int16 nativo, fs=%.1f Hz = 27MHz/%.0f)\n", fs, cpm);
@@ -467,6 +488,14 @@ int main(int argc, char **argv) {
     informe_trem("TREMOLO FM", tr);
     printf("canon YMF262 (DAM=1): 4.9 dB a %.2f Hz (fs/13440)\n", fs / 13440);
     printf(trem_canon(tr) ? "*** TREMOLO: DENTRO DEL CANON ***\n" : "*** TREMOLO: FUERA DE CANON ***\n");
+    Vib vm = medir_vibrato(vmid, voff, fs);
+    Trem tm = medir_tremolo(tmid, voff, fs);
+    informe_vib("VIBRATO FM (DVB=0)", vm);
+    printf("canon YMF262 para esta nota (DVB=0): +/-6 c centrados a %.2f Hz\n", fs / 8192);
+    printf(vib_canon_mitad(vm) ? "*** VIBRATO DVB=0: DENTRO DEL CANON ***\n" : "*** VIBRATO DVB=0: FUERA DE CANON ***\n");
+    informe_trem("TREMOLO FM (DAM=0)", tm);
+    printf("canon YMF262 (DAM=0): 1.1 dB a %.2f Hz\n", fs / 13440);
+    printf(trem_canon_mitad(tm) ? "*** TREMOLO DAM=0: DENTRO DEL CANON ***\n" : "*** TREMOLO DAM=0: FUERA DE CANON ***\n");
     return 0;
 
 }

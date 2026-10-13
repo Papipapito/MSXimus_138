@@ -935,7 +935,7 @@ module YMF278B (
 			MEMMODE <= 1'sb0;
 			MEMADDR <= 1'sb0;
 			MEMDAT <= 1'sb0;
-			MIXFM <= 1'sb0;
+			MIXFM <= 6'h1b;
 			MIXPCM <= 1'sb0;
 			REG_Q <= 1'sb0;
 			{BUSY, BUSY2} <= 0;

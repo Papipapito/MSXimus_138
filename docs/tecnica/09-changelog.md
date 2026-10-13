@@ -77,6 +77,15 @@ Dos defectos del bloque OPL4 que MoonTANG comparte con el MSXimus, encontrados a
 - La prueba 4 de `build_timer.sh` (vibrato y trémolo del FM), rehecha en `tb_timer.cpp`: la medida estaba mal (16 bits bajos de una muestra de 24, el búfer del trémolo, 44.100 Hz en vez de 49.541). Con la medida buena, el core sigue fuera de canon y ahora es del core: vibrato a 217,7 Hz en vez de 6,05 Hz, tono medio +1,31 c y sin escalar con el bloque; trémolo nulo (toma el bit AM del slot siguiente). Heredado del opl3_fpga de Greg Taylor; el RTL no se toca, pendiente de decisión. El detalle, en el historial del 60K.
 - Sin core nuevo ni síntesis; como el resto de la línea, nada de esto ha corrido en una placa.
 
+### v3.8.2 (13 de octubre de 2026, en preparación; en la rama `opl4-canon`, sin core nuevo): el OPL4 en canon
+
+Traído de la Zynq (commits `6bce008` y `6795e16` de su rama `zynq`) y del 60K el mismo día; el detalle y las medidas, en el historial del 60K de su repositorio. **Falta la campaña de dados** y, como el resto de la línea, nada de esto ha corrido en una placa.
+
+- **F8 = 1Bh tras el reset**: el chip real y openMSX arrancan con el FM a -9 dB por lado y aquí arrancaba en 00h (RST_N e IC_N van a la misma señal y ganaba la rama que lo pone a 0). `YMF278B.sv` y `ymf278b_gowin.v` (regenerado con `convert.sh`: la única diferencia con el de antes es esa línea) son los mismos ficheros que en el 60K; `opl4_pcm.v` arranca `mix_fm` en 1Bh con un `initial` (el del 60K con el CE y la telemetría de 36 MHz).
+- **Vibrato y trémolo del FM en canon** (`fpga/opl3/vibrato.sv`, `calc_phase_inc.sv`, `envelope_generator.sv`): el LFO a 6,05 Hz en vez de 217,7, con signo y antes del bloque, y el trémolo con el AM del propio slot; es lo que la entrada de arriba dejaba «pendiente de decisión». Prueba 4 de `build_timer.sh`: vibrato ±12,22 c a 6,046 Hz (canon ±12 c a 6,05) y trémolo 4,91 dB a 3,73 Hz (canon 4,9 dB), los dos «dentro del canon».
+- `build_timer.sh`, `run_timer_stop.sh` (9 de 9), `run_sim.sh` (motor a 36 MHz), `run_slotrd.sh` (tres semillas) y `tb_regrd.sv` en verde. Sin síntesis en el 138; en el 60K el cambio es neutro en área (LUT +9, BSRAM igual).
+- `FPGA_PATCH` pasa de 0 a **2** (3.8.2): el 138 nunca numeró la 3.8.1 (la relectura de los registros de slot está en sus fuentes, pero el parche seguía en 0).
+
 ## Historial del 60K (del que deriva el core)
 
 Lo que sigue es el changelog de la era v3 del MSXimus en la Tang Console 60K, tal cual, porque cada cambio del core es también un cambio del 138. Pero los **dados, hashes, márgenes y cifras de placa son del 60K**: las velocidades de la SD, las calibraciones de la DDR3, los negros desde el cargador, las validaciones en placa y las noches de campañas al 98 % de CLS no se han reproducido en el 138, cuyos dados están arriba. Las rutas `files/<fecha>/` y `mi_release/` de esta parte son del repo `MSX_up_v3`, y las direcciones de flash que cita (0x400000, 0x480000) son las del 60K: en el 138 están 4 MB más arriba. Las versiones publicadas en GitHub llevan tag; las intermedias son entregas internas probadas en la placa 60K.

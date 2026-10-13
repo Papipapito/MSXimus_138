@@ -152,6 +152,13 @@ reg        rd_done_t;               // x1: flip al completar lectura 7F
 reg [7:0]  rd_data_x;
 reg        pcm_t_x;                 // x1: flip a cada muestra nueva
 reg signed [15:0] pcm_l_x, pcm_r_x; // x1: OUT1 retenido
+// mix_fm arranca en 1Bh, el valor de encendido del chip (F8 = 1Bh: FM a -9 dB
+// por lado, como el YMF278B real y openMSX). Desde el 13/10/2026 el motor lo
+// pone tambien en su reset (YMF278B.sv); antes arrancaba en 0 y el FM del
+// software que nunca escribe F8 sonaba 8,5 dB mas alto que en el chip. El
+// initial (de MoonTANG) evita que en simulacion valga X hasta la primera
+// muestra del motor.
+initial mix_fm = 6'h1B;
 reg [5:0] mixfm_s0, mixfm_s1;       // _110: F8 motor->host (cuasi-estatico)
 always @(posedge clk_host) begin
     mixfm_s0 <= eng_mixfm;
