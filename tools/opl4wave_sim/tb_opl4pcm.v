@@ -161,9 +161,17 @@ initial begin
     #1000 eng_rst_n = 1;
     #2000;
 
+`ifdef NEW2_POR_C5
+    // 13/10/2026: el dato de 105h por C5h, como los drivers "MoonBlaster Wave BASIC" de Moonsoft
+    // (WAVEDRVR.BIN): el chip tiene un solo latch de direccion FM y C7h es solo un espejo de C5h.
+    $display("== 1. init NEW/NEW2 (C6/C5 reenviados) y deteccion ==");
+    outp(8'hC6, 8'h05);
+    outp(8'hC5, 8'h03);
+`else
     $display("== 1. init NEW/NEW2 (C6/C7 reenviados) y deteccion ==");
     outp(8'hC6, 8'h05);
     outp(8'hC7, 8'h03);
+`endif
     rreg(8'h02);
     check(rdv, 8'h20, "reg02 (device ID)");
 

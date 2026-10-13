@@ -820,10 +820,16 @@ module YMF278B
 					BUSY <= 1;
 				end
 				if (!WR_N && WR_N_OLD && !CS_N) begin
-					REG_NEW_SEL <= 0;
+					// 13/10/2026: NEW2 es el bit 1 del registro FM 105h, y el chip tiene UN solo latch de
+					// direccion FM: C4h/C6h lo cargan (banco 0/1) y el dato vale igual por C5h que por C7h
+					// ("0C7h is a mirror of the FM data register but use of 0C5h is preferred", doc tecnico
+					// del OPL4). Hasta hoy solo se aceptaba el dato por C7h (A=3) y el latch se borraba con
+					// cualquier escritura: los discos del "MoonBlaster Wave BASIC driver" (OUT C6h,05h +
+					// OUT C5h,03h) no activaban NEW2, el motor ignoraba 7Eh/7Fh y callaban sin error.
 					case (A)
-						3'h2: REG_NEW_SEL <= (DI == 8'h05);
-						3'h3: if (REG_NEW_SEL && DI[1]) begin NEW2 <= 1; LD2 <= 1; end
+						3'h0: REG_NEW_SEL <= 0;                 // direccion del banco 0: ya no es 105h
+						3'h2: REG_NEW_SEL <= (DI == 8'h05);     // direccion del banco 1
+						3'h1, 3'h3: if (REG_NEW_SEL && DI[1]) begin NEW2 <= 1; LD2 <= 1; end   // dato por C5h o C7h
 						3'h4: if (NEW2) REG_A <= DI;
 						3'h5: if (NEW2) begin
 							REG_D <= DI;

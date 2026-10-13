@@ -49,6 +49,25 @@ while i < len(out):
         final.append(ln)
         i += 1
 
+# 3) la cabecera con el aviso BSD-3 de srg320/MAME (13/10/2026): el generado es lo que se
+#    sintetiza y se distribuye, y la clausula 2 de la BSD pide el aviso en lo que se redistribuye.
+CABECERA = """// ============================================================================
+// ymf278b_gowin.v - motor PCM/wavetable del OPL4 (YMF278B). GENERADO por sv2v
+// desde opl4wave/YMF278B_pkg.sv + YMF278B.sv (convert.sh + postproc.py): no
+// editar a mano. Es el fichero que entra en la sintesis (fpga/build.tcl).
+//
+// license:BSD-3-Clause  (motor PCM derivado del ymf278b.cpp de MAME)
+//
+// Origen: srg320 / Arcade-PsikyoSH2_MiSTer (rtl/PSH2/YMF278B.sv), BSD-3-Clause
+// por su autor (cabecera upstream //license:BSD-3-Clause, commit 5379b34b,
+// 14/07/2026; permiso explicito por correo del 13/07/2026). Derivado del
+// ymf278b.cpp de MAME, BSD-3-Clause, titulares R. Belmont / Olivier Galibert /
+// hap. Primitivas de RAM rehechas por el proyecto MSXimus (era v3: BSRAM con
+// barrido por slot) y relectura de los registros de slot a la primera
+// (05/10/2026). Ver UPSTREAM.md.
+// ============================================================================
+"""
 with open(path, "w", encoding="utf-8", newline="\n") as f:
+    f.write(CABECERA)
     f.writelines(final)
 print(f"postproc: {patched} regs inicializados a 0, {hoisted} locals izados en {path}")

@@ -22,8 +22,10 @@
 //
 // BUS MSX -> MOTOR (CDC por toggles, como el resto del proyecto):
 //  - Se le reenvian TODAS las escrituras OPL4 (C4-C7 y 7E/7F): el motor
-//    rastrea NEW2 internamente viendo pasar las escrituras FM del bank1
-//    (A=2 con 0x05 y A=3 con bit1). El FM real lo sigue llevando opl4fm.
+//    rastrea NEW2 internamente viendo pasar las escrituras FM (direccion
+//    05h por C6h, A=2, y despues el dato con el bit 1 por C5h o por C7h,
+//    A=1 o A=3: el chip tiene un solo latch de direccion, 13/10/2026). El
+//    FM real lo sigue llevando opl4fm.
 //  - Las escrituras wave (A=5) se consumen en la siguiente CYCLE1_CE del
 //    motor: la FSM de bus espacia peticiones 12 CE para no pisar REG_WR.
 //  - Lecturas 7F: handshake disparado al INICIO del ciclo IN del Z80; el

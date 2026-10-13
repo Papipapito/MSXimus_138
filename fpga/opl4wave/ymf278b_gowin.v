@@ -1,3 +1,18 @@
+// ============================================================================
+// ymf278b_gowin.v - motor PCM/wavetable del OPL4 (YMF278B). GENERADO por sv2v
+// desde opl4wave/YMF278B_pkg.sv + YMF278B.sv (convert.sh + postproc.py): no
+// editar a mano. Es el fichero que entra en la sintesis (fpga/build.tcl).
+//
+// license:BSD-3-Clause  (motor PCM derivado del ymf278b.cpp de MAME)
+//
+// Origen: srg320 / Arcade-PsikyoSH2_MiSTer (rtl/PSH2/YMF278B.sv), BSD-3-Clause
+// por su autor (cabecera upstream //license:BSD-3-Clause, commit 5379b34b,
+// 14/07/2026; permiso explicito por correo del 13/07/2026). Derivado del
+// ymf278b.cpp de MAME, BSD-3-Clause, titulares R. Belmont / Olivier Galibert /
+// hap. Primitivas de RAM rehechas por el proyecto MSXimus (era v3: BSRAM con
+// barrido por slot) y relectura de los registros de slot a la primera
+// (05/10/2026). Ver UPSTREAM.md.
+// ============================================================================
 module YMF278B (
 	CLK,
 	RST_N,
@@ -973,11 +988,11 @@ module YMF278B (
 				REG_RD <= 1;
 				BUSY <= 1;
 			end
-			if ((!WR_N && WR_N_OLD) && !CS_N) begin
-				REG_NEW_SEL <= 0;
+			if ((!WR_N && WR_N_OLD) && !CS_N)
 				case (A)
+					3'h0: REG_NEW_SEL <= 0;
 					3'h2: REG_NEW_SEL <= DI == 8'h05;
-					3'h3:
+					3'h1, 3'h3:
 						if (REG_NEW_SEL && DI[1]) begin
 							NEW2 <= 1;
 							LD2 <= 1;
@@ -992,7 +1007,6 @@ module YMF278B (
 							BUSY <= 1;
 						end
 				endcase
-			end
 			if ((OP7[23-:5] == 5'd23) && SLOT1_CE) begin
 				if (LD_WAIT)
 					LD_WAIT <= LD_WAIT - 4'd1;
