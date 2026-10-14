@@ -114,13 +114,14 @@ task wreg(input [7:0] r, input [7:0] v);
 begin outp(8'h7E, r); outp(8'h7F, v); end
 endtask
 
-// volcado de muestras
-integer fd, n = 0, i;
+// volcado de muestras (13/10/2026: +dumpr tambien vuelca pcm_r en pcm_dump_r.txt, para medir el pan en run_pan.sh)
+integer fd, fdr = 0, n = 0, i;
 reg pcm_seen = 0;
 always @(posedge clk_host) begin
     pcm_seen <= dut.pcm_h3;
     if (dut.pcm_h3 !== pcm_seen && n < NSAMP) begin
         $fdisplay(fd, "%0d", pcm_l);
+        if (fdr) $fdisplay(fdr, "%0d", pcm_r);
         n = n + 1;
         if (n == NSAMP) begin
             $display("VOLCADAS %0d muestras", n);
@@ -139,6 +140,7 @@ initial begin
     if (!$value$plusargs("hdr7=%d", HDR7)) HDR7 = 0;
     if (!$value$plusargs("pan=%d", PANV)) PANV = 0;
     fd = $fopen("pcm_dump.txt", "w");
+    if ($test$plusargs("dumpr")) fdr = $fopen("pcm_dump_r.txt", "w");
     $readmemh("yrw801_2m.hex", wavemem);
     if (HDRREL) begin
         // _106: cabecera de la onda 303 COPIADA a la tabla relocada de RAM

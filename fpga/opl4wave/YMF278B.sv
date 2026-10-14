@@ -507,14 +507,15 @@ module YMF278B
 		end
 		{EFF_RATE_OVR,EFF_RATE} = EffRateCalc(RATE, OP4_RC, OP4_OCT, OP4_FNUM9);
 		
-		ENV_STEP <= EnvStep(SCNT[18:1], EFF_RATE);
-		ENV_INC <= EnvInc(SCNT[18:1], EFF_RATE);
+		ENV_STEP <= EnvStep(SCNT, EFF_RATE);
+		ENV_INC <= EnvInc(SCNT, EFF_RATE);
 	end
 	
 	bit  [ 7: 0] OP4_LFO_DATA;
 	bit  [ 2: 0] OP4_AM;
 	always @(posedge CLK or negedge RST_N) begin
 		bit  [10: 0] ATTACK_VOL_CALC,DECAY_VOL_CALC;
+		bit signed [10: 0] NOTV,ATK_STEP;
 		bit  [ 9: 0] NEW_EVOL;
 		bit  [ 1: 0] NEW_EST;
 		
@@ -556,13 +557,18 @@ module YMF278B
 				NEW_EVOL = OP4_EVOL;
 				NEW_EST = OP4_EST;
 				
-				ATTACK_VOL_CALC = {1'b0,OP4_EVOL} + (ENV_STEP ? $signed($signed(~{1'b0,OP4_EVOL}) * $unsigned(ENV_INC)) : 11'd0);
+				// 13/10/2026: ataque canon (openMSX/libvgm, "makes the attack phase's shape match the actual chip"):
+				// env += (~env * inc) >> 4. ENV_INC solo vale 0/1/2/4/8: el producto y el >>4 son un desplazamiento.
+				// Antes, sin el >>4, el ataque terminaba en el primer paso de envolvente para cualquier AR.
+				NOTV = ~{1'b0,OP4_EVOL};
+				ATK_STEP = ENV_INC[3] ? (NOTV >>> 1) : (ENV_INC[2] ? (NOTV >>> 2) : (ENV_INC[1] ? (NOTV >>> 3) : (ENV_INC[0] ? (NOTV >>> 4) : 11'sd0)));
+				ATTACK_VOL_CALC = {1'b0,OP4_EVOL} + (ENV_STEP ? ATK_STEP : 11'd0);
 				DECAY_VOL_CALC = {1'b0,OP4_EVOL} + (ENV_STEP ? {7'b0000000,ENV_INC} : 11'd0);
 				if (OP4.RST) begin
 					NEW_EVOL = 10'h3FF;
 					NEW_EST = EST_RELEASE;
 				end else if (OP4_EST == EST_RELEASE && OP4.KON) begin
-					NEW_EVOL = EFF_RATE_OVR ? 10'h000 : 10'h280;
+					NEW_EVOL = (EFF_RATE == 6'h3F) ? 10'h000 : 10'h280;   // 13/10/2026: tasa efectiva 63 = ataque instantaneo (openMSX keyOnHelper)
 					NEW_EST = EST_ATTACK;
 `ifdef DEBUG
 					ATTACK_DBG <= 1;
@@ -661,14 +667,18 @@ module YMF278B
 			if (SLOT1_CE) begin
 				if (OP5_LDIR) TL_RAM_D <= {OP5_TL,10'h000};
 				else begin
-					if (TL_INT > OP5_TL) begin
-						TL_RAM_D <= {TL_INT,TL_FRAC} + 17'd19;
+					// 13/10/2026: sentido de la interpolacion CORREGIDO. Antes TL_INT > destino sumaba y TL_INT < destino
+					// restaba: se alejaba del destino, el TL de 17 bits envolvia y quedaba oscilando 0 <-> 127,7 (patron de
+					// 3 muestras, ganancia 1/0,004/0,004) para siempre tras cada escritura con LD=0. Constantes de openMSX
+					// (YMF278.cc advance()): atenuar = 1 paso de TL cada 27 muestras (+38/1024), subir = cada 13,5 (-76/1024).
+					if (TL_INT < OP5_TL) begin
+						TL_RAM_D <= {TL_INT,TL_FRAC} + 17'd38;
 					end
-					else if (TL_INT < OP5_TL) begin
-						TL_RAM_D <= {TL_INT,TL_FRAC} - 17'd38;
+					else if (TL_INT > OP5_TL) begin
+						TL_RAM_D <= {TL_INT,TL_FRAC} - 17'd76;
 					end
 					else begin
-						TL_RAM_D <= {TL_INT,TL_FRAC};
+						TL_RAM_D <= {TL_INT,10'h000};   // 14/10/2026: al llegar, la fraccion a 0 (el chip trabaja con el TL entero; sin esto quedaban hasta 0,75 pasos = 0,28 dB)
 					end
 				end
 				
@@ -676,7 +686,7 @@ module YMF278B
 				OP6.RST <= OP5.RST;
 				OP6.KON <= OP5.KON;
 				OP6.KOFF <= OP5.KOFF;
-				OP6.LEVEL <= LevelAddTLALFO(OP5.EVOL, {TL_INT, TL_FRAC[9:8]}, OP5.ALFO);
+				OP6.LEVEL <= LevelAddTLALFO(OP5.EVOL, (TL_INT == 7'h7F) ? 10'h3FF : {1'b0,TL_INT,TL_FRAC[9:8]}, OP5.ALFO);   // 13/10/2026: TL=7Fh = silencio (FFh en el chip)
 				OP6.WD <= OP5.WD;
 			end
 		end
@@ -698,7 +708,11 @@ module YMF278B
 				OP7.RST <= OP6.RST;
 				OP7.KON <= OP6.KON;
 				OP7.KOFF <= OP6.KOFF;
-				OP7.SD <= VolCalc(OP6.WD, OP6.LEVEL);
+				// 13/10/2026 MARGEN: -15 dB por slot ANTES de acumular, como el chip real (libvgm ymf278b: (smplOut * 0x5A82) >> 17,
+				// "reduce volume by -15 db, should bring it into balance with FM"). Los 24 slots sumaban a plena escala de 16 bits
+				// en un acumulador de 18: la musica densa (MiG) recortaba el 17-21 % de las muestras y 326 sumas envolvian con
+				// cambio de signo (chasquidos). Con -15 dB por slot los 24 caben en 19 bits y el recorte final solo salta en el pico.
+				OP7.SD <= Atten15(VolCalc(OP6.WD, OP6.LEVEL));
 			end
 		end
 	end
@@ -706,7 +720,7 @@ module YMF278B
 	//Operation 7: 
 	bit  [ 3: 0] OP7_PAN;
 	bit          OP7_CH;
-	bit  [17: 0] ACC_L,ACC_R;
+	bit  [18: 0] ACC_L,ACC_R;   // 13/10/2026: 19 bits; 24 slots * 5793 (= 32768 * 0x5A82 >> 17) = 139 k > 131 k (limite de 18 bits) y < 262 k
 	always @(posedge CLK or negedge RST_N) begin
 		bit [ 4:0] S;
 		bit signed [15:0] TEMP;
@@ -732,11 +746,11 @@ module YMF278B
 			
 			if (SLOT1_CE) begin
 				if (S == 5'd0) begin
-					ACC_L <= {{2{PAN_L[15]}},PAN_L[15:0]};
-					ACC_R <= {{2{PAN_R[15]}},PAN_R[15:0]};
+					ACC_L <= {{3{PAN_L[15]}},PAN_L[15:0]};
+					ACC_R <= {{3{PAN_R[15]}},PAN_R[15:0]};
 				end else begin
-					ACC_L <= ACC_L + {{2{PAN_L[15]}},PAN_L[15:0]};
-					ACC_R <= ACC_R + {{2{PAN_R[15]}},PAN_R[15:0]};
+					ACC_L <= ACC_L + {{3{PAN_L[15]}},PAN_L[15:0]};
+					ACC_R <= ACC_R + {{3{PAN_R[15]}},PAN_R[15:0]};
 				end
 			end
 			
@@ -758,8 +772,8 @@ module YMF278B
 			
 		end else begin
 			if (OP7.SLOT == 5'd0 && CYCLE_NUM[2:1] == 2'b00 && CYCLE1_CE) begin
-				PCM_L <= (!SND_EN[2] ? 16'h0000 : TrimWave(ACC_L));
-				PCM_R <= (!SND_EN[2] ? 16'h0000 : TrimWave(ACC_R));
+				PCM_L <= (!SND_EN[2] ? 16'h0000 : TrimWave19(ACC_L));
+				PCM_R <= (!SND_EN[2] ? 16'h0000 : TrimWave19(ACC_R));
 			end
 		end
 	end

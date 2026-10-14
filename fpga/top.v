@@ -1079,7 +1079,10 @@ assign keyboard_addr = ppi_port_c[3:0];
     // 3.8.2 = 13/10/2026: OPL4 en canon: F8 = 1Bh tras el reset (FM a -9 dB, como el chip), vibrato/tremolo del FM
     //         como el YMF262 y NEW2 tambien con el dato por C5h (los discos del MoonBlaster Wave BASIC driver
     //         callaban); estrena en core el timer parado y el done_d1 de MoonTANG (05/10/2026).
-    localparam [7:0] FPGA_PATCH   = 8'd2;
+    // 3.8.3 = 14/10/2026: el motor wave del OPL4 como el chip: margen de 24 canales (-15 dB por canal y 19 bits; antes
+    //         recortaba y envolvia), TL con LD=0 bien, envolvente (OCT+RC, pasos, ataque), pan a -3 dB/paso y silencio
+    //         por debajo de -60 dB; el wave entra x2 (-3 dB por canal frente a la 3.8.2).
+    localparam [7:0] FPGA_PATCH   = 8'd3;
     wire ver_req_r = (bus_iorq_n == 1'b0 && bus_m1_n == 1'b1 && bus_rd_n == 1'b0 && bus_addr[7:0] == 8'h2F);
     // 2Fh y 29h en UN solo termino del mux de cpu_din (un escalon mas en esa cadena costo -0,1 ns en el 60K): las dos
     // constantes se eligen por bus_addr[2] (2Fh = ...1111, 29h = ...1001) y la sintesis las pliega por bit.
@@ -4313,12 +4316,24 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
     wire        [15:0] opll_term = (opll_s >>> 1) + (opll_s >>> 2);
 
     // _89: PCM del MoonSound (motor YMF278B). Mono = (L+R)/2 con extension de
-    // signo EXPLICITA (leccion _85: las concatenaciones son unsigned) y >>1
-    // de margen como el ADPCM; en estereo, L y R nativos a cada canal.
+    // signo EXPLICITA (leccion _85: las concatenaciones son unsigned); en
+    // estereo, L y R nativos a cada canal.
+    // 14/10/2026 (3.8.3) MARGEN del OPL4 wave: el motor ya entrega la suma de los 24 slots con -15 dB por slot (como el
+    // chip real: x0,1768 antes de acumular, en 19 bits) y recortada a 16 bits (DAC), sin envolver. Antes cada slot
+    // entraba a plena escala en 18 bits y, con >>1 aqui, la musica densa (MiG) recortaba el 17-21 % de las muestras
+    // dentro del motor. Aqui el wave sube x2,0 (e <<< 1, en 19 bits): cada slot queda a 0,354 de su escala, el nivel
+    // de openMSX (y los 23/64 de MoonTANG); -3 dB por canal frente a la 3.8.2 (que lo dejaba a 0,5). El mezclador del
+    // #44 sigue actuando detras. |x| <= 32768 -> |y| <= 65536. El x2 va DESPUES del registro mi_* (el camino 54->27
+    // va con 18,52 ns de presupuesto): es solo un desplazamiento, sin logica nueva antes del DSP de mixk.
+    function signed [18:0] o4gain(input signed [15:0] x);
+        reg signed [18:0] e;
+        begin
+            e = {{3{x[15]}}, x};                                   // extension de signo explicita (leccion _85)
+            o4gain = e <<< 1;                                      // x2,0
+        end
+    endfunction
     wire signed [16:0] opl4pcm_sum = {opl4pcm_l[15], opl4pcm_l} + {opl4pcm_r[15], opl4pcm_r};
-    wire [15:0] opl4pcm_term   = {opl4pcm_sum[16], opl4pcm_sum[16:2]};       // (L+R)/2 >>1
-    wire [15:0] opl4pcm_term_l = {opl4pcm_l[15], opl4pcm_l[15:1]};           // L>>1
-    wire [15:0] opl4pcm_term_r = {opl4pcm_r[15], opl4pcm_r[15:1]};           // R>>1
+    wire signed [15:0] opl4pcm_mid = opl4pcm_sum[16:1];                      // (L+R)/2
 
     // _110: MIXER CON SATURACION. La suma iba en 16 bits "sin saturacion"
     // (comentario historico): con VGMPlay/MBWave (20+ slots wave + FM a la
@@ -4396,9 +4411,9 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
         mi_opll  <= {{3{opll_term[15]}}, opll_term};
         mi_y8950 <= {{3{y8950_wav[15]}}, y8950_wav} + {{3{y8950_adpcm_term[15]}}, y8950_adpcm_term};
         mi_o4fm  <= {{3{opl4fm_term[15]}}, opl4fm_term};
-        mi_o4pl  <= {{3{opl4pcm_term_l[15]}}, opl4pcm_term_l};
-        mi_o4pr  <= {{3{opl4pcm_term_r[15]}}, opl4pcm_term_r};
-        mi_o4pm  <= {{3{opl4pcm_term[15]}}, opl4pcm_term};
+        mi_o4pl  <= {{3{opl4pcm_l[15]}}, opl4pcm_l};       // 14/10/2026: sin ganancia; el x2 (o4gain) va tras el registro
+        mi_o4pr  <= {{3{opl4pcm_r[15]}}, opl4pcm_r};
+        mi_o4pm  <= {{3{opl4pcm_mid[15]}}, opl4pcm_mid};
     end
     wire signed [18:0] mx_psg1  = mixk(mi_psg1,  mix_lvl[3:0]);    // 1 PSG
     wire signed [18:0] mx_psg2  = mixk(mi_psg2,  mix_lvl[3:0]);
@@ -4407,9 +4422,9 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
     wire signed [18:0] mx_opll  = mixk(mi_opll,  mix_lvl[11:8]);   // 3 OPLL
     wire signed [18:0] mx_y8950 = mixk(mi_y8950, mix_lvl[15:12]);  // 4 MSX-AUDIO (Y8950 + ADPCM)
     wire signed [18:0] mx_o4fm  = mixk(mi_o4fm,  mix_lvl[19:16]);  // 5 OPL4 FM
-    wire signed [18:0] mx_o4pl  = mixk(mi_o4pl,  mix_lvl[23:20]);  // 6 OPL4 wave
-    wire signed [18:0] mx_o4pr  = mixk(mi_o4pr,  mix_lvl[23:20]);
-    wire signed [18:0] mx_o4pm  = mixk(mi_o4pm,  mix_lvl[23:20]);
+    wire signed [18:0] mx_o4pl  = mixk(o4gain(mi_o4pl[15:0]), mix_lvl[23:20]);  // 6 OPL4 wave (x2 tras el registro)
+    wire signed [18:0] mx_o4pr  = mixk(o4gain(mi_o4pr[15:0]), mix_lvl[23:20]);
+    wire signed [18:0] mx_o4pm  = mixk(o4gain(mi_o4pm[15:0]), mix_lvl[23:20]);
 `else
     wire signed [18:0] mx_psg1  = {{2{psg1_ac[16]}}, psg1_ac};
     wire signed [18:0] mx_psg2  = {{2{psg2_ac[16]}}, psg2_ac};
@@ -4418,17 +4433,18 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
     wire signed [18:0] mx_opll  = {{3{opll_term[15]}}, opll_term};
     wire signed [18:0] mx_y8950 = {{3{y8950_wav[15]}}, y8950_wav} + {{3{y8950_adpcm_term[15]}}, y8950_adpcm_term};
     wire signed [18:0] mx_o4fm  = {{3{opl4fm_term[15]}}, opl4fm_term};
-    wire signed [18:0] mx_o4pl  = {{3{opl4pcm_term_l[15]}}, opl4pcm_term_l};
-    wire signed [18:0] mx_o4pr  = {{3{opl4pcm_term_r[15]}}, opl4pcm_term_r};
-    wire signed [18:0] mx_o4pm  = {{3{opl4pcm_term[15]}}, opl4pcm_term};
+    wire signed [18:0] mx_o4pl  = o4gain(opl4pcm_l);
+    wire signed [18:0] mx_o4pr  = o4gain(opl4pcm_r);
+    wire signed [18:0] mx_o4pm  = o4gain(opl4pcm_mid);
 `endif
     wire signed [18:0] mixL_st  = mx_psg1 + mx_scc + mx_opll + mx_y8950;
     wire signed [18:0] mixR_st  = mx_psg2 + mx_scc2x + mx_opll + mx_y8950;
     wire signed [18:0] mix_mono = mx_psg1 + mx_psg2 + mx_scc + mx_scc2x + mx_opll + mx_y8950;
-    // _180: suma propia del OPL4 (FM + wave), fuera de la ganancia maestra (|fm| < 2^15, |pcm| < 2^14: cabe en 17)
-    wire signed [16:0] o4mix_l    = $signed(mx_o4fm[16:0]) + $signed(mx_o4pl[16:0]);
-    wire signed [16:0] o4mix_r    = $signed(mx_o4fm[16:0]) + $signed(mx_o4pr[16:0]);
-    wire signed [16:0] o4mix_mono = $signed(mx_o4fm[16:0]) + $signed(mx_o4pm[16:0]);
+    // _180: suma propia del OPL4 (FM + wave), fuera de la ganancia maestra (|fm| < 2^15, |pcm| <= 2^16 con el x2 de
+    // o4gain: 98303 < 2^17; 19 bits de margen)
+    wire signed [18:0] o4mix_l    = mx_o4fm + mx_o4pl;   // 14/10/2026: 19 bits (antes 17: el PCM ya no es >>1)
+    wire signed [18:0] o4mix_r    = mx_o4fm + mx_o4pr;
+    wire signed [18:0] o4mix_mono = mx_o4fm + mx_o4pm;
     // _127H: TONO DE TEST del bug #14 (440Hz cuadrada -12dB directa al puente,
     // puenteando el mezclador). DESARMADO en release (niquelado B, bug #4 del
     // informe): iba colgado del toggle "Sprite Limit" del menu (config2[3]) y
@@ -4466,7 +4482,7 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
     // pulsa 1 de cada ~7,5 ciclos, la muestra esta lista muchisimo antes del
     // siguiente pulso y el resultado no cambia ni un bit.
     reg signed [18:0] snd_mix_l, snd_mix_r;          // (A) suma (grupo clasico)
-    reg signed [16:0] snd_o4_l,  snd_o4_r;           // (A) suma OPL4 (_180: x1)
+    reg signed [18:0] snd_o4_l,  snd_o4_r;           // (A) suma OPL4 (_180: x1; 14/10/2026: 19 bits)
     reg signed [22:0] snd_g_l,  snd_g_r;             // (B) con ganancia
     always @ (posedge clk_27m) begin
         if (clk_enable_3m6_27 == 1 ) begin
@@ -4474,8 +4490,8 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
             if (config_enable_8sprites == 1) begin
                 snd_mix_l <= {{3{tone_smp[15]}}, tone_smp};
                 snd_mix_r <= {{3{tone_smp[15]}}, tone_smp};
-                snd_o4_l  <= 17'sd0;
-                snd_o4_r  <= 17'sd0;
+                snd_o4_l  <= 19'sd0;
+                snd_o4_r  <= 19'sd0;
             end
             else
 `endif
@@ -4496,9 +4512,9 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
 
     always @ (posedge clk_27m) begin
         // _180: gmul solo al grupo clasico; el OPL4 entra x1 (sin tocar).
-        // Rango: gmul max +-2097144 + OPL4 +-131068 < 2^22: cabe en 23 bits.
-        snd_g_l <= gmul(snd_mix_l) + {{6{snd_o4_l[16]}}, snd_o4_l};
-        snd_g_r <= gmul(snd_mix_r) + {{6{snd_o4_r[16]}}, snd_o4_r};
+        // Rango: gmul max +-2097144 + OPL4 +-98303 (FM +-32767 + wave x2 +-65536; 19 bits) < 2^22: cabe en 23 bits.
+        snd_g_l <= gmul(snd_mix_l) + {{4{snd_o4_l[18]}}, snd_o4_l};
+        snd_g_r <= gmul(snd_mix_r) + {{4{snd_o4_r[18]}}, snd_o4_r};
     end
 
     always @ (posedge clk_27m) begin

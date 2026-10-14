@@ -192,14 +192,20 @@ package YMF278B_PKG;
 	function bit [6:0] EffRateCalc(bit [3:0] RATE, bit [3:0] RC, bit [3:0] OCT, bit FNUM9);
 		bit [5:0] RES;
 		bit [5:0] TEMP;
+		bit [3:0] OCTRC;
 		bit [6:0] KEY_EG_SCALE;
 		bit [6:0] TEMP2;
 		
+		// 13/10/2026: OCT+RC se RECORTA a [0,15] (openMSX YMF278.cc compute_rate, libvgm "clamping verified with HW
+		// tests"). Antes la suma con signo se pasaba tal cual a KEY_EG_SCALE: con octavas negativas y tasa baja
+		// (p. ej. D2R=1, OCT=-4) 4*RATE+2*(RC+OCT)+FNUM9 salia negativo, envolvia en 7 bits y TEMP2[6] lo tomaba
+		// por desbordamiento => tasa 63 (la mas rapida) y la nota se apagaba en ~10 ms.
 		TEMP = {2'b00,RC} + {OCT[3],OCT[3],OCT};
-		if (RC == 4'hF) 
+		OCTRC = TEMP[5] ? 4'd0 : (TEMP[4] ? 4'd15 : TEMP[3:0]);
+		if (RC == 4'hF)
 			KEY_EG_SCALE = '0;
 		else
-			KEY_EG_SCALE = {TEMP,FNUM9};
+			KEY_EG_SCALE = {2'b00,OCTRC,FNUM9};
 		
 		if (RATE == 4'h0)
 			TEMP2 = 7'h00;
@@ -213,21 +219,25 @@ package YMF278B_PKG;
 		return {TEMP2[6],RES};
 	endfunction
 	
-	function bit EnvStep(bit [17:0] CNT, bit [5:0] ERATE);
+	function bit EnvStep(bit [18:0] CNT, bit [5:0] ERATE);
 		bit RET;
 
+		// 13/10/2026: CNT es ahora SCNT entero (una cuenta por MUESTRA, como eg_cnt de openMSX/MAME). Antes se pasaba
+		// SCNT[18:1]: el mismo valor se veia en dos muestras seguidas y cada paso de envolvente se aplicaba DOS veces
+		// (decay/release al doble de velocidad). openMSX: shift = 12 - grupo (min 0); paso si eg_cnt[shift-1:0] == 0.
 		case (ERATE[5:2])
-			4'h0: RET = ~|CNT[10:0];
-			4'h1: RET = ~|CNT[9:0];
-			4'h2: RET = ~|CNT[8:0];
-			4'h3: RET = ~|CNT[7:0];
-			4'h4: RET = ~|CNT[6:0];
-			4'h5: RET = ~|CNT[5:0];
-			4'h6: RET = ~|CNT[4:0];
-			4'h7: RET = ~|CNT[3:0];
-			4'h8: RET = ~|CNT[2:0];
-			4'h9: RET = ~|CNT[1:0];
-			4'hA: RET = ~|CNT[0:0];
+			4'h0: RET = ~|CNT[11:0];
+			4'h1: RET = ~|CNT[10:0];
+			4'h2: RET = ~|CNT[9:0];
+			4'h3: RET = ~|CNT[8:0];
+			4'h4: RET = ~|CNT[7:0];
+			4'h5: RET = ~|CNT[6:0];
+			4'h6: RET = ~|CNT[5:0];
+			4'h7: RET = ~|CNT[4:0];
+			4'h8: RET = ~|CNT[3:0];
+			4'h9: RET = ~|CNT[2:0];
+			4'hA: RET = ~|CNT[1:0];
+			4'hB: RET = ~|CNT[0:0];
 			default: RET = 1;
 		endcase
 			
@@ -235,81 +245,92 @@ package YMF278B_PKG;
 	endfunction
 	
 	parameter bit [3:0] EncIncTbl[64*8] = 
-	'{ 4'h0,4'h0,4'h0,4'h0,4'h0,4'h0,4'h0,4'h0,
-      4'h0,4'h0,4'h0,4'h0,4'h0,4'h0,4'h0,4'h0,
-      4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,
-      4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,
+	'{ 4'h0,4'h0,4'h0,4'h0,4'h0,4'h0,4'h0,4'h0,//00
+      4'h0,4'h0,4'h0,4'h0,4'h0,4'h0,4'h0,4'h0,//01
+      4'h0,4'h0,4'h0,4'h0,4'h0,4'h0,4'h0,4'h0,//02
+      4'h0,4'h0,4'h0,4'h0,4'h0,4'h0,4'h0,4'h0,//03
       4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,//04
-      4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,
+      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,//05
+      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,//06
+      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,//07
       4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,//08
-      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,
+      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,//09
+      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,//0A
+      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,//0B
       4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,//0C
-      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,
+      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,//0D
+      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,//0E
+      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,//0F
       4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,//10
-      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,
+      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,//11
+      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,//12
+      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,//13
       4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,//14
-      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,
+      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,//15
+      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,//16
+      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,//17
       4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,//18
-      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,
+      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,//19
+      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,//1A
+      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,//1B
       4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,//1C
-      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,
+      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,//1D
+      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,//1E
+      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,//1F
       4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,//20
-      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,
+      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,//21
+      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,//22
+      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,//23
       4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,//24
-      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,
+      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,//25
+      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,//26
+      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,//27
       4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,//28
-      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,
+      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,//29
+      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,//2A
+      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,//2B
       4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,//2C
-      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,
-      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,
-      4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,//30
-      4'h1,4'h1,4'h1,4'h2,4'h1,4'h1,4'h1,4'h2,
-      4'h1,4'h2,4'h1,4'h2,4'h1,4'h2,4'h1,4'h2,
-      4'h1,4'h2,4'h2,4'h2,4'h1,4'h2,4'h2,4'h2,
-      4'h2,4'h2,4'h2,4'h2,4'h2,4'h2,4'h2,4'h2,//34
-      4'h2,4'h2,4'h2,4'h4,4'h2,4'h2,4'h2,4'h4,
-      4'h2,4'h4,4'h2,4'h4,4'h2,4'h4,4'h2,4'h4,
-      4'h2,4'h4,4'h4,4'h4,4'h2,4'h4,4'h4,4'h4,
-      4'h4,4'h4,4'h4,4'h4,4'h4,4'h4,4'h4,4'h4,//38
-      4'h4,4'h4,4'h4,4'h8,4'h4,4'h4,4'h4,4'h8,
-      4'h4,4'h8,4'h4,4'h8,4'h4,4'h8,4'h4,4'h8,
-      4'h4,4'h8,4'h8,4'h8,4'h4,4'h8,4'h8,4'h8,
-      4'h8,4'h8,4'h8,4'h8,4'h8,4'h8,4'h8,4'h8,//3C
-      4'h8,4'h8,4'h8,4'h8,4'h8,4'h8,4'h8,4'h8,
-      4'h8,4'h8,4'h8,4'h8,4'h8,4'h8,4'h8,4'h8,
-      4'h8,4'h8,4'h8,4'h8,4'h8,4'h8,4'h8,4'h8
+      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,//2D
+      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,//2E
+      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,//2F
+      4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,4'h0,4'h1,//30
+      4'h0,4'h1,4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,//31
+      4'h0,4'h1,4'h1,4'h1,4'h0,4'h1,4'h1,4'h1,//32
+      4'h0,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,//33
+      4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,4'h1,//34
+      4'h1,4'h1,4'h1,4'h2,4'h1,4'h1,4'h1,4'h2,//35
+      4'h1,4'h2,4'h1,4'h2,4'h1,4'h2,4'h1,4'h2,//36
+      4'h1,4'h2,4'h2,4'h2,4'h1,4'h2,4'h2,4'h2,//37
+      4'h2,4'h2,4'h2,4'h2,4'h2,4'h2,4'h2,4'h2,//38
+      4'h2,4'h2,4'h2,4'h4,4'h2,4'h2,4'h2,4'h4,//39
+      4'h2,4'h4,4'h2,4'h4,4'h2,4'h4,4'h2,4'h4,//3A
+      4'h2,4'h4,4'h4,4'h4,4'h2,4'h4,4'h4,4'h4,//3B
+      4'h4,4'h4,4'h4,4'h4,4'h4,4'h4,4'h4,4'h4,//3C
+      4'h4,4'h4,4'h4,4'h4,4'h4,4'h4,4'h4,4'h4,//3D
+      4'h4,4'h4,4'h4,4'h4,4'h4,4'h4,4'h4,4'h4,//3E
+      4'h4,4'h4,4'h4,4'h4,4'h4,4'h4,4'h4,4'h4//3F
 	};
 	
-	function bit [3:0] EnvInc(bit [17:0] CNT, bit [5:0] ERATE);
+	function bit [3:0] EnvInc(bit [18:0] CNT, bit [5:0] ERATE);
 		bit [2:0] IDX;
 
+		// openMSX: inc = eg_inc[select + ((eg_cnt >> shift) & 7)], shift = 12 - grupo (min 0). Antes el indice salia
+		// siempre de CNT[13:11] (o CNT[14:12].. en los grupos rapidos): el incremento quedaba CONSTANTE durante 4096
+		// muestras y la envolvente avanzaba a rafagas (parada ~93 ms, luego al doble).
 		case (ERATE[5:2])
-			4'hC: IDX = CNT[14:12];
-			4'hD: IDX = CNT[15:13];
-			4'hE: IDX = CNT[16:14];
-			4'hF: IDX = CNT[17:15];
-			default: IDX = CNT[13:11];
+			4'h0: IDX = CNT[14:12];
+			4'h1: IDX = CNT[13:11];
+			4'h2: IDX = CNT[12:10];
+			4'h3: IDX = CNT[11:9];
+			4'h4: IDX = CNT[10:8];
+			4'h5: IDX = CNT[9:7];
+			4'h6: IDX = CNT[8:6];
+			4'h7: IDX = CNT[7:5];
+			4'h8: IDX = CNT[6:4];
+			4'h9: IDX = CNT[5:3];
+			4'hA: IDX = CNT[4:2];
+			4'hB: IDX = CNT[3:1];
+			default: IDX = CNT[2:0];
 		endcase
 			
 		return EncIncTbl[{ERATE,IDX}];
@@ -333,32 +354,13 @@ package YMF278B_PKG;
 		// verificado en sim). Nivel como signed positivo de 9 bits => producto signed.
 		MULT = WAVE * $signed({3'b001,~LEVEL[5:0]});
 		RES = $signed(MULT[22:7]) >>> LEVEL[9:6];
-		
-		return RES;
-	endfunction
-	
-	function bit signed [15:0] PanLCalc(bit signed [15:0] WAVE, bit [3:0] PAN);
-		bit [3:0] S;
-		bit [15:0] TEMP;
-		
-		S = 4'd0 + PAN;
-		TEMP = $signed($signed(WAVE)>>>{S[2:0],1'b0});
-		// _116: fix de pan del upstream (srg320 5379b34): el sentido de PAN[3]
-		// estaba INVERTIDO (atenuaba el canal equivocado; un pan suave -1
-		// casi muteaba la izquierda). Canon: PAN>0 atenua IZQUIERDA (suena
-		// derecha), PAN<0 (bit3) deja la izquierda ENTERA; 0=centro, 8=mute.
-		return PAN == 4'h0 ? WAVE : PAN == 4'h8 ? 16'h0000 : PAN[3] ? WAVE : $signed(TEMP);
-	endfunction
-	
-	function bit signed [15:0] PanRCalc(bit signed [15:0] WAVE, bit [3:0] PAN);
-		bit [3:0] S;
-		bit [15:0] TEMP;
-		
-		S = 4'd0 - PAN;
-		TEMP = $signed($signed(WAVE)>>>{S[2:0],1'b0});
-		// _116: espejo del fix de PanLCalc (srg320 5379b34): PAN<0 atenua
-		// DERECHA; PAN>0 la deja entera.
-		return PAN == 4'h0 ? WAVE : PAN == 4'h8 ? 16'h0000 : !PAN[3] ? WAVE : $signed(TEMP);
+
+		// 14/10/2026: por debajo de -60 dB (nivel >= 3C0h) el chip calla del todo (libvgm: vol_tab = 0).
+		// El desplazamiento aritmetico dejaba -1 en las muestras negativas: los 23 slots ociosos, un
+		// slot con TL = 7Fh y la cola de la release sumaban un continuo de hasta -23 LSB que, tras
+		// Atten15 y el x2 del top, sonaba 12 dB mas alto que antes (la cola de un fundido no acababa
+		// en silencio: -64 dBFS).
+		return (LEVEL[9:6] == 4'hF) ? 16'sd0 : RES;
 	endfunction
 	
 	function bit signed [15:0] MixCalc(bit signed [15:0] WAVE, bit [2:0] MIX);
@@ -376,6 +378,40 @@ package YMF278B_PKG;
 		return (MIX == 3'd7) ? 16'sd0 : $signed(BASE >>> MIX[2:1]);
 	endfunction
 	
+	// 13/10/2026: el pan atenuaba 12 dB por paso (WAVE >>> 2*PAN: PAN=3 => /64). El manual del YMF278B y openMSX
+	// (YMF278.cc, tablas pan_left/pan_right) bajan 3 dB por paso: PAN 1..6 = x0,75 / 0,5 / 0,375 / 0,25 / 0,1875 / 0,125,
+	// PAN 7 y 8 mudan la izquierda y 8 y 9 la derecha. Es exactamente la escala de MixCalc (-3 dB por paso, MIX 7 = mudo), asi que se reutiliza.
+	function bit signed [15:0] PanLCalc(bit signed [15:0] WAVE, bit [3:0] PAN);
+		// _116: fix de pan del upstream (srg320 5379b34): el sentido de PAN[3]
+		// estaba INVERTIDO (atenuaba el canal equivocado; un pan suave -1
+		// casi muteaba la izquierda). Canon: PAN>0 atenua IZQUIERDA (suena
+		// derecha), PAN<0 (bit3) deja la izquierda ENTERA; 0=centro, 8=mute.
+		return PAN == 4'h8 ? 16'sd0 : (PAN == 4'h0 || PAN[3]) ? WAVE : MixCalc(WAVE, PAN[2:0]);
+	endfunction
+	
+	function bit signed [15:0] PanRCalc(bit signed [15:0] WAVE, bit [3:0] PAN);
+		bit [3:0] S;
+		
+		S = 4'd0 - PAN;   // 9..15 => 7..1
+		// _116: espejo del fix de PanLCalc (srg320 5379b34): PAN<0 atenua
+		// DERECHA; PAN>0 la deja entera.
+		return PAN == 4'h8 ? 16'sd0 : !PAN[3] ? WAVE : MixCalc(WAVE, S[2:0]);
+	endfunction
+	
+	// 13/10/2026 MARGEN: -15 dB por slot como el chip real: (muestra * 0x5A82) >> 17 (= 0,1768).
+	// Aritmetica con signo: literal SIGNED de 17 bits (0x5A82 = 23170 < 2^15) y producto signed de 33 bits;
+	// el desplazamiento aritmetico de 17 se hace seleccionando P[32:17] (suelo, como el >> de C con enteros con signo).
+	function bit signed [15:0] Atten15(bit signed [15:0] WAVE);
+		bit signed [32:0] P;
+		P = $signed(WAVE) * $signed(17'sd23170);
+		return P[32:17];
+	endfunction
+
+	// Recorte duro a 16 bits (el DAC del chip) de la suma de 19 bits
+	function bit signed [15:0] TrimWave19(bit signed [18:0] WAVE);
+		return WAVE[18] && WAVE[17:15] != 3'b111 ? 16'h8000 : !WAVE[18] && WAVE[17:15] != 3'b000 ? 16'h7FFF : WAVE[15:0];
+	endfunction
+
 	function bit signed [15:0] TrimWave(bit signed [17:0] WAVE);
 		return WAVE[17] && WAVE[16:15] != 2'b11 ? 16'h8000 : !WAVE[17] && WAVE[16:15] != 2'b00 ? 16'h7FFF : WAVE[15:0];
 	endfunction
