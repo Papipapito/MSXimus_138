@@ -64,13 +64,13 @@ The fan is not needed for operation. If you fit one, the core drives it by itsel
 
 ## Installation
 
-Everything goes into the board's **SPI flash**, at three different addresses:
+Everything goes into the board's **SPI flash**, at three different addresses. ⚠️ **These are the 138K addresses**: the 138K bitstream is twice as big, so the pack and the OPL4 waves sit 4 MB higher than on the 60K (`0x400000` / `0x500000` there).
 
 | # | File | Address | Required? |
 |---|---|---|---|
-| 1 | `MSXimus_v3.1.fs` | **`0x000000`** | Yes — this is the core |
-| 2 | BIOS pack (`pack_bios_msximus*.bin`) | **`0x400000`** | Yes — the MSX won't boot without it |
-| 3 | `yrw801.rom` | **`0x500000`** | No — only for MoonSound/OPL4 |
+| 1 | `msximus138_v3.x_dadoNNNN.fs` | **`0x000000`** | Yes — this is the core |
+| 2 | BIOS pack (`pack_bios_msximus*.bin`) | **`0x800000`** | Yes — the MSX won't boot without it |
+| 3 | `yrw801.bin` | **`0x900000`** | No — only for MoonSound/OPL4 (shipped as `.bin`: Gowin's Programmer does not accept `.rom`; rename a `yrw801.rom` if that is what you have) |
 
 Two more pieces are **optional** and do not live in that flash: the **ESP32-C6** firmware (WiFi) and the **BL616** firmware (the F12 panel). Each has its own section below.
 
@@ -85,16 +85,16 @@ Two more pieces are **optional** and do not live in that flash: the **ESP32-C6**
 ### How to flash
 
 1. Connect the board over **USB-C** and open the **Gowin Programmer** (the 1.9.12 one works fine).
-2. Let it detect the device: it should report a **GW5AT-60**.
+2. Let it detect the device: it should report a **GW5AST-138**.
 3. For **each** of the three files, configure a write operation to the **external SPI flash** (the options starting with *exFlash*, not the SRAM ones), select the file as *Programming File*, and put **the address from the table into the start-address field**.
-4. Flash the `.fs` first, then the other two. Their order doesn't matter — **the addresses do**: if the pack doesn't land exactly at `0x400000`, the core boots to a black screen.
+4. Flash the `.fs` first, then the other two. Their order doesn't matter — **the addresses do**: if the pack doesn't land exactly at `0x800000`, the core boots to a black screen.
 5. **Power-cycle the board.** A reset is **not** enough: the DDR3 needs a cold recalibration and may hang after a warm reset.
 
 > If you power up and only get a blue screen, it's almost always (a) the pack at the wrong address, or (b) a missing power-cycle.
 
 ### About the BIOS pack
 
-The release ships **everything you need**: the core, the BIOS pack, the OPL4's `yrw801.rom` and the firmwares. Download, flash, and it boots.
+The release ships **everything you need**: the core, the BIOS pack, the OPL4's `yrw801.bin` and the firmwares. Download, flash, and it boots.
 
 There are **two builds of the same pack**, differing only in the disk kernel inside:
 
@@ -105,7 +105,7 @@ There are **two builds of the same pack**, differing only in the disk kernel ins
 
 If you would rather build the pack from your own ROMs, there's the [**MSXnano Pack Builder**](https://github.com/Papipapito/MSXnano), which assembles the file from them, Nextor included.
 
-Without `yrw801.rom` the core works just the same; you simply won't have MoonSound.
+Without `yrw801.bin` the core works just the same; you simply won't have MoonSound.
 
 ### One BIOS, and the menu is a setting
 

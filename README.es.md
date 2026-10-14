@@ -64,13 +64,13 @@ El ventilador no hace falta para funcionar. Si lo pones, el core lo controla sol
 
 ## Instalación
 
-Todo va a la **flash SPI** de la placa, en tres direcciones distintas:
+Todo va a la **flash SPI** de la placa, en tres direcciones distintas. ⚠️ **Son las direcciones del 138K**: su bitstream mide el doble, así que el pack y las ondas del OPL4 van 4 MB más arriba que en el 60K (allí, `0x400000` / `0x500000`).
 
 | # | Fichero | Dirección | ¿Obligatorio? |
 |---|---|---|---|
-| 1 | `MSXimus_v3.1.fs` | **`0x000000`** | Sí — es el core |
-| 2 | Pack de BIOS (`pack_bios_msximus*.bin`) | **`0x400000`** | Sí — sin él no arranca el MSX |
-| 3 | `yrw801.rom` | **`0x500000`** | No — solo para MoonSound/OPL4 |
+| 1 | `msximus138_v3.x_dadoNNNN.fs` | **`0x000000`** | Sí — es el core |
+| 2 | Pack de BIOS (`pack_bios_msximus*.bin`) | **`0x800000`** | Sí — sin él no arranca el MSX |
+| 3 | `yrw801.bin` | **`0x900000`** | No — solo para MoonSound/OPL4 (va como `.bin`: el Programmer de Gowin no acepta `.rom`; si tienes una `yrw801.rom`, cámbiale la extensión) |
 
 Hay dos piezas más, **opcionales**, que no van a esa flash: el firmware del **ESP32-C6** (WiFi) y el del **BL616** (el panel de F12). Cada una tiene su sección más abajo.
 
@@ -85,16 +85,16 @@ Hay dos piezas más, **opcionales**, que no van a esa flash: el firmware del **E
 ### Cómo grabarlo
 
 1. Conecta la placa por el **USB-C** y abre el **Gowin Programmer** (va bien el de la versión 1.9.12).
-2. Deja que detecte el dispositivo: debe salir el **GW5AT-60**.
+2. Deja que detecte el dispositivo: debe salir el **GW5AST-138**.
 3. Para **cada** uno de los tres ficheros, configura una operación de escritura en la **flash SPI externa** (las opciones que empiezan por *exFlash*, no las de SRAM), pon el fichero en *Programming File* y **la dirección de la tabla en el campo de dirección de inicio**.
-4. Graba primero el `.fs` y luego los otros dos. El orden entre ellos da igual, pero **las direcciones no**: si el pack no cae exactamente en `0x400000`, el core arranca y se queda en negro.
+4. Graba primero el `.fs` y luego los otros dos. El orden entre ellos da igual, pero **las direcciones no**: si el pack no cae exactamente en `0x800000`, el core arranca y se queda en negro.
 5. **Apaga y enciende la placa.** Un reset **no** basta: la DDR3 necesita recalibrar desde frío y con un reset caliente puede quedarse colgada.
 
 > Si al arrancar ves la pantalla azul y nada más, casi siempre es (a) el pack en la dirección equivocada, o (b) que no has hecho el ciclo de apagado.
 
 ### Sobre el pack de BIOS
 
-La release trae **todo lo necesario**: el core, el pack de BIOS, la `yrw801.rom` del OPL4 y los firmwares. Descargas, grabas y arranca.
+La release trae **todo lo necesario**: el core, el pack de BIOS, la `yrw801.bin` del OPL4 y los firmwares. Descargas, grabas y arranca.
 
 Hay **dos versiones del mismo pack**, y solo cambia el kernel de disco que llevan dentro:
 
@@ -105,7 +105,7 @@ Hay **dos versiones del mismo pack**, y solo cambia el kernel de disco que lleva
 
 Si prefieres montarte el pack con tus propias ROMs, está el [**MSXnano Pack Builder**](https://github.com/Papipapito/MSXnano), que arma el fichero con ellas, Nextor incluido.
 
-Sin la `yrw801.rom` el core funciona igual; simplemente no tendrás MoonSound.
+Sin la `yrw801.bin` el core funciona igual; simplemente no tendrás MoonSound.
 
 ### Una sola BIOS, y el menú es un ajuste
 
