@@ -127,7 +127,7 @@ always @(posedge clk_host) begin
 end
 
 integer errors = 0;
-task check(input [7:0] got, input [7:0] exp, input [127:0] what);
+task check(input [7:0] got, input [7:0] exp, input [639:0] what);   // 15/10/2026: 80 caracteres (antes 16)
 begin
     if (got !== exp) begin
         $display("FAIL %0s: leido %02x, esperado %02x", what, got, exp);
@@ -138,6 +138,12 @@ end
 endtask
 
 integer i;
+// 15/10/2026: puerto FM de datos con el que se escribe 105h (la segunda pasada, -DNEW2_POR_C5, usa C5h)
+`ifdef NEW2_POR_C5
+localparam [7:0] P_NEW2 = 8'hC5;
+`else
+localparam [7:0] P_NEW2 = 8'hC7;
+`endif
 initial begin
     // YRW801 sintetica: header de la onda 0 en 0x000000
     for (i = 0; i < 4194304; i = i + 1) wavemem[i] = 8'h00;
@@ -161,6 +167,11 @@ initial begin
     #1000 eng_rst_n = 1;
     #2000;
 
+    // 15/10/2026: sin NEW2 (tras el reset) 7Eh/7Fh se ignoran: la lectura devuelve el REG_Q de reset, 00h
+    $display("== 0. sin NEW2: 7Eh/7Fh ignorados (ID 00h) ==");
+    rreg(8'h02);
+    check(rdv, 8'h00, "reg02 sin NEW2");
+
 `ifdef NEW2_POR_C5
     // 13/10/2026: el dato de 105h por C5h, como los drivers "MoonBlaster Wave BASIC" de Moonsoft
     // (WAVEDRVR.BIN): el chip tiene un solo latch de direccion FM y C7h es solo un espejo de C5h.
@@ -174,6 +185,27 @@ initial begin
 `endif
     rreg(8'h02);
     check(rdv, 8'h20, "reg02 (device ID)");
+
+    // 15/10/2026: NEW2 es el bit 1 del registro FM 105h y el chip lo APAGA al escribirlo a 0 (antes solo lo borraba el reset).
+    // Se usa el reg 02 (MEMMODE, relectura = 20h | MEMMODE) como testigo: con NEW2 apagado la escritura de 7Fh no entra y la
+    // lectura no refresca REG_Q (devuelve la ultima, 21h); al reactivarlo MEMMODE sigue en 1 y las escrituras vuelven a entrar.
+    $display("== 1b. NEW2 se apaga con 105h bit 1 = 0 y se reactiva ==");
+    wreg(8'h02, 8'h01);
+    rreg(8'h02); check(rdv, 8'h21, "reg02 con NEW2 (MEMMODE=1)");
+    // un dato con el bit 1 a 0 a otro registro FM (005h por C4h, 106h por C6h) NO apaga NEW2
+    outp(8'hC4, 8'h05); outp(P_NEW2, 8'h00);
+    outp(8'hC6, 8'h06); outp(P_NEW2, 8'h00);
+    wreg(8'h02, 8'h00);
+    rreg(8'h02); check(rdv, 8'h20, "reg02 tras 005h/106h=00h (NEW2 sigue activo)");
+    wreg(8'h02, 8'h01);
+    rreg(8'h02); check(rdv, 8'h21, "reg02 antes de apagar NEW2 (MEMMODE=1)");   // deja 21h en REG_Q
+    outp(8'hC6, 8'h05); outp(P_NEW2, 8'h01);       // 105h = 01h: NEW2 = 0
+    wreg(8'h02, 8'h00);                            // ignorada
+    rreg(8'h02); check(rdv, 8'h21, "reg02 con NEW2 apagado (7Eh/7Fh ignorados)");
+    outp(8'hC6, 8'h05); outp(P_NEW2, 8'h03);       // 105h = 03h: NEW2 = 1
+    rreg(8'h02); check(rdv, 8'h21, "reg02 reactivado (MEMMODE no cambio mientras estuvo apagado)");
+    wreg(8'h02, 8'h00);
+    rreg(8'h02); check(rdv, 8'h20, "reg02 reactivado: las escrituras vuelven a entrar");
 
     $display("== 2. lectura YRW801 via regs 3-6 ==");
     wreg(8'h02, 8'h01);      // MEMMODE=1
@@ -224,12 +256,20 @@ initial begin
     if (pcm_min > -2000) begin $display("FAIL: PCM min demasiado alto"); errors = errors + 1; end
     if (pcm_l === 16'hxxxx) begin $display("FAIL: PCM con X"); errors = errors + 1; end
 
-    // key off + damp: debe apagarse (la release exponencial tarda ~1.5ms)
+    // key off + damp: con RR=15 la release sola apagaria en ~2 ms (tasa 63), pero DAMP manda sobre RR (14/10/2026,
+    // openMSX compute_decay_rate): tasa 48 hasta -12 dB (5,8 ms), 63 por debajo, silencio (-96 dB) a los 10,9 ms
     wreg(8'h68, 8'h40);      // KEY=0, DAMP=1
     #2500000;
     pcm_max = 0; pcm_min = 0;
     #400000;
-    $display("== 6. tras KEY-OFF+damp: max=%0d min=%0d ==", pcm_max, pcm_min);
+    $display("== 6a. 2,5-2,9 ms tras KEY-OFF+damp: max=%0d min=%0d (aun suena: el DAMP baja 12 dB en 5,8 ms) ==", pcm_max, pcm_min);
+    if (pcm_max < 1500 && pcm_min > -1500) begin
+        $display("FAIL: el DAMP apaga antes de lo que dice el chip"); errors = errors + 1;
+    end
+    #9600000;                // hasta ~12,5 ms
+    pcm_max = 0; pcm_min = 0;
+    #1000000;
+    $display("== 6b. 12,5-13,5 ms tras KEY-OFF+damp: max=%0d min=%0d ==", pcm_max, pcm_min);
     if (pcm_max > 200 || pcm_min < -200) begin
         $display("FAIL: no se apaga tras KEY-OFF"); errors = errors + 1;
     end

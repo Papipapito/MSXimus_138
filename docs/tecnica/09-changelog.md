@@ -89,6 +89,13 @@ Traído de la Zynq (commits `6bce008` y `6795e16` de su rama `zynq`, y su Z1.2.6
 - **Lo que estrena además este core**: los dos arreglos de MoonTANG del 05/10 (el timer del OPL3 parado en el ciclo crítico y el `done_d1` de `opl4_pcm.v`) y la cabecera BSD-3 de srg320/MAME en el `ymf278b_gowin.v` generado (`postproc.py` la escribe en cada regeneración; `UPSTREAM.md` gana las filas del motor PCM, del core OPL3, de `afifo.v` y de mangOPL4).
 - `FPGA_PATCH` pasa de 0 a **2** (3.8.2): el 138 nunca numeró la 3.8.1 (la relectura de los registros de slot está en sus fuentes, pero el parche seguía en 0).
 
+### v3.8.4 (15 de octubre de 2026, en preparación; en la rama `V3.8`, sin core nuevo): DAMP, pseudo-reverb y el ruido de «Dutch Moonsound Veterans»
+
+El motor wave de la Zynq Z1.2.8 y Z1.2.9 (validadas en placa el 15 de octubre) y del 60K 3.8.4 el mismo día, por fichero: `YMF278B.sv` y `YMF278B_pkg.sv` de la rama `zynq` en `b7b2ccb`, `ymf278b_gowin.v` regenerado con `convert.sh` (idéntico al del 60K), `opl4fm.v` con el latch de dirección único y `FPGA_PATCH` a **4**. El detalle y las medidas, en el changelog del 60K y en el de la Zynq. **Falta la campaña de dados** y nada de esto ha corrido en una placa 138K.
+
+- **DAMP y pseudo-reverb** como el chip (tasa 48 hasta −12 dB y 63 por debajo con DAMP, ignorando RC/OCT; tasa 20 desde −18 dB con PRVB); la suma nivel + TL + trémolo satura en vez de envolver (**el ruido de 2,7 s de «Dutch Moonsound Veterans HDD» al cargar canciones, que afectaba a la 3.8.2 y la 3.8.3**); las relecturas por 7Fh ya no roban el puerto de las RAM de FNUM y LFO; el reset del LFO cae en su slot (antes en el k+6); DL a 3 dB por paso; NEW2 se apaga con 105h bit 1 = 0; salida a 0 en el modo de acceso a memoria; el shadow de lectura del FM sigue al latch único C4h/C6h.
+- **Bancos** traídos de la Zynq a `tools/opl4wave_sim` (`run_damp.sh`, `run_amwrap.sh`, `run_memmode.sh`, `run_rdnoise.sh`, `run_rdmux.sh`, `run_lforst.sh`, las fases 3-6 de `tb_env.v`, la sección 1b de `tb_opl4pcm.v`) y `tools/opl3_sim/run_shadow.sh`; `tb_env.v` y `run_env.sh` conservan `ENG_HALF` = 13,889 (motor a 36 MHz). Los quince corrieron en verde en el árbol del 60K (mismo `ymf278b_gowin.v` y mismo `opl4fm.v`).
+
 ### v3.8.3 (14 de octubre de 2026, en preparación; en la rama `V3.8`, sin core nuevo): el motor wave del OPL4 como el chip
 
 Traído de la Zynq (`dcc99e3` (margen), `9bf3636` (TL), `7e5ad14` (envolvente), `3d9c583` (pan) y `8474a6d` (silencio) de la rama `zynq`, hoy en `f6ad042`; su Z1.2.7) y del 60K el mismo día; el detalle y las medidas, en el historial del 60K de su repositorio. **Falta la campaña de dados** y, como el resto de la línea, nada de esto ha corrido en una placa. El wave suena **3 dB más bajo por canal** que en la 3.8.2.

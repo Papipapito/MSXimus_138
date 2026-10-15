@@ -222,7 +222,9 @@ module YMF278B
 					2'b00: begin
 						{OP1_OCT,OP1_PREVERB,OP1_FNUM} <= REG_FNUM_Q[15:1];
 						{OP1_LFO,OP1_VIB} <= REG_LFO_Q[5:0];
-						OP1_LFORST <= REG_PAN_Q[5];
+						// 15/10/2026: el reset del LFO (68h+slot bit 5) sale del PAN de ESTE slot (REG_DM_Q: 8o paso del barrido, con la
+						// direccion de OP1 como WTN). Antes salia de REG_PAN_Q, leido con OP6.SLOT = SLOT-6: el reset caia en el slot k+6.
+						OP1_LFORST <= REG_DM_Q[5];
 						OP1_WTN <= {REG_FNUM_Q[0],REG_WTN_Q};
 						{OP1_LOAD_POS,OP1_LFO_DIV,OP1_LFO_DATA} <= LFO_RAM_Q;
 					end
@@ -470,6 +472,8 @@ module YMF278B
 	bit  [ 3: 0] OP4_AR,OP4_D1R,OP4_D2R,OP4_RR,OP4_RC,OP4_DL;
 	bit  [ 3: 0] OP4_OCT;
 	bit          OP4_FNUM9;
+	bit          OP4_DAMP;	//DAMP (68h+slot bit 6), 14/10/2026
+	bit          OP4_PRVB;	//Pseudo-reverb (38h+slot bit 3), 14/10/2026
 	bit  [ 9: 0] OP4_EVOL;	//Current envelope volume
 	EGState_t    OP4_EST;	//Current envelope state
 	bit  [18: 0] SCNT;		//Sample counter
@@ -506,6 +510,21 @@ module YMF278B
 			RATE = OP4_RR;
 		end
 		{EFF_RATE_OVR,EFF_RATE} = EffRateCalc(RATE, OP4_RC, OP4_OCT, OP4_FNUM9);
+		// 14/10/2026: DAMP y pseudo-reverb como el chip (openMSX YMF278.cc compute_decay_rate; "Damping was verified to
+		// ignore rate correction", pseudo-reverb idem segun grabaciones del chip). Solo D1R/D2R/RR: el ataque no los ve y
+		// KON sobre RELEASE conserva la tasa de AR (el ataque instantaneo se decide con EFF_RATE == 63). Ambos IGNORAN RC/OCT:
+		//  DAMP (68h bit 6): tasa 48 hasta -12 dB (EVOL < 080h) y 63 por debajo (manual: -12 dB a 5,8 ms, -48 a 8,0, -96 a 10,9).
+		//  PRVB (38h bit 3): al llegar a -18 dB (EVOL >= 0C0h) la tasa interna pasa a 20 (= 4*5), sea cual sea D1R/D2R/RR.
+		// EVOL esta en las unidades de dl_tab (32 = 3 dB; 40h = 6 dB, el desplazamiento de VolCalc): -12 dB = 080h, -18 dB = 0C0h.
+		if (OP4_EST != EST_ATTACK && !(OP4_EST == EST_RELEASE && OP4.KON)) begin
+			if (OP4_DAMP) begin
+				EFF_RATE_OVR = 1'b0;
+				EFF_RATE = (OP4_EVOL < 10'h080) ? 6'd48 : 6'd63;
+			end else if (OP4_PRVB && OP4_EVOL >= 10'h0C0) begin
+				EFF_RATE_OVR = 1'b0;
+				EFF_RATE = 6'd20;
+			end
+		end
 		
 		ENV_STEP <= EnvStep(SCNT, EFF_RATE);
 		ENV_INC <= EnvInc(SCNT, EFF_RATE);
@@ -523,11 +542,13 @@ module YMF278B
 			OP5 <= OP5_RESET;
 			{OP4_AR,OP4_D1R,OP4_D2R,OP4_RR,OP4_RC,OP4_DL} <= '0;
 			{OP4_OCT,OP4_FNUM9} <= '0;
+			{OP4_DAMP,OP4_PRVB} <= '0;
 			{OP4_EST,OP4_EVOL} <= '0;
 		end else if (!RES_N) begin
 			OP5 <= OP5_RESET;
 			{OP4_AR,OP4_D1R,OP4_D2R,OP4_RR,OP4_RC,OP4_DL} <= '0;
 			{OP4_OCT,OP4_FNUM9} <= '0;
+			{OP4_DAMP,OP4_PRVB} <= '0;
 			{OP4_EST,OP4_EVOL} <= '0;
 		end else begin
 			if (CYCLE0_CE) begin
@@ -535,10 +556,12 @@ module YMF278B
 				{OP4_DL,OP4_D2R} <= REG_RATE1_Q;
 				{OP4_RC,OP4_RR} <= REG_RATE2_Q;
 				OP4_AM <= REG_AM_Q[2:0];
+				OP4_DAMP <= REG_DAMP_Q;
 				case (CYCLE_NUM[2:1])
 					2'b10: begin
 						OP4_OCT <= REG_FNUM_Q[15:12];
 						OP4_FNUM9 <= REG_FNUM_Q[10];
+						OP4_PRVB <= REG_FNUM_Q[11];
 						{OP4_EST,OP4_EVOL} <= EVOL_RAM_Q;
 						OP4_LFO_DATA <= LFO_RAM_Q[7:0];
 					end
@@ -600,7 +623,11 @@ module YMF278B
 							end else begin
 								NEW_EVOL = 10'h3FF;
 							end
-							if (OP4_EVOL[9:6] == OP4_DL) begin
+							// 15/10/2026: DL a 3 dB por paso y con >=, como openMSX/libvgm (dl_tab: SC(dB) = dB/3*0x20, DL=15 = 93 dB):
+							// el codo es EVOL >= 20h*DL, o sea EVOL[9:5] >= DL (DL=15 -> 1Fh = 3E0h; {&DL,DL} da 5 bits sin mux).
+							// Antes EVOL[9:6] == DL: 6 dB por paso (DL=4 caia a -24 dB, no a -12) y, al ser ==, un DL escrito por debajo
+							// del EVOL actual no se cumplia nunca (la nota seguia a D1R hasta 3FFh).
+							if (OP4_EVOL[9:5] >= {&OP4_DL,OP4_DL}) begin
 								NEW_EST = EST_DECAY2;
 `ifdef DEBUG
 								DECAY2_DBG <= 1;
@@ -764,17 +791,28 @@ module YMF278B
 	
 	//Out
 	bit  [15: 0] PCM_L,PCM_R;
+	// 15/10/2026: modo de acceso a memoria (reg 02h bit 0) = salida a 0. El manual del YMF278B (reg 02h) dice "All the channels can not
+	// generate the sound in this mode": el bus de ondas es de la CPU, los slots no leen. Hasta hoy los slots seguian sumando con el WD
+	// congelado (MEM_D no cambia) y la salida era un continuo de ~1700 con un chasquido al entrar y otro al salir. Las envolventes y las
+	// fases siguen corriendo (la musica reanuda donde toca); solo se calla la muestra que sale. MM_SEEN recuerda que hubo modo memoria en
+	// el periodo de muestra actual y MM_HOLD en el anterior: la suma de un periodo lleva datos buscados hasta ~5 slots antes, asi que la
+	// muestra con datos rancios (o parcial) no llega a salir; al soltar el modo salen 2 muestras a 0 (45 us) y despues la salida real.
+	bit          MM_SEEN,MM_HOLD;
 	always @(posedge CLK or negedge RST_N) begin
 		if (!RST_N) begin
 			PCM_L <= '0;
 			PCM_R <= '0;
+			{MM_SEEN,MM_HOLD} <= '0;
 		end else if (!RES_N) begin
 			
 		end else begin
 			if (OP7.SLOT == 5'd0 && CYCLE_NUM[2:1] == 2'b00 && CYCLE1_CE) begin
-				PCM_L <= (!SND_EN[2] ? 16'h0000 : TrimWave19(ACC_L));
-				PCM_R <= (!SND_EN[2] ? 16'h0000 : TrimWave19(ACC_R));
+				PCM_L <= (!SND_EN[2] || MEMMODE[0] || MM_SEEN || MM_HOLD ? 16'h0000 : TrimWave19(ACC_L));
+				PCM_R <= (!SND_EN[2] || MEMMODE[0] || MM_SEEN || MM_HOLD ? 16'h0000 : TrimWave19(ACC_R));
+				MM_HOLD <= MM_SEEN;
+				MM_SEEN <= 0;
 			end
+			if (MEMMODE[0]) MM_SEEN <= 1;   // despues del borrado de arriba: gana si el modo sigue activo
 		end
 	end
 	
@@ -843,7 +881,11 @@ module YMF278B
 					case (A)
 						3'h0: REG_NEW_SEL <= 0;                 // direccion del banco 0: ya no es 105h
 						3'h2: REG_NEW_SEL <= (DI == 8'h05);     // direccion del banco 1
-						3'h1, 3'h3: if (REG_NEW_SEL && DI[1]) begin NEW2 <= 1; LD2 <= 1; end   // dato por C5h o C7h
+						// 15/10/2026: el dato de 105h con el bit 1 a 0 APAGA NEW2 (openMSX: NEW2 es el bit 1 del registro FM 105h,
+						// getNew2() = peekReg(0x105) & 2, y ymfm igual). Antes solo se ponia a 1 y solo lo borraba el reset: un
+						// programa que volvia al modo OPL3 seguia con 7Eh/7Fh abiertos. LD2 no se toca al apagar (es el aviso de
+						// "NEW2 activado" que borra la lectura del status, como el status2 de openMSX).
+						3'h1, 3'h3: if (REG_NEW_SEL) begin NEW2 <= DI[1]; if (DI[1]) LD2 <= 1; end   // dato por C5h o C7h
 						3'h4: if (NEW2) REG_A <= DI;
 						3'h5: if (NEW2) begin
 							REG_D <= DI;
@@ -1065,8 +1107,8 @@ module YMF278B
 	wire       REG_FNUM0_SEL = (REG_A >= 8'h38 && REG_A <= 8'h4F);
 	wire       REG_FNUM1_SEL = (REG_A >= 8'h20 && REG_A <= 8'h37);
 	bit [15:0] REG_FNUM_Q;
-	OPL4_REG_RAM #(5,8) REG_FNUM0(CLK,     RST ?     SLOT :                       REG_A[4:0]-5'h18,     RST ? '0 :                    REG_D,     RST ? 1'b1 : (REG_WR & REG_FNUM0_SEL & CYCLE1_CE), (REG_RD ? REG_A[4:0]-5'h18 : FNUM_RA ), REG_FNUM_Q[15:8]);
-	OPL4_REG_RAM #(5,8) REG_FNUM1(CLK,     RST ?     SLOT :                       REG_A[4:0]-5'h00,     RST ? '0 :                    REG_D,     RST ? 1'b1 : (REG_WR & REG_FNUM1_SEL & CYCLE1_CE), (REG_RD ? REG_A[4:0]-5'h00 : FNUM_RA ), REG_FNUM_Q[7:0]);
+	OPL4_REG_RAM #(5,8) REG_FNUM0(CLK,     RST ?     SLOT :                       REG_A[4:0]-5'h18,     RST ? '0 :                    REG_D,     RST ? 1'b1 : (REG_WR & REG_FNUM0_SEL & CYCLE1_CE), ((REG_RD & REG_FNUM0_SEL) ? REG_A[4:0]-5'h18 : FNUM_RA ), REG_FNUM_Q[15:8]);
+	OPL4_REG_RAM #(5,8) REG_FNUM1(CLK,     RST ?     SLOT :                       REG_A[4:0]-5'h00,     RST ? '0 :                    REG_D,     RST ? 1'b1 : (REG_WR & REG_FNUM1_SEL & CYCLE1_CE), ((REG_RD & REG_FNUM1_SEL) ? REG_A[4:0]-5'h00 : FNUM_RA ), REG_FNUM_Q[7:0]);
 	
 	wire       REG_LEVEL_SEL = (REG_A >= 8'h50 && REG_A <= 8'h67);
 	// era v3: LEVEL vive en la BSRAM unica rt_mem (campo RT_LV)
@@ -1079,8 +1121,13 @@ module YMF278B
 	wire       REG_LFO_SEL = (REG_A >= 8'h80 && REG_A <= 8'h97);
 	wire       REG_LFO_LOAD  = (OP3.LOAD_POS == 4'h7);
 	bit [ 7:0] REG_LFO_Q;
-	OPL4_REG_RAM #(5,8) REG_LFO  (CLK,     RST ?     SLOT : OP3.LOAD ? OP3.SLOT : REG_A[4:0]-5'h00,     RST ? '0 : OP3.LOAD ? MEM_D : REG_D,     RST ? 1'b1 : OP3.LOAD ? (REG_LFO_LOAD & SLOT0_CE) : (REG_WR & REG_LFO_SEL & CYCLE1_CE), (REG_RD ? REG_A[4:0]-5'h00 : LFO_RA ), REG_LFO_Q);
+	OPL4_REG_RAM #(5,8) REG_LFO  (CLK,     RST ?     SLOT : OP3.LOAD ? OP3.SLOT : REG_A[4:0]-5'h00,     RST ? '0 : OP3.LOAD ? MEM_D : REG_D,     RST ? 1'b1 : OP3.LOAD ? (REG_LFO_LOAD & SLOT0_CE) : (REG_WR & REG_LFO_SEL & CYCLE1_CE), ((REG_RD & REG_LFO_SEL) ? REG_A[4:0]-5'h00 : LFO_RA ), REG_LFO_Q);
 
+	// 15/10/2026 (revision Z1.2.8): el puerto de lectura de cada una de estas tres RAM (FNUM0, FNUM1, LFO) solo pasa a la
+	// CPU si el registro leido es SUYO (REG_RD & su SEL). Antes bastaba REG_RD: la lectura por 7Fh de CUALQUIER registro
+	// (03h, 50h, 70h...) llevaba la direccion de la CPU a las tres y, si el CYCLE0_CE del ciclo 0 o 4 caia dentro, OP1/OP4
+	// cargaban OCT/FNUM9/PRVB, el FNUM entero, el bit 8 del numero de onda (OP1_WTN) y el LFO de OTRO slot (con PRVB y RR=15 y la CPU releyendo 03h/50h/70h sin parar la cola
+	// caia 29 dB de mas: tb_rdmux). rt_mem ya iba condicionada asi (rt_cpurd = REG_RD & rt_sel).
 	// Readback de FNUM/LFO por CPU. La salida de estas RAM solo es la de la
 	// CPU mientras dura REG_RD, y si la CYCLE1 que lo borra cae justo en el
 	// CE siguiente al flanco de RD y despues hay un clk sin CE, la carga de
@@ -1136,6 +1183,13 @@ module YMF278B
 	// que es justo lo que lee el barrido pre-frontera de cada campo.
 	localparam RT_R0=3'd0, RT_R1=3'd1, RT_R2=3'd2, RT_AM=3'd3,
 	           RT_WT=3'd4, RT_LV=3'd5, RT_PN=3'd6;
+	// 14/10/2026: octavo paso del barrido (no es un campo de la BSRAM): vuelve a leer PAN (campo RT_PN) para el DAMP
+	// (bit 6, que ha de llegar a OP4 con la tasa de su slot). El PAN normal se lee con OP6.SLOT (OP7) y llega tres slots
+	// tarde para la envolvente.
+	// 15/10/2026: este paso lee con la direccion del slot SIGUIENTE (la de WTN), asi REG_DM_Q es el PAN del slot de OP1:
+	// el bit 5 (reset del LFO) se usa alli mismo (OP1_LFORST) y el DAMP (bit 6) baja a OP4 por una cadena de tres FF
+	// que avanza en SLOT1_CE (rt_dp2/3/4: OP2, OP3, OP4), sin RAM nueva.
+	localparam RT_DM=3'd7;
 
 	wire [2:0] rt_fld = REG_RATE0_SEL ? RT_R0 : REG_RATE1_SEL ? RT_R1
 	                  : REG_RATE2_SEL ? RT_R2 : REG_AM_SEL    ? RT_AM
@@ -1175,16 +1229,18 @@ module YMF278B
 
 	// direccion del barrido: la que consumira el slot SIGUIENTE
 	wire [4:0] rt_slot_nx = (SLOT == 5'd23) ? 5'd0 : SLOT + 5'd1;
-	wire [4:0] rt_swp_ad  = (rt_swp == RT_WT) ? rt_slot_nx
+	// el octavo paso lee el campo PAN (RT_PN) con la direccion del slot SIGUIENTE (la de WTN, alineada con OP1)
+	wire [2:0] rt_swp_fld = (rt_swp == RT_DM) ? RT_PN : rt_swp;
+	wire [4:0] rt_swp_ad  = (rt_swp == RT_WT || rt_swp == RT_DM) ? rt_slot_nx
 	                      : (rt_swp == RT_LV) ? OP4.SLOT
 	                      : (rt_swp == RT_PN) ? OP6.SLOT : OP3.SLOT;
 
 	(* syn_ramstyle = "block_ram" *) bit [7:0] rt_mem [0:255];
 	initial for (int ri = 0; ri < 256; ri++) rt_mem[ri] = '0;
-	bit [7:0] rt_q  [0:6];      // banco ACTIVO (lo que consume el motor)
-	bit [7:0] rt_st [0:6];      // staging del barrido
+	bit [7:0] rt_q  [0:7];      // banco ACTIVO (lo que consume el motor)
+	bit [7:0] rt_st [0:7];      // staging del barrido (el indice 7 = RT_DM: se usan los bits 5 (reset del LFO) y 6 (DAMP))
 	bit [7:0] rt_cpu_q;         // dato del readback de CPU
-	initial for (int ri = 0; ri < 7; ri++) begin rt_q[ri] = '0; rt_st[ri] = '0; end
+	initial for (int ri = 0; ri < 8; ri++) begin rt_q[ri] = '0; rt_st[ri] = '0; end
 	initial rt_cpu_q = '0;
 	bit [2:0] rt_swp, rt_cap, rt_rstf;
 	bit       rt_swp_on, rt_cap_on, rt_cpu_on;
@@ -1206,21 +1262,28 @@ module YMF278B
 		else if (rt_cpuw_go) rt_cpuw_p <= 1'b0;
 
 		// puerto de lectura: la CPU tiene prioridad y roba el ciclo
-		rt_rq     <= rt_mem[rt_cpurd ? {rt_fld, rt_idx} : {rt_swp, rt_swp_ad}];
+		rt_rq     <= rt_mem[rt_cpurd ? {rt_fld, rt_idx} : {rt_swp_fld, rt_swp_ad}];
 		rt_cap    <= rt_swp;
 		rt_cap_on <= rt_swp_on & ~rt_cpurd;
 		rt_cpu_on <= rt_cpurd;
 		if (rt_cpu_on)      rt_cpu_q       <= rt_rq;
 		else if (rt_cap_on) rt_st[rt_cap]  <= rt_rq;
+		// 15/10/2026 (revision Z1.2.8): si el barrido no llega al 8o paso (la CPU robo ciclos leyendo registros de
+		// slot), el slot siguiente NO debe heredar el DAMP del vecino: el staging de RT_DM se borra al confirmar, y
+		// va DESPUES de la captura para ganarle. Un barrido incompleto deja DAMP=0 durante una muestra (antes, el DAMP
+		// rancio del vecino restaba 1-1,8 dB a notas sostenidas con lecturas continuas de la CPU).
+		if (SLOT1_CE) rt_st[RT_DM] <= '0;
 
 		if (RST) begin
 			rt_q[RT_R0] <= '0; rt_q[RT_R1] <= '0; rt_q[RT_R2] <= '0;
 			rt_q[RT_AM] <= '0; rt_q[RT_LV] <= '0; rt_q[RT_PN] <= '0;
+			rt_q[RT_DM] <= '0;
 		end
 		else if (SLOT1_CE) begin
 			rt_q[RT_R0] <= rt_st[RT_R0]; rt_q[RT_R1] <= rt_st[RT_R1];
 			rt_q[RT_R2] <= rt_st[RT_R2]; rt_q[RT_AM] <= rt_st[RT_AM];
 			rt_q[RT_LV] <= rt_st[RT_LV]; rt_q[RT_PN] <= rt_st[RT_PN];
+			rt_q[RT_DM] <= rt_st[RT_DM];
 		end
 		// WTN sigue a OP4.RST, no a RST (como el array original)
 		if (OP4.RST)          rt_q[RT_WT] <= '0;
@@ -1230,7 +1293,7 @@ module YMF278B
 			rt_swp_on <= 1'b1;  rt_swp <= 3'd0;
 		end
 		else if (rt_swp_on && !rt_cpurd) begin
-			if (rt_swp == RT_PN) rt_swp_on <= 1'b0;
+			if (rt_swp == RT_DM) rt_swp_on <= 1'b0;
 			else                 rt_swp <= rt_swp + 3'd1;
 		end
 	end
@@ -1245,6 +1308,16 @@ module YMF278B
 	wire [7:0] REG_WTN_Q   = rt_q[RT_WT];
 	wire [7:0] REG_LEVEL_Q = rt_q[RT_LV];
 	wire [7:0] REG_PAN_Q   = rt_q[RT_PN];
+	wire [7:0] REG_DM_Q    = rt_q[RT_DM];       // PAN del slot de OP1 (8o paso del barrido), 14/10/2026 (15/10: antes el de OP4)
+	bit        rt_dp2, rt_dp3, rt_dp4;          // DAMP (bit 6) del mismo slot, retrasado hasta OP2, OP3 y OP4
+	always_ff @(posedge CLK) begin
+		if (SLOT1_CE) begin
+			rt_dp2 <= REG_DM_Q[6];
+			rt_dp3 <= rt_dp2;
+			rt_dp4 <= rt_dp3;
+		end
+	end
+	wire       REG_DAMP_Q  = rt_dp4;            // DAMP del slot de OP4 (68h+slot bit 6)
 	
 	
 	//OPL3

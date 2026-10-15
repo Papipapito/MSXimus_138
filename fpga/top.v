@@ -1082,7 +1082,7 @@ assign keyboard_addr = ppi_port_c[3:0];
     // 3.8.3 = 14/10/2026: el motor wave del OPL4 como el chip: margen de 24 canales (-15 dB por canal y 19 bits; antes
     //         recortaba y envolvia), TL con LD=0 bien, envolvente (OCT+RC, pasos, ataque), pan a -3 dB/paso y silencio
     //         por debajo de -60 dB; el wave entra x2 (-3 dB por canal frente a la 3.8.2).
-    localparam [7:0] FPGA_PATCH   = 8'd3;
+    localparam [7:0] FPGA_PATCH   = 8'd4;
     wire ver_req_r = (bus_iorq_n == 1'b0 && bus_m1_n == 1'b1 && bus_rd_n == 1'b0 && bus_addr[7:0] == 8'h2F);
     // 2Fh y 29h en UN solo termino del mux de cpu_din (un escalon mas en esa cadena costo -0,1 ns en el 60K): las dos
     // constantes se eligen por bus_addr[2] (2Fh = ...1111, 29h = ...1001) y la sintesis las pliega por bit.

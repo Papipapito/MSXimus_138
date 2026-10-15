@@ -336,12 +336,22 @@ package YMF278B_PKG;
 		return EncIncTbl[{ERATE,IDX}];
 	endfunction
 	
+	// 15/10/2026: la suma era de 11 bits y ENVOLVIA. Con LEVEL = 3FFh (slot ocioso) y TL = 3FFh (TL = 7Fh, que la etapa OP5 fuerza a 3FFh) mas ALFO >= 2,
+	// LEVEL+TL+ALFO pasa de 800h, SUM[10] quedaba a 0 y devolvia ALFO-2 (~0 dB): un slot mudo sonaba casi a plena escala con el dato
+	// rancio del bus de ondas (demo de MBWave, fundido _MBFADE: ruido de banda ancha durante 2,7 s). openMSX (YMF278.cc:533-536) satura
+	// la envolvente con AM, min(env_vol + AM, MAX_ATT_INDEX), y aplica el TL APARTE; cada factor recorta a silencio por su cuenta y
+	// nunca desborda. Los tres terminos son >= 0, asi que sat(sat(LEVEL+ALFO)+TL) == sat(LEVEL+TL+ALFO): una sola suma de 12 bits
+	// (maximo 3FFh+3FFh+7Fh = 87Dh) saturada a 3FFh, sin multiplicador ni etapa nuevos. La saturacion es monotona: si cualquier termino
+	// es silencio (>= 3C0h, el umbral de VolCalc) la suma tambien, y un termino mudo no se resucita con el otro. Solo cambia el resultado
+	// con TL = 3FFh y LEVEL+ALFO >= 401h: el resto de combinaciones da lo mismo que la suma de 11 bits. Equivale a openMSX en la
+	// saturacion y en el silencio de TL = 7Fh; siguen las diferencias previas de usar UNA sola VolCalc (hasta ~1,2 dB frente a los
+	// dos factores de openMSX) y del umbral de silencio (3C0h aqui, 280h = -60 dB en openMSX): revision de la Z1.2.9.
 	function bit [9:0] LevelAddTLALFO(bit [9:0] LEVEL, bit [9:0] TL, bit [7:0] ALFO);
-		bit [10:0] SUM;
+		bit [11:0] SUM;
 		
-		SUM = {1'b0,LEVEL} + {1'b0,TL} + {3'b000,ALFO};
+		SUM = {2'b00,LEVEL} + {2'b00,TL} + {4'b0000,ALFO};
 		
-		return !SUM[10] ? SUM[9:0] : 10'h3FF;
+		return (SUM[11:10] == 2'b00) ? SUM[9:0] : 10'h3FF;
 	endfunction
 
 	function bit signed [15:0] VolCalc(bit signed [15:0] WAVE, bit [9:0] LEVEL);
