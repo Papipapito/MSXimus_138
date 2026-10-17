@@ -29,13 +29,14 @@
 //   3. borrar y programar sector a sector (4 KB; las paginas que son todo FF no se programan);
 //   4. releer la flash entera y comprobar los CRC otra vez.
 // La FPGA sigue funcionando con lo que cargo al encender, asi que si algo falla se puede repetir; el core nuevo
-// entra al apagar y encender. Los ajustes (0x480000) y las ondas del OPL4 no se tocan.
+// entra al apagar y encender. Los ajustes (pack + 512 KB: 0x480000 en el 60K, 0x580000 en el 138K) solo los borra /R y
+// las ondas del OPL4 (pack + 1 MB) solo las graba un .UPD "completo". Flash de 8 MB (W25Q64) en el 60K y en el 138K.
 // El idioma es el del menu (lo cuenta el core en #4E) salvo /EN o /ES.
 //=============================================================================
 #include "msxgl.h"
 #include "network.h"
 
-#define MXU_VERSION "1.2"         // la de MXUPDATE; la de la web: mxupdate/manifiesto.txt
+#define MXU_VERSION "1.3"         // la de MXUPDATE; la de la web: mxupdate/manifiesto.txt
 // la version en UN solo sitio, el cartel: de aqui se compara con la de la web y esto es lo que se busca en el .COM
 // bajado (si no coincidieran, una version mal publicada se bajaria una y otra vez)
 static const c8 g_cartel[] = "MXUPDATE " MXU_VERSION " - ";
