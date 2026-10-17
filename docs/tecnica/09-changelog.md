@@ -120,7 +120,7 @@ El mapa nuevo es el del 60K más 1 MB, detrás del bitstream (5.145.856 bytes, h
 
 Lo único que cambia frente a la v3.7 son los tres `localparam` de `top.v` (`FLASH_START_ADDRESS`, `FLASH_CONFIG_ADDRESS`, `WL_FLASH_BASE`). Los packs y la YRW801 son los mismos ficheros. La YRW801 ocupa el último mega de la flash, que en el 60K no se usa (allí acaba en 0x6FFFFF). En el Gowin Programmer el `.fs` va con *exFlash Erase,Program,Verify* y el pack y la YRW801 con *exFlash C Bin Erase,Program*; la YRW801 como `.bin`.
 
-Core: pendiente de la campaña `p138l`. Sin probar en placa.
+Core: dado **5519**, `msximus138_v3.7-8mb_dado5519.fs` 11210f1d (`_jtag.bin` 83311e89), campaña `p138m` (la `p138l` dio 0 de 5), 0,006 ns contra los 11,30 ns del `clk_86` sobre-restringido (~0,35 ns reales), `place_option` 2; holds solo en la IP DDR3 y en BSRAM, con holgura positiva; compilado como 138B. Sin probar en placa.
 
 En la rama `V3.8` el mismo mapa entra en `top.v`, en la tabla de placas de MXUPDATE (`tools/mxupdate/mxupdate.c`, pack de la 138K en 50h; `tools/mxupd.py`, también en el repositorio del 60K) y en el «Instalar actualización» de los packs (`bios-msxnano-msximus`, `src/actualizar.asm`). **Ni MXUPDATE.COM ni los packs se han recompilado**: los publicados escriben el pack de la 138K en 0x800000, que en una flash de 8 MB es 0x000000, el bitstream. Antes de publicar una V3.8 para la 138K hay que rehacer los dos.
 

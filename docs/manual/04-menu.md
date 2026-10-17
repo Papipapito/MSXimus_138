@@ -2,7 +2,7 @@
 
 El MSXimus lleva un menú dentro de la BIOS. No es un programa que se cargue de la tarjeta: va en el pack de BIOS, en la ROM del cartucho interno, y arranca antes que MSX-DOS. Desde él se navega por la tarjeta SD, se lanzan ROMs y discos, se cambian los ajustes de la máquina, se configura la WiFi y se descargan ficheros.
 
-Todo lo que hay en este capítulo está sacado del código del menú (`menu_main.asm`, `gm2.asm`, `srm_saves.asm` y `test_menu.asm` del repositorio `bios-msxnano-msximus`), no de memoria. El pack de BIOS, y con él el menú, es **el mismo fichero** que en el MSXimus de la Tang Console 60K: en la 138K solo cambia la dirección de la flash donde se graba (`0x800000`, ver el capítulo de instalación). Por eso el menú se comporta igual en las dos máquinas; lo que aún no se ha hecho es verlo funcionar en una placa 138K (pendiente de verificar en placa).
+Todo lo que hay en este capítulo está sacado del código del menú (`menu_main.asm`, `gm2.asm`, `srm_saves.asm` y `test_menu.asm` del repositorio `bios-msxnano-msximus`), no de memoria. El pack de BIOS, y con él el menú, es **el mismo fichero** que en el MSXimus de la Tang Console 60K: en la 138K solo cambia la dirección de la flash donde se graba (`0x500000`, ver el capítulo de instalación). Por eso el menú se comporta igual en las dos máquinas; lo que aún no se ha hecho es verlo funcionar en una placa 138K (pendiente de verificar en placa).
 
 ## 1. Qué pasa al encender
 
