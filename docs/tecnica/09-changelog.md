@@ -62,7 +62,7 @@ Core: dado **4391**, adf693b5, campaña `p138k`. Margen 0,034 ns contra los 11,3
 
 La v1, la v2 y la v3.7 grababan el pack en 0x800000 y la YRW801 en 0x900000, pensando en una flash de 16 MB. La de la Console 138K es la misma **W25Q64 de 8 MB** que la del 60K: en la primera placa que lo ha probado (16 de octubre), el Gowin Programmer la identifica como `0xEF4017`, avisa de que el pack y las ondas no caben ("exceeding the limit") y no los graba. El core leía esas direcciones con el bit 23 ignorado, es decir, su propio bitstream, y la pantalla se quedaba en negro.
 
-El mapa nuevo es el del 60K más 1 MB, detrás del bitstream (5.145.856 bytes, hasta 0x4E84FF):
+El mapa nuevo es el del 60K más 1 MB, detrás del bitstream (unos 5,1 MB):
 
 | Dirección | Contenido | En el 60K |
 |---|---|---|
