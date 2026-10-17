@@ -8,7 +8,7 @@
 set -e
 cd "$(dirname "$0")"
 M=/mnt/c/Users/alber/proyectosAI/msx
-BS138=$M/MSXimus_138/files/20261017/msximus138_v3.7-8mb_dado5519.fs
+BS138=${BS138:-$M/MSXimus_138/files/20261017/msximus138_v3.8.4_dado5569.fs}
 OPC138=()
 [ -f "$BS138" ] && OPC138=(--bs138 "$BS138")
 python3 banco_mxu.py --com ../mxupdate.com \

@@ -3,8 +3,9 @@
 //
 //   MXUPDATE [fichero.UPD] [/C] [/EN] [/ES]        MXUPDATE /H o /?: la ayuda de las ordenes (sin tocar la flash)
 //   Sin fichero: el de la placa en el directorio actual (MSXIMUS.UPD en el 60K, MSX138K.UPD en el 138K, MSXNANO.UPD
-//   en el MSXnano) o, si no esta, el MSXIMUS.UPD (el nombre que busca "Instalar actualizacion" del menu) si es de
-//   esta placa; si tampoco, pregunta si bajar la ultima version por la red (como /N). Con /C y sin fichero,
+//   en el MSXnano) o, si no esta, el MSXIMUS.UPD si es de esta placa (en la 138K, el nombre que buscaba "Instalar
+//   actualizacion" del menu con los packs anteriores al 17/10/2026; ahora busca MSX138K.UPD, como aqui); si
+//   tampoco, pregunta si bajar la ultima version por la red (como /N). Con /C y sin fichero,
 //   el primero de esos tres que encuentre.
 //   MXUPDATE /N [/S:servidor[:puerto]] [fichero.UPD]
 //   /N = descargar la ultima version por la red (UNAPI: el ESP32 del MSXimus) a fichero.UPD (por defecto el de la
