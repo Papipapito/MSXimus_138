@@ -6,15 +6,15 @@ Qué hay que grabar en la placa y con qué herramienta. Todo lo obligatorio va a
 
 ## 1. Lo que va a la flash de la placa
 
-Tres ficheros, cada uno a una dirección distinta de la misma flash SPI de 16 MB del SOM:
+Tres ficheros, cada uno a una dirección distinta de la misma flash SPI de 8 MB (una W25Q64, la misma que en el 60K):
 
 | Fichero | Dirección | Obligatorio |
 |---|---|---|
 | El core, `msximus138_v3.x_dadoNNNN.fs` | **0x000000** | Sí |
-| El pack de BIOS, `pack_bios_msximus*.bin` | **0x800000** | Sí, sin él la máquina no arranca |
-| `yrw801.rom`, la ROM de ondas del MoonSound | **0x900000** | No, solo para tener el OPL4 completo |
+| El pack de BIOS, `pack_bios_msximus*.bin` | **0x500000** | Sí, sin él la máquina no arranca |
+| `yrw801.rom`, la ROM de ondas del MoonSound | **0x600000** | No, solo para tener el OPL4 completo |
 
-Las direcciones **no son las del 60K** (allí el pack va en 0x400000 y el `yrw801.rom` en 0x500000): el bitstream del 138K ocupa unos 4,9 MB, el doble que el del 60K, y se comería un pack grabado en 0x400000. Por eso todo lo que va detrás del core está 4 MB más arriba. Los ficheros, en cambio, son los mismos: el pack y el `yrw801.rom` del 60K sirven tal cual, solo cambia la dirección donde se graban.
+Las direcciones **no son las del 60K** (allí el pack va en 0x400000 y el `yrw801.rom` en 0x500000): el bitstream del 138K ocupa unos 4,9 MB, el doble que el del 60K, y se comería un pack grabado en 0x400000. Por eso todo lo que va detrás del core está 1 MB más arriba. Los ficheros, en cambio, son los mismos: el pack y el `yrw801.rom` del 60K sirven tal cual, solo cambia la dirección donde se graban.
 
 Cada entrega del 138 (`files/<fecha>/`, con su `LEEME`) trae los tres; el firmware del C6 va aparte, en su propio repositorio (sección 3). Con `yrw801.rom` sin grabar todo funciona igual, salvo la tabla de ondas del MoonSound.
 
@@ -25,7 +25,7 @@ Cada entrega del 138 (`files/<fecha>/`, con su `LEEME`) trae los tres; el firmwa
 1. Conecta la placa por USB-C y abre el Gowin Programmer.
 2. Deja que detecte el dispositivo: debe decir **GW5AST-138**.
 3. Para cada uno de los tres ficheros, configura una operación de escritura en la **flash SPI externa** (las opciones que empiezan por *exFlash*, no las de SRAM), elige el fichero como *Programming File* y escribe **la dirección de la tabla** en el campo de dirección de inicio.
-4. Graba primero el core y luego los otros dos. El orden no importa; **las direcciones sí**: si el pack no cae exactamente en 0x800000, la máquina arranca a pantalla negra.
+4. Graba primero el core y luego los otros dos. El orden no importa; **las direcciones sí**: si el pack no cae exactamente en 0x500000, la máquina arranca a pantalla negra. En el Gowin Programmer, el `.fs` va con *exFlash Erase,Program,Verify* y el pack y la ROM de ondas con *exFlash C Bin Erase,Program*, la segunda con la extensión cambiada a `.bin` (con un `.rom`, o con la primera operación, el programador da un error de "id-code"). Si el campo de dirección tiene siete cifras, se escribe `0x0500000` y `0x0600000`. Si el programador avisa de que el fichero no cabe en la flash ("exceeding the limit"), no ha grabado nada: la dirección está mal.
 5. **Apaga y enciende la placa.** Un reset no basta: la DDR3 necesita calibrar en frío y, en el 60K, puede quedarse colgada tras un reset en caliente (en el 138, misma IP y mismo motor de reintentos, pendiente de verificar en placa).
 
 Si al encender solo hay una pantalla azul, es casi siempre el pack en una dirección equivocada o que falta el apagado y encendido.
@@ -111,6 +111,6 @@ Hay una carcasa para imprimir en 3D con la forma de un Spectravideo SVI-728: la 
 
 ## 5. Actualizar
 
-Un core nuevo se graba igual que la primera vez, solo el `.fs` en 0x000000, y apagar y encender. Un pack nuevo, solo el pack en 0x800000. Los ajustes guardados se conservan: el pack mide 512 KB justos y los bytes de configuración que van detrás, en 0x880000, no los toca el programador (once bytes desde la 3.7; las v1 y v2 del 138 usaban seis). En una placa recién grabada esos bytes están vacíos y el core arranca con los valores de fábrica, con el menú al arrancar activado; el primer Save & Restart los escribe. El `yrw801.rom` no cambia entre versiones.
+Un core nuevo se graba igual que la primera vez, solo el `.fs` en 0x000000, y apagar y encender. Un pack nuevo, solo el pack en 0x500000. Los ajustes guardados se conservan: el pack mide 512 KB justos y los bytes de configuración que van detrás, en 0x580000, no los toca el programador (once bytes desde la 3.7; las v1 y v2 del 138 usaban seis). En una placa recién grabada esos bytes están vacíos y el core arranca con los valores de fábrica, con el menú al arrancar activado; el primer Save & Restart los escribe. El `yrw801.rom` no cambia entre versiones.
 
-Ojo al pasar un core del 60K al 138K o al revés: son bitstreams distintos para chips distintos, y el mapa de flash no coincide. Un pack grabado para el 60K en 0x400000 queda debajo del bitstream del 138K y hay que volver a grabarlo en 0x800000.
+Ojo al pasar un core del 60K al 138K o al revés: son bitstreams distintos para chips distintos, y el mapa de flash no coincide. Un pack grabado para el 60K en 0x400000 queda debajo del bitstream del 138K y hay que volver a grabarlo en 0x500000.

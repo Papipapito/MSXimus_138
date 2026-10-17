@@ -21,7 +21,7 @@ Idioma: castellano. El manual de usuario se traducirá al inglés cuando esté c
 | Nº | Capítulo | Estado | De dónde sale |
 |---|---|---|---|
 | 01 | [Qué es el MSXimus_138](manual/01-que-es.md): la máquina, lo que trae, lo que hace falta, lo que no es | **escrito** | README.138, README |
-| 02 | [Instalación](manual/02-instalacion.md): la flash de la placa con el mapa del 138K (pack en 0x800000, configuración en 0x880000, YRW801 en 0x900000), el pack, el BL616 (firmware pendiente), el ESP32-C6 con su cableado, actualizar | **escrito** | README.138, top.v |
+| 02 | [Instalación](manual/02-instalacion.md): la flash de la placa con el mapa del 138K (pack en 0x500000, configuración en 0x580000, YRW801 en 0x600000), el pack, el BL616 (firmware pendiente), el ESP32-C6 con su cableado, actualizar | **escrito** | README.138, top.v |
 | 03 | [La tarjeta SD](manual/03-tarjeta-sd.md): qué tarjeta, formato, qué poner y dónde, ficheros especiales, etiquetas, discos, editar desde el PC | **escrito** | menu_main.asm, srm_saves.asm, gm2.asm |
 | 04 | [El menú de arranque](manual/04-menu.md): flujo de arranque, teclas del logo, navegador, lanzar ROM, lanzar disco, Ajustes, WiFi, File-Hunter, Pruebas, mensajes | **escrito** | menu_main.asm, gm2.asm, srm_saves.asm, test_menu.asm |
 | 05 | [ROMs y mappers](manual/05-roms-mappers.md): la megaram, los siete mappers, cómo se decide, la SRAM y su guardado, el Game Master 2, ROMs que no lanzan | **escrito** | menu_main.asm, srm_saves.asm, gm2.asm, megaram.v |
@@ -37,7 +37,7 @@ Idioma: castellano. El manual de usuario se traducirá al inglés cuando esté c
 |---|---|---|---|
 | 01 | [Arquitectura](tecnica/01-arquitectura.md): la placa y el SOM Mega 138K, diagrama de bloques, relojes y dominios (la cascada PLL + PLL_INIT del GW5AST), el bus y los slots, la memoria, el vídeo, el audio, los periféricos, la secuencia de arranque | **escrito** | top.v, fpga/pll138/ y sus módulos |
 | 02 | [Mapa de puertos de E/S](tecnica/02-puertos-es.md): la E/S conmutada 40h-4Fh con los tres dispositivos, los puertos de la SD, y el resto puerto a puerto | **escrito** | top.v, sdc_ioport.sv, swioports.vhd |
-| 03 | [Mapas de memoria](tecnica/03-mapas-memoria.md): slots y páginas, la SDRAM física banco a banco, la megaram y sus segmentos reservados, la flash de 16 MB con el mapa del 138K, la DDR3 | **escrito** | top.v, megaram.v, gm2_slot1.v, desmontar_pack.py |
+| 03 | [Mapas de memoria](tecnica/03-mapas-memoria.md): slots y páginas, la SDRAM física banco a banco, la megaram y sus segmentos reservados, la flash de 8 MB con el mapa del 138K, la DDR3 | **escrito** | top.v, megaram.v, gm2_slot1.v, desmontar_pack.py |
 | 04 | [El pack de BIOS](tecnica/04-pack-bios.md): qué es, las diez ROMs y su procedencia, el menú de 32 KB en ROM, construir, un pack para todos los cores (el del 138K es el mismo fichero que el del 60K, solo cambia la dirección) | **escrito** | bios-msxnano-msximus |
 | 05 | [El V9968 en el MSXimus](tecnica/05-v9968.md): qué es, de dónde sale, las tres generaciones del interfaz de registros y en cuál estamos, el puerto 4, cómo está integrado, cómo se comprueba | **escrito** | fpga/v9968/ORIGEN.txt, hra1129/V9968_Cartridge |
 | 06 | [La tarjeta SD y la DMA](tecnica/06-sd-dma.md): el controlador, los cuatro caminos con sus velocidades (medidas en el 60K), cómo funciona la DMA, los dos modos de destino, los contadores de mapper, quién usa qué, las firmas | **escrito** | sd_reader.sv, sdc_ioport.sv, sd_dma.sv, sd_rw_ports.inc |

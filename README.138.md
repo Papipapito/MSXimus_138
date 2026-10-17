@@ -4,7 +4,7 @@ Porte del [MSXimus](README.md) (MSX2+ en la Tang Console 60K, linea V3.7) a la
 **Tang Console 138K**: la misma placa base (dock con HDMI, SD, dos USB-A, PMOD, BL616,
 ESP32-C6 y el modulo SDRAM W9825 de 32 MB) con el SOM **Tang Mega 138K**
 (GW5AST-LV138PG484A, 484 bolas: 138.240 LUT, 340 bloques de BSRAM, 12 PLL, 298 DSP,
-1 GB de DDR3, flash SPI de 16 MB) en vez del Mega 60K.
+1 GB de DDR3; la flash SPI es la misma W25Q64 de 8 MB) en vez del Mega 60K.
 Punto de partida: `MSX_up_v3`. La v1 (07/09/2026) salio de la rama `V3.5`, commit
 `dd8d8ff`, mas los cambios de la v3.5d; la **v3.7** (18/09/2026) es el porte, por merge,
 de la V3.7b del 60K.
@@ -33,9 +33,9 @@ del porte.
 | SDRAM (modulo de 40 pines, W9825G6KH, 32 MB) | `src/memory.v` | **el mismo, mismos pines** |
 | Pack de BIOS/menu | `bios-msxnano-msximus/packs/msximus/...` | **el mismo fichero** |
 | Flash: bitstream | 0x000000 (2,47 MB) | 0x000000 (**4,88 MB**) |
-| Flash: pack | 0x400000 | **0x800000** |
-| Flash: config (11 bytes desde la 3.7) | 0x480000 | **0x880000** |
-| Flash: YRW801 (OPL4 wave, 2 MB) | 0x500000 | **0x900000** |
+| Flash: pack | 0x400000 | **0x500000** |
+| Flash: config (11 bytes desde la 3.7) | 0x480000 | **0x580000** |
+| Flash: YRW801 (OPL4 wave, 2 MB) | 0x500000 | **0x600000** (hasta el final de la flash) |
 | Firmware del BL616 | fork TangCore congelado | **pendiente**: no se ha compilado para la 138K; la Console 138K trae el partner firmware de Sipeed |
 | Gowin EDA | 1.9.12.03 Standard (la Education 1.9.11.03 tambien cubre el GW5AT-60B) | **1.9.12.03 Standard con licencia** (la Education no soporta el 138K) |
 | Probado en placa | cada entrega | **nunca** |

@@ -78,22 +78,21 @@ La **SRAM de cartucho** de los ASCII8 y ASCII16 se emula en los segmentos 252 a 
 
 El mecanismo de guardado depende de que la SDRAM sobreviva al reset del MSX, que lo hace: el menú, al arrancar de nuevo, comprueba el descriptor y el checksum y reescribe el fichero en la tarjeta si la SRAM ha cambiado.
 
-## 4. La flash: 16 MB del SOM
+## 4. La flash: 8 MB (W25Q64)
 
-Es el mapa que cambia respecto al 60K: el bitstream del GW5AST-138 mide unos 4,88 MB (el del GW5AT-60, 2,47) y se comía el pack que allí vivía en 400000, así que todo lo que va detrás del bitstream sube 4 MB.
+Es el mapa que cambia respecto al 60K: el bitstream del GW5AST-138 mide unos 4,88 MB (el del GW5AT-60, 2,47) y se comía el pack que allí vivía en 400000, así que todo lo que va detrás del bitstream sube 1 MB. La flash es la misma W25Q64 de 8 MB que la del 60K, y la YRW801 ocupa su último par de megas.
 
 | Dirección | Tamaño | Contenido | En el 60K |
 |---|---|---|---|
-| 000000-7FFFFF | 8 MB | Bitstream del GW5AST-138 (unos 4,88 MB) y margen | 000000 |
-| 800000-87FFFF | 512 KB | Pack de BIOS | 400000 |
-| 880000-88000A | 11 bytes | Configuración: 'A', 'B', config 1, config 2, turbo al arrancar ('T'), ganancia (C0h + valor), los 28 bits de niveles del mezclador en little-endian (4 bytes) y un byte de suma (xor ^ A5h) | 480000 |
-| 88000B-8FFFFF | | Libre (el guardado borra el sector de 4 KB entero, así que lo libre de verdad empieza en 881000) | |
-| 900000-AFFFFF | 2 MB | ROM de ondas YRW801 del OPL4 | 500000 |
-| B00000-FFFFFF | 5 MB | Libre | |
+| 000000-4FFFFF | 5 MB | Bitstream del GW5AST-138 (5.145.856 bytes, hasta 4E84FF) y margen | 000000 |
+| 500000-57FFFF | 512 KB | Pack de BIOS | 400000 |
+| 580000-58000A | 11 bytes | Configuración: 'A', 'B', config 1, config 2, turbo al arrancar ('T'), ganancia (C0h + valor), los 28 bits de niveles del mezclador en little-endian (4 bytes) y un byte de suma (xor ^ A5h) | 480000 |
+| 58000B-5FFFFF | | Libre (el guardado borra el sector de 4 KB entero, así que lo libre de verdad empieza en 581000) | |
+| 600000-7FFFFF | 2 MB | ROM de ondas YRW801 del OPL4 | 500000 |
 
 Las tres direcciones son tres `localparam` de `fpga/top.v` (`FLASH_START_ADDRESS`, `FLASH_CONFIG_ADDRESS`, `WL_FLASH_BASE`); es lo único del RTL que el mapa de flash obligó a tocar en el porte. Los packs y la YRW801 son los mismos ficheros que en el 60K: solo cambia la dirección donde se graban. El programador de Gowin graba el .fs en 000000 igual que allí. La otra ruta del 60K, grabar la flash desde el BL616 del dock con el `_jtag.bin`, en el 138 está pendiente: su firmware (el fork de TangCore) no se ha compilado para la 138K y la Console 138K trae el partner firmware de Sipeed.
 
-El pack se flashea en 800000 y el core lo copia a la SDRAM en cada encendido. El mismo streaming que copia los 512 KB lee los once bytes siguientes: los seis primeros van a los registros 41h, 42h, 45h y 44h y los cuatro de niveles al mezclador por fuente. Un bloque viejo de seis bytes (flash borrada detrás) siembra lo de siempre y deja el mezclador a 8/8; un bloque con la suma mal o un nivel mayor que 8, igual. El menú, al hacer Save & Restart, reescribe solo esos once bytes. Desde el 9 de septiembre de 2026 el pack del MSXimus mide 512 KB justos, sin esa cola: así grabar un pack nuevo no pisa los ajustes guardados (en el 60K se perdió dos veces en un día el "Slot 1 = Game Master 2" por eso). El pack del MSXnano sí la lleva.
+El pack se flashea en 500000 y el core lo copia a la SDRAM en cada encendido. El mismo streaming que copia los 512 KB lee los once bytes siguientes: los seis primeros van a los registros 41h, 42h, 45h y 44h y los cuatro de niveles al mezclador por fuente. Un bloque viejo de seis bytes (flash borrada detrás) siembra lo de siempre y deja el mezclador a 8/8; un bloque con la suma mal o un nivel mayor que 8, igual. El menú, al hacer Save & Restart, reescribe solo esos once bytes. Desde el 9 de septiembre de 2026 el pack del MSXimus mide 512 KB justos, sin esa cola: así grabar un pack nuevo no pisa los ajustes guardados (en el 60K se perdió dos veces en un día el "Slot 1 = Game Master 2" por eso). El pack del MSXnano sí la lleva.
 
 Si la cola no empieza por 'AB' el core no la carga y se queda con los valores de fábrica: config 1 = F3h (mapper en 3-0 y megaram en 3-3 activos, segundo SCC y scanlines apagados), config 2 = 0Fh (SD activa en el slot 3-2 y menú al arrancar), sin turbo y ganancia 5. Con el botón S2 pulsado en el encendido pasa lo mismo aunque la cola sea válida: es el rescate.
 

@@ -6,7 +6,7 @@ Los hashes son md5, los ocho primeros dígitos salvo donde se indica. El "dado" 
 
 ## Línea 138K
 
-El MSXimus_138 es el MSXimus portado a la Tang Console 138K: la misma placa base (dock con HDMI, SD, dos USB-A, PMOD, BL616, ESP32-C6 y el módulo SDRAM W9825 de 32 MB) con el SOM Tang Mega 138K (GW5AST-LV138PG484A: 138.240 LUT, 340 BSRAM, 12 PLL, 298 DSP, 1 GB de DDR3, flash SPI de 16 MB) en vez del Mega 60K. Menú, tarjeta, mappers, audio, V9968, packs y puertos son los del 60K; lo que cambia está en el [capítulo 01](01-arquitectura.md) y en el `README.138.md`. Las versiones del porte se numeraron aparte (v1, v2) hasta la v3.7, que toma el número del 60K porque es la V3.7b traída entera por merge. Gowin EDA 1.9.12.03 edición Standard con licencia (la Education no soporta el 138K).
+El MSXimus_138 es el MSXimus portado a la Tang Console 138K: la misma placa base (dock con HDMI, SD, dos USB-A, PMOD, BL616, ESP32-C6 y el módulo SDRAM W9825 de 32 MB) con el SOM Tang Mega 138K (GW5AST-LV138PG484A: 138.240 LUT, 340 BSRAM, 12 PLL, 298 DSP, 1 GB de DDR3; la flash SPI es la W25Q64 de 8 MB del 60K) en vez del Mega 60K. Menú, tarjeta, mappers, audio, V9968, packs y puertos son los del 60K; lo que cambia está en el [capítulo 01](01-arquitectura.md) y en el `README.138.md`. Las versiones del porte se numeraron aparte (v1, v2) hasta la v3.7, que toma el número del 60K porque es la V3.7b traída entera por merge. Gowin EDA 1.9.12.03 edición Standard con licencia (la Education no soporta el 138K).
 
 **Nada de esta línea ha corrido nunca en una placa 138K**: la placa era prestada, la v1 y la v2 se entregaron sin validar y la v3.7 está en campaña. Lo que hay es síntesis limpia, gate pasado y los bancos de simulación del 60K. Todo lo que en el historial del 60K de más abajo es "validado en placa" aquí es "compilado y verificado en simulación, pendiente de placa"; no se repite en cada entrada.
 
@@ -104,6 +104,25 @@ Traído de la Zynq (`dcc99e3` (margen), `9bf3636` (TL), `7e5ad14` (envolvente), 
 - **El top** (`fpga/top.v`): como en el 60K, `o4gain` sube el wave ×2,0 en 19 bits (`mx_o4p* = mixk(o4gain(mi_o4p*[15:0]), …)`, **después** del registro `mi_*`: el camino 54 → 27 MHz va con 18,52 ns), `o4mix_*` y `snd_o4_*` a 19 bits y la rama sin `ENABLE_MIXER` con `o4gain` directo. El diff del top es el mismo que en el 60K. `FPGA_PATCH` pasa a **3** (3.8.3).
 - **Bancos con el motor a 36 MHz** (CE 14112/15000): `tb_tl.v` y `tb_env.v` ganan el parámetro `ENG_HALF` (como `tb_slotrd.v`) y `run_tl.sh` / `run_env.sh` lo ponen a 13,889; los demás siguen a 37,5. `run_sim.sh` (las dos pasadas) paso 5 max = 5702 / min = −5703 y paso 6 max = 36 / min = −70 (límite 200); `run_tl.sh` fundido en 14,76 ms, subida en 7,49 ms y TL = 7Fh con 0 / 0 (los mismos tiempos que a 37,5 MHz con el CE del 60K: los dos dan 44.100 Hz); `run_env.sh` 0 fallos en 8192 combinaciones y 2.097.152 pares, nota viva a los 30 ms y ataque con AR = 9 en 23,64 ms; `run_pan.sh` pan 3 L/R = 0,3752 y pan 13 R/L = 0,3752; `tb_regrd.sv` 288 / 0; `run_slotrd.sh` (tres semillas, 4.255 lecturas, motor a 36 MHz, /WAIT 343 ns de mínimo y 377 de media). `run_pitch.sh` (A-E) frente a los volcados del motor de antes: mismo periodo, correlación 0,99999 y diferencia máxima del 1,03 % del pico (la envolvente). La cadena del top (`o4gain` + `mixk` + suma + `gmul` + `sat16k`) da lo mismo que un modelo Python en 6.500 vectores con extremos.
 - Sin síntesis en el 138. En el 60K (síntesis sola) el cambio cuesta +129 LUT (38.943 → 39.072), +22 ALU, un multiplicador 27×18 más (el de `Atten15`) y la BSRAM igual; `Atten15(VolCalc(…))` encadena dos multiplicadores en la etapa del motor, que aquí corre a 36 MHz.
+
+### v3.7-8mb (17 de octubre de 2026): el mapa de flash dentro de los 8 MB
+
+La v1, la v2 y la v3.7 grababan el pack en 0x800000 y la YRW801 en 0x900000, pensando en una flash de 16 MB. La de la Console 138K es la misma **W25Q64 de 8 MB** que la del 60K: en la primera placa que lo ha probado (16 de octubre), el Gowin Programmer la identifica como `0xEF4017`, avisa de que el pack y las ondas no caben ("exceeding the limit") y no los graba. El core leía esas direcciones con el bit 23 ignorado, es decir, su propio bitstream, y la pantalla se quedaba en negro.
+
+El mapa nuevo es el del 60K más 1 MB, detrás del bitstream (5.145.856 bytes, hasta 0x4E84FF):
+
+| Dirección | Contenido | En el 60K |
+|---|---|---|
+| 0x000000 | bitstream | 0x000000 |
+| 0x500000 | pack de BIOS (512 KB) | 0x400000 |
+| 0x580000 | configuración (11 bytes) | 0x480000 |
+| 0x600000-0x7FFFFF | YRW801 (2 MB) | 0x500000 |
+
+Lo único que cambia frente a la v3.7 son los tres `localparam` de `top.v` (`FLASH_START_ADDRESS`, `FLASH_CONFIG_ADDRESS`, `WL_FLASH_BASE`). Los packs y la YRW801 son los mismos ficheros. La YRW801 ocupa el último mega de la flash, que en el 60K no se usa (allí acaba en 0x6FFFFF). En el Gowin Programmer el `.fs` va con *exFlash Erase,Program,Verify* y el pack y la YRW801 con *exFlash C Bin Erase,Program*; la YRW801 como `.bin`.
+
+Core: pendiente de la campaña `p138l`. Sin probar en placa.
+
+En la rama `V3.8` el mismo mapa entra en `top.v`, en la tabla de placas de MXUPDATE (`tools/mxupdate/mxupdate.c`, pack de la 138K en 50h; `tools/mxupd.py`, también en el repositorio del 60K) y en el «Instalar actualización» de los packs (`bios-msxnano-msximus`, `src/actualizar.asm`). **Ni MXUPDATE.COM ni los packs se han recompilado**: los publicados escriben el pack de la 138K en 0x800000, que en una flash de 8 MB es 0x000000, el bitstream. Antes de publicar una V3.8 para la 138K hay que rehacer los dos.
 
 ## Historial del 60K (del que deriva el core)
 

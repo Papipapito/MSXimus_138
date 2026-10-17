@@ -18,7 +18,7 @@
 //   comprueba tamano y version (su cartel "MXUPDATE x.y - "), se sustituye y se vuelve a lanzar con la misma
 //   orden. Cada version nueva: subir MXU_VERSION, banco/run.sh, publicar_mxu.py y ota_subir.py mxupdate.
 //   /R = actualizacion COMPLETA, todo desde cero: con /N baja la variante "completa" (core + pack + ondas del OPL4) y al
-//        acabar borra el sector de los ajustes (0x480000 en el 60K, 0x880000 en el 138K). Sin la firma "AB" el core
+//        acabar borra el sector de los ajustes (0x480000 en el 60K, 0x580000 en el 138K). Sin la firma "AB" el core
 //        arranca con los de fabrica (los mismos que el rescate con S2).
 //
 // Graba en la flash SPI de la FPGA lo que trae un .UPD (tools/mxupd.py: el bitstream y/o el pack de la BIOS) a
@@ -266,7 +266,7 @@ typedef struct { u32 dir, tam, crc, off; } Seg;
 typedef struct { u16 id; const c8* nombre; const c8* carpeta; u8 pack; const c8* fich; } Placa;
 static const Placa g_placas[3] = {
 	{ 0x0148, "console60k",  "tang60k/",  0x40, "MSXIMUS.UPD" },
-	{ 0x0108, "console138k", "tang138k/", 0x80, "MSX138K.UPD" },
+	{ 0x0108, "console138k", "tang138k/", 0x50, "MSX138K.UPD" },   // W25Q64 de 8 MB, como el 60K (17/10/2026)
 	{ 0x0008, "msxnano",     "msxnano/",  0x20, "MSXNANO.UPD" },
 };
 static u8  g_cab[132];

@@ -2,8 +2,8 @@
 """mxupd.py - ficheros de actualizacion del MSXimus 60K/138K y del MSXnano (.UPD) para MXUPDATE.COM (V3.8 / 2.1.1).
 
 Un .UPD lleva lo que hay que grabar en la flash SPI de la FPGA, por segmentos: el bitstream en 0x000000, el pack de
-la BIOS en 0x400000 y, en los "completos", las ondas del OPL4 (YRW801, 2 MB) en 0x500000 (138K: 0x800000 y 0x900000).
-MSXnano: el pack en 0x200000 y sin ondas. El bloque de ajustes (0x480000 / 0x880000 / 0x280000: 512 KB detras del
+la BIOS en 0x400000 y, en los "completos", las ondas del OPL4 (YRW801, 2 MB) en 0x500000 (138K: 0x500000 y 0x600000).
+MSXnano: el pack en 0x200000 y sin ondas. El bloque de ajustes (0x480000 / 0x580000 / 0x280000: 512 KB detras del
 pack) nunca va en un .UPD (la cola de 6 bytes de los packs del nano se quita): lo borra MXUPDATE /R. Se puede hacer uno solo con el
 pack (cambiar de idioma o de Nextor en un minuto) o solo con el bitstream.
 
@@ -46,7 +46,7 @@ MAGIA = b"MXUPD1\x1a\x00"
 PLACAS = {
     # placa: (IDCODE del chip en el bitstream, limite del bitstream, direccion del pack)
     "console60k": (0x0001481B, 0x400000, 0x400000),
-    "console138k": (0x0001081B, 0x800000, 0x800000),
+    "console138k": (0x0001081B, 0x500000, 0x500000),        # W25Q64 de 8 MB: pack 0x500000, ondas 0x600000 (17/10/2026)
     "msxnano": (0x0000081B, 0x200000, 0x200000),           # Tang Nano 20K (GW2AR-18C)
 }
 PACK_TAM = 0x80000

@@ -64,13 +64,13 @@ The fan is not needed for operation. If you fit one, the core drives it by itsel
 
 ## Installation
 
-Everything goes into the board's **SPI flash**, at three different addresses. ⚠️ **These are the 138K addresses**: the 138K bitstream is twice as big, so the pack and the OPL4 waves sit 4 MB higher than on the 60K (`0x400000` / `0x500000` there).
+Everything goes into the board's **SPI flash**, at three different addresses. ⚠️ **These are the 138K addresses**: the 138K bitstream is twice as big, so the pack and the OPL4 waves sit 1 MB higher than on the 60K (`0x400000` / `0x500000` there). The flash holds 8 MB, and the waves fill its last 2 MB.
 
 | # | File | Address | Required? |
 |---|---|---|---|
 | 1 | `msximus138_v3.x_dadoNNNN.fs` | **`0x000000`** | Yes — this is the core |
-| 2 | BIOS pack (`pack_bios_msximus*.bin`) | **`0x800000`** | Yes — the MSX won't boot without it |
-| 3 | `yrw801.bin` | **`0x900000`** | No — only for MoonSound/OPL4 (shipped as `.bin`: Gowin's Programmer does not accept `.rom`; rename a `yrw801.rom` if that is what you have) |
+| 2 | BIOS pack (`pack_bios_msximus*.bin`) | **`0x500000`** | Yes — the MSX won't boot without it |
+| 3 | `yrw801.bin` | **`0x600000`** | No — only for MoonSound/OPL4 (shipped as `.bin`: Gowin's Programmer does not accept `.rom`; rename a `yrw801.rom` if that is what you have) |
 
 Two more pieces are **optional** and do not live in that flash: the **ESP32-C6** firmware (WiFi) and the **BL616** firmware (the F12 panel). Each has its own section below.
 
@@ -86,8 +86,8 @@ Two more pieces are **optional** and do not live in that flash: the **ESP32-C6**
 
 1. Connect the board over **USB-C** and open the **Gowin Programmer** (the 1.9.12 one works fine).
 2. Let it detect the device: it should report a **GW5AST-138**.
-3. For **each** of the three files, configure a write operation to the **external SPI flash** (the options starting with *exFlash*, not the SRAM ones), select the file as *Programming File*, and put **the address from the table into the start-address field**.
-4. Flash the `.fs` first, then the other two. Their order doesn't matter — **the addresses do**: if the pack doesn't land exactly at `0x800000`, the core boots to a black screen.
+3. For **each** of the three files, configure a write operation to the **external SPI flash** (the options starting with *exFlash*, not the SRAM ones), select the file as *Programming File*, and put **the address from the table into the start-address field**. Use *exFlash Erase,Program,Verify* for the `.fs` and *exFlash C Bin Erase,Program* for the pack and `yrw801.bin`: with the first one the Programmer refuses a raw file with a "different id-code" error. If the address field has seven digits, the pack goes as `0x0500000` and the waves as `0x0600000`.
+4. Flash the `.fs` first, then the other two. Their order doesn't matter — **the addresses do**: if the pack doesn't land exactly at `0x500000`, the core boots to a black screen.
 5. **Power-cycle the board.** A reset is **not** enough: the DDR3 needs a cold recalibration and may hang after a warm reset.
 
 > If you power up and only get a blue screen, it's almost always (a) the pack at the wrong address, or (b) a missing power-cycle.

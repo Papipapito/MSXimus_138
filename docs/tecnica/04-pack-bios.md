@@ -1,6 +1,6 @@
 # 04. El pack de BIOS
 
-Qué es el fichero de 512 KB que se graba en 0x800000 de la flash de la 138K (en el 60K, 0x400000), qué ROMs lleva y en qué orden, cómo se construye y por qué es el mismo para todos los cores desde la 3.5c del 60K, el porte 138 incluido: **el pack de la 138K es el mismo fichero que el del 60K**; solo cambia la dirección donde se graba. Sale del repositorio `bios-msxnano-msximus`: sus scripts `build.sh`, `tools/hacer_packs.py` y `tools/desmontar_pack.py`, y el fuente del menú.
+Qué es el fichero de 512 KB que se graba en 0x500000 de la flash de la 138K (en el 60K, 0x400000), qué ROMs lleva y en qué orden, cómo se construye y por qué es el mismo para todos los cores desde la 3.5c del 60K, el porte 138 incluido: **el pack de la 138K es el mismo fichero que el del 60K**; solo cambia la dirección donde se graba. Sale del repositorio `bios-msxnano-msximus`: sus scripts `build.sh`, `tools/hacer_packs.py` y `tools/desmontar_pack.py`, y el fuente del menú.
 
 ## 1. Qué es
 
@@ -19,9 +19,9 @@ Una **concatenación pura** de diez ROMs, sin cabecera ni índice. El core sabe 
 | 78000 | 16 KB | ROM UNAPI del driver de red | 0-2, página 1 |
 | 7C000 | 16 KB | Logo de arranque | 0-3, página 1 |
 
-El pack del MSXimus mide **512 KB justos**. Detrás, en 0x880000 de la flash (0x480000 en el 60K), va el bloque de configuración que escribe el menú con Save & Restart: seis bytes hasta la 3.6, once desde la 3.7 (los seis de siempre, los cuatro niveles del mezclador y un byte de comprobación). El pack no lo incluye desde el 9 de septiembre de 2026, para que grabar un pack no pise los ajustes. El pack del MSXnano sí lleva esa cola.
+El pack del MSXimus mide **512 KB justos**. Detrás, en 0x580000 de la flash (0x480000 en el 60K), va el bloque de configuración que escribe el menú con Save & Restart: seis bytes hasta la 3.6, once desde la 3.7 (los seis de siempre, los cuatro niveles del mezclador y un byte de comprobación). El pack no lo incluye desde el 9 de septiembre de 2026, para que grabar un pack no pise los ajustes. El pack del MSXnano sí lleva esa cola.
 
-En la 138K el bitstream del GW5AST-138 ocupa unos 4,88 MB (el del 60K, 2,47) y se come los 4 MB que el pack tenía por delante; por eso todo el mapa de la flash sube 4 MB: pack en 0x800000, configuración en 0x880000 y la YRW801 del OPL4 en 0x900000. Son tres `localparam` de `top.v` (`FLASH_START_ADDRESS`, `FLASH_CONFIG_ADDRESS`, `WL_FLASH_BASE`). El fichero del pack es el mismo y el programador de Gowin lo graba igual, solo que en 0x800000 ([capítulo 02 del manual](../manual/02-instalacion.md)).
+En la 138K el bitstream del GW5AST-138 ocupa unos 4,9 MB (el del 60K, 2,47) y pisa el 0x400000 donde el 60K tiene el pack; por eso todo el mapa de la flash sube 1 MB: pack en 0x500000, configuración en 0x580000 y la YRW801 del OPL4 en 0x600000, hasta el final de la flash de 8 MB. Son tres `localparam` de `top.v` (`FLASH_START_ADDRESS`, `FLASH_CONFIG_ADDRESS`, `WL_FLASH_BASE`). El fichero del pack es el mismo y el programador de Gowin lo graba igual, solo que en 0x500000 ([capítulo 02 del manual](../manual/02-instalacion.md)).
 
 ## 2. Las ROMs y su procedencia
 

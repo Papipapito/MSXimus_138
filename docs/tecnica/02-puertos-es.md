@@ -144,7 +144,7 @@ El YM2413 de MSX-MUSIC, solo escritura: 7Ch registro, 7Dh dato.
 
 ### 7Eh-7Fh: OPL4, ondas
 
-La parte PCM del MoonSound: 7Eh registro y 7Fh dato del motor de 24 slots. La ROM de ondas es la YRW801 de 2 MB, copiada de la flash (0x900000 en el 138K) a la SDRAM del dock al arrancar (capítulo 03).
+La parte PCM del MoonSound: 7Eh registro y 7Fh dato del motor de 24 slots. La ROM de ondas es la YRW801 de 2 MB, copiada de la flash (0x600000 en el 138K) a la SDRAM del dock al arrancar (capítulo 03).
 
 ### 88h-8Bh y 98h-9Bh: el V9968
 

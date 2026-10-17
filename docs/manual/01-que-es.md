@@ -31,7 +31,7 @@ La Console 138K es la **misma placa base** que la 60K (el dock con el HDMI, la m
 | **Versión del chip** | — | B o **C** (Sipeed monta chips C desde julio de 2025). Se compila con `GW5AST-138B` o `GW5AST-138C` según la serigrafía del SOM |
 | **Pines** | `msx_console60k.cst` | Bola a bola idénticos: `msx_console138k.cst` es una copia. Quedan sin contrastar contra el esquemático `sd_*`, `spi_irqn`, `s2`, `fan_en_o` y `esp_*` (pendiente de verificar en placa) |
 | **Relojes** | PLLA | El GW5AST no tiene PLLA: PLL + PLL_INIT en cascada. El motor del OPL4 va a 36 MHz en vez de 37,5 |
-| **Flash (SPI de 16 MB)** | bitstream 0x000000 (2,47 MB), pack 0x400000, configuración 0x480000, YRW801 0x500000 | bitstream 0x000000 (~4,88 MB), pack **0x800000**, configuración **0x880000**, YRW801 **0x900000**. Los packs son los mismos ficheros que en el 60K; solo cambia dónde se graban |
+| **Flash (SPI de 8 MB, W25Q64)** | bitstream 0x000000 (2,47 MB), pack 0x400000, configuración 0x480000, YRW801 0x500000 | bitstream 0x000000 (~4,9 MB), pack **0x500000**, configuración **0x580000**, YRW801 **0x600000** (hasta el final de la flash). Los packs son los mismos ficheros que en el 60K; solo cambia dónde se graban |
 | **Gowin EDA** | 1.9.12.03 Education o Standard | 1.9.12.03 **Standard con licencia**: la Education no soporta el 138K |
 | **Panel F12 (BL616)** | Fork TangCore | Pendiente: la Console 138K trae su propio firmware partner de Sipeed |
 
