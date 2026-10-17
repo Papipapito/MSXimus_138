@@ -13,7 +13,7 @@ El pack de BIOS lleva Nextor dentro, en el slot 3-2 de la máquina, y hay dos pa
 | `pack_bios_msximus.bin` | **2.1.4** | El de uso diario. Estable, con años de software probado encima |
 | `pack_bios_msximus_nextor3.bin` | **3.0 beta 1** | Para probar la beta. En el 60K arranca, lee, escribe y pasa la batería de pruebas del propio Nextor, pero es beta y hay software que todavía no la lleva bien |
 
-El driver de la tarjeta es el mismo en los dos, hecho para este core: sondea qué tiene delante y usa lo más rápido que encuentre. Con el core actual (v3.7, porte de la V3.7b del 60K), la lectura va por DMA sin que DOS se entere. Los packs se graban en la flash del 138K en 0x800000 (capítulo 02), no en 0x400000 como en el 60K.
+El driver de la tarjeta es el mismo en los dos, hecho para este core: sondea qué tiene delante y usa lo más rápido que encuentre. Con el core actual (v3.7, porte de la V3.7b del 60K), la lectura va por DMA sin que DOS se entere. Los packs se graban en la flash del 138K en 0x500000 (capítulo 02), no en 0x400000 como en el 60K.
 
 Un caso conocido con Nextor 3: **VGMPlay** se cuelga al reproducir un VGM de OPL3, mientras que con Nextor 2.1.4 en el mismo core reproduce bien, y MoonBlaster con OPL4 funciona bajo Nextor 3. Es del reproductor, no del core ni del driver; conviene reportarlo a sus autores citando "Nextor 3.0.0 beta 1".
 

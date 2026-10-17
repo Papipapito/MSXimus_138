@@ -109,7 +109,7 @@ Lo propio del 138:
   cumple el periodo y para, asi que un gate OK "con 0,07 ns" contra 11,30 son unos
   0,41 ns reales. Ese dominio de 86 MHz cierra alrededor de 1 de cada 3 dados.
 - CLS ~57 % (el 60K va al 98 %), PnR ~7 min, BSRAM 116/340: campanas de 3 dados bastan.
-- Las campanas del porte son `p138a`..`p138k` (detalle en `files/<fecha>/LEEME_*.txt`
+- Las campanas del porte son `p138a`..`p138m` (detalle en `files/<fecha>/LEEME_*.txt`
   y en el [changelog](docs/tecnica/09-changelog.md)).
 
 ## Versiones del porte
@@ -119,6 +119,7 @@ Lo propio del 138:
 | v1 | 07/09/2026 | 3389 (respaldo 3373; primera entrega 3361, en `superados/`) | V3.5d del 60K | SD por puertos y multibloque, cronometro, menu de pruebas |
 | v2 | 08/09/2026 | 3469 | V3.5f del 60K | + Game Master 2 emulado (bloque 6) |
 | v3.7 | 18/09/2026 | dado **4391** (campaña `p138k`; 0,034 ns contra 11,30 = ~0,37 ns real; `files/20260918/`) | DMA de la SD (3.6/3.6c), mandos HID por USB-A (3.6f), espera a la DDR3 + LED chivato (3.6g), generacion C del V9968, mezclador por fuente con persistencia de 11 bytes (3.7), `cpu_run` registrado, motor de reintentos escalonado de la DDR3 + puertos 2Ah-2Ch (3.7b) |
+| v3.7-8mb | 17/10/2026 | dado **5519** (campaña `p138m`, place_option 2; 0,006 ns contra 11,30 = ~0,35 ns real; `files/20261017/`) | la v3.7 | El mapa de flash dentro de los 8 MB de la W25Q64: pack 0x500000, configuración 0x580000, YRW801 0x600000 |
 
 El puerto 2Fh de la v3.7 dice 37h, como en el 60K.
 

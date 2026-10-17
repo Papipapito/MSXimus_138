@@ -97,6 +97,8 @@ Del 60K, y que el porte hereda con el código:
 | p138i (3463/3467/3469) | + Game Master 2. 3469 gate OK con 0,006 ns (~0,35 reales), **v2** (`files/20260909`); 3463 y 3467 rechazados |
 | p138j (4339/4349/4357) | **v3.7** = porte de la V3.7b del 60K por merge (DMA de la SD, mandos HID por USB-A, espera a la DDR3, generación C del V9968, mezclador por fuente, motor de reintentos de la DDR3) | 0 de 3: 4339 −1,12 y 4349 −0,76 en el 86 (contra 11,30); 4357 cerraba el 86 pero `cpu1/DO → mem1/SdrDat` a −4,5 ns |
 | p138k (4363/4373/4391/4397/4409) | la misma v3.7 | **4391 GATE OK**, 0,034 ns contra 11,30 (~0,37 ns real), entregado en `files/20260918/`; 4373 −0,05 (`cpu1/IORQ`); 4363, 4397, 4409 rechazados. PnR 15-19 min por dado |
+| p138l (5303/5309/5323/5333/5347) | **v3.7-8mb** = la v3.7 con el mapa de flash dentro de los 8 MB | 0 de 5: 5333 casi (−0,056 en `cpu1/IORQ_n` a 54 MHz, medio ciclo, y −0,088 en el 86); 5303, 5309, 5323 y 5347 rechazados por `cpu1/DO`, `u_sdio/info_idx` y el 86 |
+| p138m (5503/5507/5519/5521/5527), place_option 2 | la misma v3.7-8mb | **5519 GATE OK**, 0,006 ns contra 11,30 (~0,35 ns real, como el 3469 de la v2), entregado en `files/20261017/`; los otros cuatro, por `cpu1/DO` → `mem1/SdrDat` (54 → 108) y `cpu1/IORQ` |
 
 Ninguno de estos bitstreams se ha probado nunca en una placa 138K: v1, v2 y v3.7 están compilados y verificados en simulación, pendientes de placa.
 
