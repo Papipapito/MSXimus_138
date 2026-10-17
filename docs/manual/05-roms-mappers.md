@@ -4,9 +4,9 @@ Cómo lanza el MSXimus_138 un cartucho desde un fichero: qué mappers emula, có
 
 ## 1. La megaram: el cartucho emulado
 
-Al lanzar una ROM, el menú la copia de la tarjeta a una memoria de **4 MB** dentro de la máquina, la megaram, y le dice al core con qué mapper tiene que comportarse. A partir de ahí la máquina se reinicia y encuentra la ROM en el **slot 2**, como si hubiera un cartucho pinchado. Un juego no puede distinguirlo de un cartucho real.
+Al lanzar una ROM, el menú la copia de la tarjeta a una memoria de **8 MB** dentro de la máquina (4 MB hasta la v3.7-8mb), la megaram, y le dice al core con qué mapper tiene que comportarse. A partir de ahí la máquina se reinicia y encuentra la ROM en el **slot 2**, como si hubiera un cartucho pinchado. Un juego no puede distinguirlo de un cartucho real.
 
-La carga va por DMA: en el 60K se midieron unos 640 KB por segundo, así que un megarom de 512 KB tarda menos de un segundo y uno de 4 MB unos seis. El camino del DMA es el mismo en el 138K, así que se esperan cifras parecidas (pendiente de verificar en placa). La barra de la pantalla de lanzar la muestra.
+La carga va por DMA: en el 60K se midieron unos 640 KB por segundo, así que un megarom de 512 KB tarda menos de un segundo, uno de 4 MB unos seis y uno de 8 MB unos trece. El camino del DMA es el mismo en el 138K, así que se esperan cifras parecidas (pendiente de verificar en placa). La barra de la pantalla de lanzar la muestra.
 
 ## 2. Los mappers
 
@@ -19,6 +19,10 @@ La carga va por DMA: en el 60K se midieron unos 640 KB por segundo, así que un 
 | **ASCII16** | Megaroms de 16 KB por banco: R-Type, Fire Hawk, Ys II | 4 MB |
 | **NEO-8** | El mapper NEO de 8 KB por banco, para homebrew reciente | 4 MB |
 | **NEO-16** | El mapper NEO de 16 KB por banco | 4 MB |
+| **Plain 0000h** | Imágenes lineales desde la dirección 0000h, con su propia página 0: las demos V9990 de Edd Biddulph (Wireframes, Flying Logos, Wolfenstein) | 48 KB |
+| **ASCII16-X** | La ampliación de ASCII16 de [grauw.nl](https://www.grauw.nl/projects/ascii-x/ascii16-x/) con bancos de 12 bits: la V9968 TECH DEMO 0.7.5 de renatus | 8 MB |
+
+Plain 0000h, ASCII16-X y los 8 MB llegan a la 138K con la v3.8.4 (en el 60K, con la 3.7.1).
 
 Los cartuchos ASCII8 y ASCII16 con **SRAM** (Koei, Hydlide 3, Royal Blood) están cubiertos: la SRAM se emula y se guarda, apartado 4.
 
@@ -31,7 +35,9 @@ En este orden:
 1. **Tamaño.** Hasta 32 KB, Plain.
 2. **Etiqueta en el nombre.** `[ASCII16]`, `[ASCII8]`, `[SCC]`, `[KONAMI]`, `NEO8`, `NEO16`. Si la hay, manda, sin mirar el contenido. Las pone File-Hunter al descargar, y uno mismo al renombrar. Es la forma de fijar un mapper de una vez para siempre.
 3. **Análisis del contenido.** Sin etiqueta, el core cuenta, mientras carga, las instrucciones con que cada familia de mapper cambia de banco, y gana la familia con más. Es el mismo criterio que usa openMSX y acierta con casi todo. Una ROM detectada como Konami de 320 KB o más se promociona a Konami-SCC, porque ningún Konami sin SCC pasa de 256 KB.
-4. **A mano.** Si el análisis no ve nada, el mapper sale como desconocido y se elige con **M**, que va ciclando los siete. Una vez encontrado, lo cómodo es poner la etiqueta en el nombre.
+4. **La firma del autor, ya cargada** (desde la v3.8.4 en la 138K). Muchas ROM nuevas llevan su mapper escrito dentro: ocho letras justo después de la cabecera, en el offset 10h del fichero (o en 4010h, si la cabecera va en el segundo segmento), según la [convención de MSXgl](https://aoineko.org/msxgl/index.php?title=ROM_type_signature). Si el menú encuentra `ROM_ASC8`, `ROM_AS16`, `ROM_KON4`, `ROM_KON5`, `ROM_NEO8`, `ROM_NE16` o `ASCII16X`, ese es el mapper, por encima de la etiqueta y del análisis: lo ha puesto quien hizo la ROM. Así se lanzan solas, sin `[ASCII16]` en el nombre, las ROM de geo3d y lo hecho con MSXgl. Si la firma cambia el mapper, la fila se repinta y la SRAM queda apagada (en ASCII8 y ASCII16, la tecla **S** la enciende).
+5. **Casos especiales, ya cargada.** Más de 4 MB sin firma: ASCII16-X. De 16 a 48 KB, sin `AB` al principio y con `AB` en +4000h: Plain 0000h.
+6. **A mano.** Si el análisis no ve nada, el mapper sale como desconocido y se elige con **M**, que va ciclando los nueve. Una vez encontrado, lo cómodo es poner la etiqueta en el nombre.
 
 Un mapper equivocado no rompe nada: el juego no arranca o se cuelga, y se vuelve al menú con reset.
 
@@ -48,7 +54,7 @@ Los cartuchos ASCII8 y ASCII16 con SRAM guardaban la partida en 8 o 32 KB de mem
 
 La consecuencia práctica: **para conservar la partida hay que hacer RESET, no apagar.** La memoria aguanta un reset y el menú guarda al arrancar; un apagado pierde lo que no se haya guardado aún. La línea de estado lo dice al arrancar: *"SRAM cambiada: guardando FHUNT/..."* y *"OK"*.
 
-Sin carpeta `FHUNT`, la SRAM funciona pero no se guarda: *"SRAM: sin FHUNT, no se guarda"*. Las ROMs de 4 MB ocupan la megaram entera y no dejan sitio; con ellas tampoco.
+Sin carpeta `FHUNT`, la SRAM funciona pero no se guarda: *"SRAM: sin FHUNT, no se guarda"*. Las ROMs de 4 MB o más no dejan sitio; con ellas tampoco.
 
 El guardado solo escribe si el `.SRM` sigue en la misma tarjeta y en el mismo sitio. Cambiar de tarjeta entre el juego y el arranque siguiente no corrompe nada: el menú lo detecta y descarta el guardado.
 
@@ -70,7 +76,7 @@ El guardado funciona igual que el de la SRAM: se escribe en `GM2.SRM` al siguien
 
 Al arrancar el juego con el Game Master 2 armado, sale primero la pantalla del cartucho, como en un MSX real: desde ahí se arranca el juego, o se entra en su menú de trucos y guardado.
 
-Si falta algo, el juego arranca igual, sin Game Master 2, y la línea de estado dice por qué: *"GM2: falta FHUNT/GM2.ROM"*, *"GM2: GM2.ROM no mide 128 KB"*, *"GM2: sin FHUNT"*. Las ROMs de 4 MB tampoco dejan sitio para él. Y con la opción **Slot 1 = 2o SCC** el slot está ocupado por el segundo SCC y el Game Master 2 no se ofrece.
+Si falta algo, el juego arranca igual, sin Game Master 2, y la línea de estado dice por qué: *"GM2: falta FHUNT/GM2.ROM"*, *"GM2: GM2.ROM no mide 128 KB"*, *"GM2: sin FHUNT"*. Las ROMs de 4 MB o más tampoco dejan sitio para él. Y con la opción **Slot 1 = 2o SCC** el slot está ocupado por el segundo SCC y el Game Master 2 no se ofrece.
 
 Una advertencia con Metal Gear 2: hay una versión española de la ROM, la que circula con el número [9692], cuya rutina de arranque comprueba si hay MSX-DOS y no es compatible con el arranque a través del Game Master 2: pantalla negra. No es del core. Otras versiones, como la [3371] española o la [1489] japonesa, arrancan y guardan sin problema.
 
@@ -78,4 +84,4 @@ Una advertencia con Metal Gear 2: hay una versión española de la ROM, la que c
 
 - **"INIT pag.0/BASIC: no lanzable"**: una ROM plana cuyo punto de entrada cae fuera de la ventana del cartucho. Suelen ser programas BASIC empaquetados como ROM. Lanzarla reiniciaría la máquina, así que el menú lo impide.
 - Una ROM de disco (las que emulan una unidad) no tiene sentido aquí: el disco ya lo pone Nextor.
-- Una ROM mayor de 4 MB no cabe.
+- Una ROM mayor de 8 MB no cabe.

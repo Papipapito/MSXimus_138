@@ -29,10 +29,12 @@ Es la pantalla principal. Texto de 80 columnas, con este reparto:
 
 - **Fila 1**: el título, *MSXimus*.
 - **Fila 2**: las tres pestañas de filtro, `[R]OM  [D]SK  [A]LL`. La activa se ve en vídeo inverso. Al entrar está en ALL.
-- **Filas 4 a 21**: la lista, 18 entradas por página. Cada entrada lleva delante `[DIR]`, `[ROM]` o `[DSK]`. Se ven los nombres largos; si el seleccionado no cabe en la ventana de 59 columnas, se desplaza solo como una marquesina.
-- **Fila 23**: el pie con las teclas, `R/D/A=Filtro  ESC=Boot  S=Set  W=WiFi  TAB=Part  H=Ayuda`, y en el centro el contador `seleccionado/total`.
+- **Filas 4 a 21**: la lista, 18 entradas por página, **ordenada**: primero las carpetas y después las ROM y los discos juntos, por orden alfabético sin distinguir mayúsculas (en la 138K desde la v3.8.4; en el 60K, desde la 3.7.4). A la derecha de cada entrada, `[DIR]` si es una carpeta o el tamaño en KB si es un fichero. Se ven los nombres largos; si el seleccionado no cabe en la ventana de 59 columnas, se desplaza solo como una marquesina.
+- **Fila 23**: el pie con las teclas, `R/D/A=Filtro  ESC=Boot  S=Set  W=WiFi  TAB=Part  H=Ayuda`, y en el centro el contador `seleccionado/total`, que termina en `+` si la carpeta tiene más entradas de las que caben.
 
-Solo se listan carpetas, ficheros `.ROM` y ficheros `.DSK`. El resto de la tarjeta no aparece. Se puede bajar hasta ocho niveles de carpetas.
+Solo se listan carpetas, ficheros `.ROM` y ficheros `.DSK`. El resto de la tarjeta no aparece, y tampoco lo oculto o de sistema: la `System Volume Information` de Windows, las `.Trashes` y `.fseventsd` y los `._nombre.rom` que deja un Mac al copiar. Se puede bajar hasta ocho niveles de carpetas.
+
+Caben **112 entradas por carpeta**. Si hay más, las que sobran (las últimas que se copiaron a la tarjeta) no salen y el contador acaba en `+` (`112/112+`): conviene repartirlas en subcarpetas. Las listas del File-Hunter no se ordenan: van en el orden del servidor.
 
 ### Teclas del navegador
 
@@ -52,7 +54,7 @@ Solo se listan carpetas, ficheros `.ROM` y ficheros `.DSK`. El resto de la tarje
 | **H** | Ayuda: una pantalla con esta misma lista de teclas |
 | **ESC** | Arrancar el sistema (MSX-DOS o Nextor de la tarjeta) |
 
-El mando en el puerto 1 también sirve: las cuatro direcciones mueven igual que los cursores, el botón A es RETURN y el botón B es BACKSPACE.
+El mando en el puerto 1 también sirve: las cuatro direcciones mueven igual que los cursores, el botón A es RETURN y el botón B es BACKSPACE. Arriba y abajo se repiten solos al mantenerlos; izquierda y derecha (saltar página) cuentan **una vez por pulsación** (en la 138K desde la v3.8.4; en el 60K, desde la 3.7.5): un mando con la izquierda atascada devolvía 18 entradas atrás toda selección a partir de la 18, y parecía que la lista no hacía scroll.
 
 ## 3. Lanzar una ROM
 
@@ -75,17 +77,19 @@ Nada más entrar, la línea de estado dice *"Analizando ROM..."* con un indicado
 2. Si es mayor, manda la **etiqueta del nombre** si la hay: `[ASCII16]`, `[ASCII8]`, `[SCC]`, `[KONAMI]`, `NEO16` o `NEO-16`, `NEO8` o `NEO-8`. Son las etiquetas que pone File-Hunter al descargar, y las que puede poner uno mismo al renombrar un fichero.
 3. Sin etiqueta, se **analiza el contenido** de la ROM buscando las instrucciones con que cada mapper cambia de banco, al estilo de openMSX. En los cores con DMA el análisis lo hace el propio hardware mientras carga y es instantáneo.
 4. Una ROM que el análisis da como Konami pero mide 320 KB o más se promociona a **Konami-SCC**: el Konami original nunca pasa de 256 KB.
+5. Ya cargada, se mira la **firma del autor** (con los packs de la v3.8.4): ocho letras en el offset 10h del fichero, o en 4010h, según la convención de MSXgl. `ROM_ASC8`, `ROM_AS16`, `ROM_KON4`, `ROM_KON5`, `ROM_NEO8`, `ROM_NE16` y `ASCII16X` fijan el mapper por encima de la etiqueta y del análisis. Así arrancan solas las ROM de geo3d y lo hecho con MSXgl. Detalle en el [capítulo 05](05-roms-mappers.md).
+6. Y dos casos especiales. Una ROM de más de 4 MB sin firma es **ASCII16-X** (así arranca tal cual la V9968 TECH DEMO 0.7.5 de renatus, de 8 MB). Y una de 16 a 48 KB que no lleva `AB` al principio pero sí en +4000h es **Plain 0000h**: una imagen lineal desde la dirección 0000h, como las demos V9990 de Edd Biddulph.
 
 Si el análisis no ve nada, el mapper queda como *"? (desconocido)"* y hay que elegirlo a mano con la tecla M.
 
-Los mappers disponibles son: Plain, Konami, Konami-SCC, ASCII8, ASCII16, NEO-8 y NEO-16. Las ROMs de hasta 4 MB caben en la megaram.
+Los mappers disponibles son: Plain, Konami, Konami-SCC, ASCII8, ASCII16, NEO-8, NEO-16, Plain 0000h y ASCII16-X. Las ROMs de hasta 8 MB caben en la megaram (Plain 0000h, ASCII16-X y los 8 MB, en la 138K desde la v3.8.4).
 
 ### Teclas de la pantalla de lanzar ROM
 
 | Tecla | Qué hace |
 |---|---|
 | **RETURN** | Cargar la ROM en la megaram y lanzarla. La barra avanza durante la carga, el estado dice *"Cargando ROM en megaram..."* y luego *"ROM cargada."*; después la máquina se reinicia con la ROM como si fuera un cartucho |
-| **M** | Cambiar el mapper. Cicla Plain, Konami, Konami-SCC, ASCII8, ASCII16, NEO-8, NEO-16 y vuelta a Plain. Al cambiar, la SRAM y el GM2 vuelven a su valor por defecto |
+| **M** | Cambiar el mapper. Cicla Plain, Konami, Konami-SCC, ASCII8, ASCII16, NEO-8, NEO-16, Plain 0000h, ASCII16-X y vuelta a Plain. Al cambiar, la SRAM y el GM2 vuelven a su valor por defecto |
 | **S** | Conmutar la SRAM de cartucho para este lanzamiento. Solo actúa en ASCII8 y ASCII16. Por defecto está Off, salvo que el nombre lleve `KOEI` o `SRAM`, en cuyo caso arranca On |
 | **G** | Conmutar el Game Master 2 para este lanzamiento. Solo actúa en Konami y Konami-SCC. Por defecto toma el valor del ajuste **Slot 1** |
 | **ESC** | Volver al navegador sin lanzar |
@@ -96,13 +100,13 @@ Hay un caso en que RETURN no hace nada: cuando el estado dice *"INIT pag.0/BASIC
 
 Al lanzar un ASCII8 o ASCII16 con **SRAM On**, el menú busca en la carpeta `FHUNT` de la raíz de la tarjeta un fichero con el mismo nombre que la ROM y extensión `.SRM` (32 KB). Si existe, lo carga como SRAM del cartucho; si no, lo crea vacío. La partida se guarda en la SRAM emulada mientras se juega, y se escribe de vuelta a ese `.SRM` **en el siguiente arranque del navegador**, que es cuando el menú vuelve a tener la tarjeta montada. Por eso, para conservar la partida hay que hacer **RESET, no apagar**: la memoria aguanta un reset, pero no un apagado.
 
-Los mensajes que se ven: *"SRAM: cargando ..."*, *"SRAM: nueva (FF) -> FHUNT"*, *"SRAM cambiada: guardando FHUNT/..."* con *"OK"*. Si no existe la carpeta FHUNT, *"SRAM: sin FHUNT, no se guarda"*: la SRAM funciona pero se pierde. Las ROMs de 4 MB no dejan sitio para la SRAM y tampoco se guardan.
+Los mensajes que se ven: *"SRAM: cargando ..."*, *"SRAM: nueva (FF) -> FHUNT"*, *"SRAM cambiada: guardando FHUNT/..."* con *"OK"*. Si no existe la carpeta FHUNT, *"SRAM: sin FHUNT, no se guarda"*: la SRAM funciona pero se pierde. Las ROMs de 4 MB o más no dejan sitio para la SRAM y tampoco se guardan.
 
 ### El Game Master 2
 
 El Game Master 2 es el cartucho de Konami que añadía guardado de partidas a sus juegos. El MSXimus lo emula en el slot 1 cuando se lanza un juego Konami con **GM2 On**. Necesita dos ficheros en `FHUNT`: `GM2.ROM` (la ROM original del cartucho, 128 KB, la pone el usuario) y `GM2.SRM` (8 KB, se crea solo la primera vez). El guardado a la tarjeta funciona igual que el de la SRAM: en el siguiente arranque, y tras un RESET.
 
-Si falta algo, el juego se lanza sin GM2 y la línea de estado dice por qué: *"GM2: falta FHUNT/GM2.ROM"*, *"GM2: GM2.ROM no mide 128 KB"*, *"GM2: sin FHUNT"*, o *"GM2: este core no lo trae"* si el core es anterior a la 3.5f (en el porte 138, anterior a la v2). Los juegos de 4 MB no dejan sitio y con ellos no se arma.
+Si falta algo, el juego se lanza sin GM2 y la línea de estado dice por qué: *"GM2: falta FHUNT/GM2.ROM"*, *"GM2: GM2.ROM no mide 128 KB"*, *"GM2: sin FHUNT"*, o *"GM2: este core no lo trae"* si el core es anterior a la 3.5f (en el porte 138, anterior a la v2). Los juegos de 4 MB o más no dejan sitio y con ellos no se arma.
 
 ## 4. Lanzar un disco
 
@@ -129,16 +133,18 @@ La pantalla **MSXimus - Ajustes** tiene estas opciones:
 | **Boot Turbo** | On / Off | Arrancar siempre con la CPU a 5,37 MHz. Solo entra en un arranque en frío: hay que apagar y encender, no basta el reset |
 | **Menú al arrancar** | On / Off | Si aparece el navegador de la SD al encender o se arranca MSX-DOS directamente |
 | **Mezclador de audio** | | Abre la página del mezclador (v3.7): la ganancia maestra y el nivel de cada chip, con nota de prueba. Ver el [capítulo 08](08-audio.md) |
+| **Instalar actualización** | | Graba el `MSX138K.UPD` de la raíz de la SD: el core, el pack o los dos (desde la v3.8.4 en la 138K). Lo comprueba entero antes de borrar nada y pregunta. Ver el [capítulo 11](11-actualizar.md) |
 | **Save & Restart** | | Guardar en la flash y reiniciar |
 
-Debajo se muestra *"Version FPGA (.fs): x.y"*, la versión del core que hay flasheado, o *"desconocida"* si el core no la publica. El porte 138 v3.7 publica 3.7 (el puerto 2Fh devuelve 37h), igual que la V3.7b del 60K de la que procede.
+Debajo se muestra *"Version FPGA (.fs): x.y.z"*, la versión del core que hay flasheado (`3.8.4` en la v3.8.4; el tercer dígito sale del puerto 29h, y con la v3.7 o la v3.7-8mb del 138, que no lo tienen, solo se ve `3.7`), o *"desconocida"* si el core no la publica.
 
 | Tecla | Qué hace |
 |---|---|
 | **Arriba / Abajo** | Mover entre opciones |
 | **ESPACIO** | Cambiar el valor de la opción seleccionada. En *Slot 1* va ciclando los tres estados. Sobre *Save & Restart* guarda y reinicia |
+| **ESC** | Volver al navegador **sin guardar** |
 
-Esta pantalla **no tiene ESC**. La única salida es *Save & Restart*. Si se cambia algo y se reinicia la máquina por otro camino, los cambios se pierden.
+Los cambios solo se escriben en la flash con *Save & Restart*. ESC, o reiniciar la máquina por otro camino, los descarta. La fila 22 recuerda las teclas.
 
 ## 6. Configuración WiFi (tecla W)
 
@@ -186,7 +192,7 @@ Una pantalla con la lista de teclas del navegador. Cualquier tecla vuelve.
 | Búsqueda por nombre | texto, RETURN, BACKSPACE, ESC |
 | Lanzar ROM | RETURN, M, S, G, ESC |
 | Lanzar disco | RETURN, ESC |
-| Ajustes | Arriba, Abajo, ESPACIO |
+| Ajustes | Arriba, Abajo, ESPACIO, ESC |
 | File-Hunter | texto, RETURN, BACKSPACE, F, ESC |
 | Pruebas | 1, 2, 3, 4, ESC |
 | Ayuda | cualquiera |

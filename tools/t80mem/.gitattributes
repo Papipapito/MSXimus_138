@@ -1,0 +1,3 @@
+# El banco corre en el WSL: todo en LF (las listas de trabajos y prog.hex se leen con awk, xargs y $readmemh)
+* text=auto eol=lf
+*.bin binary

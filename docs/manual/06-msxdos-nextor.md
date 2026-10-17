@@ -6,14 +6,14 @@ En el MSXimus_138 todo esto es idéntico al MSXimus de la Tang Console 60K: los 
 
 ## 1. Las dos versiones
 
-El pack de BIOS lleva Nextor dentro, en el slot 3-2 de la máquina, y hay dos packs que solo difieren en eso:
+El pack de BIOS lleva Nextor dentro, en el slot 3-2 de la máquina. La release trae cuatro packs: dos con cada Nextor, uno con el menú en castellano y otro en inglés (la lista completa, en el [capítulo 02](02-instalacion.md)):
 
-| Pack | Nextor | Cuándo |
+| Packs | Nextor | Cuándo |
 |---|---|---|
-| `pack_bios_msximus.bin` | **2.1.4** | El de uso diario. Estable, con años de software probado encima |
-| `pack_bios_msximus_nextor3.bin` | **3.0 beta 1** | Para probar la beta. En el 60K arranca, lee, escribe y pasa la batería de pruebas del propio Nextor, pero es beta y hay software que todavía no la lleva bien |
+| `pack_bios_msximus.bin` y `pack_bios_msximus_en.bin` | **2.1.4** | El de uso diario. Estable, con años de software probado encima |
+| `pack_bios_msximus_nextor3.bin` y `pack_bios_msximus_en_nextor3.bin` | **3.0 beta 2** | Para probar la beta. Con la beta 1, en el 60K, arrancaba, leía, escribía y pasaba la batería de pruebas del propio Nextor; la beta 2 (01/10/2026) lleva el mismo driver, byte a byte, y en el 60K también va bien (04/10/2026, con una tarjeta de MSX SD Maker); en la 138K, pendiente de placa. Es beta y hay software que todavía no la lleva bien |
 
-El driver de la tarjeta es el mismo en los dos, hecho para este core: sondea qué tiene delante y usa lo más rápido que encuentre. Con el core actual (v3.7, porte de la V3.7b del 60K), la lectura va por DMA sin que DOS se entere. Los packs se graban en la flash del 138K en 0x500000 (capítulo 02), no en 0x400000 como en el 60K.
+El driver de la tarjeta es el mismo en todos, hecho para este core: sondea qué tiene delante y usa lo más rápido que encuentre. Con el core actual (v3.8.4, porte de la V3.8.4 del 60K), la lectura va por DMA sin que DOS se entere. Los packs se graban en la flash del 138K en 0x500000 (capítulo 02), no en 0x400000 como en el 60K.
 
 Un caso conocido con Nextor 3: **VGMPlay** se cuelga al reproducir un VGM de OPL3, mientras que con Nextor 2.1.4 en el mismo core reproduce bien, y MoonBlaster con OPL4 funciona bajo Nextor 3. Es del reproductor, no del core ni del driver; conviene reportarlo a sus autores citando "Nextor 3.0.0 beta 1".
 

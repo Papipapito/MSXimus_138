@@ -21,7 +21,7 @@ Una **concatenación pura** de diez ROMs, sin cabecera ni índice. El core sabe 
 
 El pack del MSXimus mide **512 KB justos**. Detrás, en 0x580000 de la flash (0x480000 en el 60K), va el bloque de configuración que escribe el menú con Save & Restart: seis bytes hasta la 3.6, once desde la 3.7 (los seis de siempre, los cuatro niveles del mezclador y un byte de comprobación). El pack no lo incluye desde el 9 de septiembre de 2026, para que grabar un pack no pise los ajustes. El pack del MSXnano sí lleva esa cola.
 
-En la 138K el bitstream del GW5AST-138 ocupa unos 4,9 MB (el del 60K, 2,47) y pisa el 0x400000 donde el 60K tiene el pack; por eso todo el mapa de la flash sube 1 MB: pack en 0x500000, configuración en 0x580000 y la YRW801 del OPL4 en 0x600000, hasta el final de la flash de 8 MB. Son tres `localparam` de `top.v` (`FLASH_START_ADDRESS`, `FLASH_CONFIG_ADDRESS`, `WL_FLASH_BASE`). El fichero del pack es el mismo y el programador de Gowin lo graba igual, solo que en 0x500000 ([capítulo 02 del manual](../manual/02-instalacion.md)).
+En la 138K el bitstream del GW5AST-138 ocupa unos 4,9 MB (5.096.124 bytes; el del 60K, 2,47 MB) y pisa el 0x400000 donde el 60K tiene el pack; por eso todo el mapa de la flash sube 1 MB: pack en 0x500000, configuración en 0x580000 y la YRW801 del OPL4 en 0x600000, hasta el final de la flash de 8 MB. Son tres `localparam` de `top.v` (`FLASH_START_ADDRESS`, `FLASH_CONFIG_ADDRESS`, `WL_FLASH_BASE`). El fichero del pack es el mismo y el programador de Gowin lo graba igual, solo que en 0x500000 ([capítulo 02 del manual](../manual/02-instalacion.md)). Con una salvedad: «Instalar actualización» solo sirve en la 138K con los packs de la bios `30f1ce2` en adelante, los de la release de la v3.8.4, que reconocen la placa por el IDCODE y buscan `MSX138K.UPD` con el pack en 0x500000. Los anteriores arrancan igual en la 138K, pero buscan `MSXIMUS.UPD`, y los de antes de `a8844a7` (el de la v3.8.4 del 60K, entre ellos) esperan además el pack de la 138K en 0x800000 ([capítulo 11](11-actualizacion.md)).
 
 ## 2. Las ROMs y su procedencia
 
@@ -29,7 +29,7 @@ En la 138K el bitstream del GW5AST-138 ocupa unos 4,9 MB (el del 60K, 2,47) y pi
 |---|---|---|
 | Kanji JIS1 y JIS2 | `a1xxjis1.rom`, `a1xxjis2.rom` | Las de un Panasonic FS-A1FX. Propietarias |
 | Nextor 2.1.4 | `Nextor-2.1.4.MSXimus.ROM` | Kernel de Nestor Soto (Konamiman) más el driver de la SD, hecho aquí sobre el del WonderTANG de Luis Antoniosi (BSD-2). Se compila en `nextor214/` |
-| Nextor 3.0 beta 1 | `Nextor-3*.ROM` | El mismo driver, portado al kernel 3. Se compila en `nextor3/` |
+| Nextor 3.0 beta 2 | `Nextor-3*.ROM` | El mismo driver, portado al kernel 3. Se compila en `nextor3/` |
 | BIOS principal, internacional | `32k_msx2p_int_fix.bin` | La BIOS japonesa de Panasonic con 49 bytes cambiados: juego de caracteres, teclado y BASIC internacionales, el glifo del yen convertido en barra, el color del borde. Propietaria |
 | BIOS principal y SubROM, japonesas | `a1wsxyen.rom`, `2pextrtc.rom` | Las del Panasonic FS-A1WSX. Propietarias |
 | SubROM internacional | `16k_msx2p_subrom.bin` | Propietaria |
@@ -75,7 +75,7 @@ El driver de la SD se compila aparte, con `make` en `nextor214/` y en `nextor3/`
 
 ## 5. Un pack para todos los cores
 
-El menú y el driver sondean el core en cada arranque y usan lo que encuentran, con las firmas del [capítulo 06](06-sd-dma.md): puertos de la SD, cronómetro, DMA, modo lógico. Un core de la 3.5c va con la ventana de memoria y el escaneo por software; uno de la 3.6c con DMA y contadores. En el 138: la v1 y la v2 (la V3.5d y la V3.5f del 60K) van por los puertos de la SD y el escaneo por software; la v3.7, con DMA y contadores. Por eso una entrega nueva del core no obliga a regrabar el pack, y una entrega nueva del pack no obliga a regrabar el core, salvo que el LEEME de la entrega diga lo contrario. Ese sondeo está probado en placa en el 60K; en la 138K, como el resto del porte, queda pendiente de placa ([capítulo 09](09-changelog.md)).
+El menú y el driver sondean el core en cada arranque y usan lo que encuentran, con las firmas del [capítulo 06](06-sd-dma.md): puertos de la SD, cronómetro, DMA, modo lógico. Un core de la 3.5c va con la ventana de memoria y el escaneo por software; uno de la 3.6c con DMA y contadores. En el 138: la v1 y la v2 (la V3.5d y la V3.5f del 60K) van por los puertos de la SD y el escaneo por software; desde la v3.7, con DMA y contadores. Por eso una entrega nueva del core no obliga a regrabar el pack, y una entrega nueva del pack no obliga a regrabar el core, salvo que el LEEME de la entrega diga lo contrario. Ese sondeo está probado en placa en el 60K; en la 138K, como el resto del porte, queda pendiente de placa ([capítulo 09](09-changelog.md)).
 
 Lo que un core tiene que tener para arrancar un pack actual: el menú de 32 KB en ROM exige la ventana de la segunda página en el slot 3-1, que existe desde la 3.5. Con un core anterior el menú no arranca.
 

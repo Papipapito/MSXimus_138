@@ -26,11 +26,11 @@ Detalles que importan:
 - **Nextor** ocupa el slot 3-2 con su kernel de 128 KB paginado en 6000h, y en la página 1 lleva además la **ventana de la SD**: 7C00h-7DFFh es el búfer de sector y 7E00h-7EFFh son los registros del controlador, activos solo cuando se ha escrito un 1 en 7E00h. Es el interfaz WonderTANG original; el capítulo 06 lo detalla.
 - **La megaram** arranca en el slot 3-3 (config 1 = F3h). Al lanzar una ROM, el menú manda la orden 0Fh al dispositivo OCM, que la pasa a modo SCC-I y la mueve al slot 2; ahí es donde el juego la encuentra como cartucho. El segundo SCC, si está activo, ocupa el slot que no tiene la megaram: normalmente el 1.
 - **El slot 1** es del segundo SCC si Ajustes lo pide, o del Game Master 2 cuando el menú lo arma para un juego Konami. Si no, no responde.
-- La **BIOS principal** del pack está parcheada con la corrección de interrupciones del MSXnano; hay dos variantes de pack, internacional y japonesa, que cambian BIOS y SubROM.
+- La **BIOS principal** del pack está parcheada con la corrección de interrupciones del MSXnano; el formato admite dos variantes, internacional y japonesa, que cambian BIOS y SubROM; los cuatro packs de la release son internacionales.
 
 ## 2. La SDRAM física: 8 MB
 
-El controlador direcciona 8 MB con 23 bits para la CPU (filas 0-2047 del W9825); por encima, en las filas 4096 y siguientes, fuera del alcance de cualquier mapeo de la CPU, viven los 4 MB de la familia de ondas del OPL4 (la YRW801 de 2 MB, copiada de la flash al arrancar, y 2 MB de RAM de muestras), servidos por el puerto `wv` de `memory_ctrl` en los turnos de CPU vacíos. Los cuatro bancos de 2 MB de la CPU se reparten así:
+El controlador direcciona 8 MB con 23 bits para la CPU (filas 0-2047 del W9825) y, desde la v3.8.4 (en el 60K, desde el 24 de septiembre de 2026), un bit 23 más que va a la **fila 11**: las filas 2048-4095, que estaban libres, guardan los 4 MB altos de la megaram de 8 MB (apartado 3). Por encima, en las filas 4096 y siguientes, fuera del alcance de cualquier mapeo de la CPU, viven los 4 MB de la familia de ondas del OPL4 (la YRW801 de 2 MB, copiada de la flash al arrancar, y 2 MB de RAM de muestras), servidos por el puerto `wv` de `memory_ctrl`, y en las filas 5120+ los 256 KB de muestras del ADPCM del Y8950 (`adpcm_sdram`, puerto `wv2`). Roban turnos vacíos de la CPU y no compiten con ella. Los cuatro bancos de 2 MB de la CPU se reparten así:
 
 | Rango | Banco | Contenido | Bits altos de la dirección |
 |---|---|---|---|
@@ -39,7 +39,7 @@ El controlador direcciona 8 MB con 23 bits para la CPU (filas 0-2047 del W9825);
 | 400000-5FFFFF | C | Megaram, mitad baja (A21 = 0), 2 MB | 10 |
 | 600000-7FFFFF | D | El pack de BIOS, la fuente kanji y la VRAM de respaldo | 11 |
 
-La megaram está partida en dos bancos a propósito. Hasta la versión 3.5 era de 2 MB y vivía en el banco C; el mapper ocupaba A y B. Al recortar el mapper a 2 MB, la megaram creció a 4 MB quedándose con el B, y la traducción es un simple cruce de bits, sin sumador: la dirección física es `{~A21, A21, A[20:0]}`. Todo lo que cabía en 2 MB sigue en las mismas direcciones que antes.
+La megaram está partida en dos bancos a propósito. Hasta la versión 3.5 era de 2 MB y vivía en el banco C; el mapper ocupaba A y B. Al recortar el mapper a 2 MB, la megaram creció a 4 MB quedándose con el B, y la traducción es un simple cruce de bits, sin sumador: la dirección física es `{~A21, A21, A[20:0]}`. Todo lo que cabía en 2 MB sigue en las mismas direcciones que antes. Los 4 MB altos de la megaram de 8 MB van aparte, en las filas 2048-4095 (apartado 3).
 
 El banco D, en detalle:
 
@@ -58,9 +58,11 @@ El banco D, en detalle:
 
 El pack se copia entero, 512 KB, desde 700000. Cada región del banco D es exactamente el pack más 700000, lo que hace trivial comprobar en placa que el streaming ha ido bien.
 
-## 3. La megaram: 4 MB y sus rincones reservados
+## 3. La megaram: 8 MB y sus rincones reservados
 
-La megaram es el cartucho emulado del slot 2. El menú carga ahí la ROM y configura el mapper con el que se va a comportar: Konami, Konami-SCC, ASCII8, ASCII16, NEO-8 o NEO-16. Los registros de banco son de 9 bits; en los mappers de 8 bits el noveno es siempre 0, y en ASCII16 y los NEO llega desde el propio registro. Para llenar la mitad alta durante la carga, que se hace en modo SCC con registros de 8 bits, el menú usa el bit 4 del puerto 46h.
+La megaram es el cartucho emulado del slot 2. El menú carga ahí la ROM y configura el mapper con el que se va a comportar: Konami, Konami-SCC, ASCII8, ASCII16, NEO-8, NEO-16, Plain 0000h o ASCII16-X.
+
+Desde la v3.8.4 (en el 60K, desde el 24 de septiembre de 2026, porte de la Zynq) mide **8 MB**: los 4 MB de siempre y otros 4 MB altos que solo alcanza el ASCII16-X, con bancos de 12 bits. La dirección física es `{A22, ~A22 & ~A21, A21, A[20:0]}` y el bit 23 de la dirección de la SDRAM va a la fila 11, así que con A22 = 0 todo sigue exactamente donde estaba; la DMA los llena armada con 81h (bit 23). Todo lo que sigue habla de los 4 MB bajos, que es donde viven los rincones reservados. Los registros de banco son de 9 bits; en los mappers de 8 bits el noveno es siempre 0, y en ASCII16 y los NEO llega desde el propio registro. Para llenar la mitad alta durante la carga, que se hace en modo SCC con registros de 8 bits, el menú usa el bit 4 del puerto 46h (y el 5 para los 4 MB altos).
 
 Los 512 segmentos de 8 KB tienen dueño:
 
@@ -74,23 +76,23 @@ Los 512 segmentos de 8 KB tienen dueño:
 | 498-510 | Libres |
 | 511 | Descriptor "SRM1" del guardado de SRAM de cartucho |
 
-La **SRAM de cartucho** de los ASCII8 y ASCII16 se emula en los segmentos 252 a 255, los últimos 32 KB de la mitad baja. Los descriptores de guardado viven en la mitad alta porque un juego normal no llega ahí; una ROM de 4 MB sí la pisa, y por eso con ellas no hay guardado ni Game Master 2.
+La **SRAM de cartucho** de los ASCII8 y ASCII16 se emula en los segmentos 252 a 255, los últimos 32 KB de la mitad baja. Los descriptores de guardado viven en la mitad alta porque un juego normal no llega ahí; una ROM de 4 MB o más sí la pisa, y por eso con ellas no hay guardado ni Game Master 2.
 
 El mecanismo de guardado depende de que la SDRAM sobreviva al reset del MSX, que lo hace: el menú, al arrancar de nuevo, comprueba el descriptor y el checksum y reescribe el fichero en la tarjeta si la SRAM ha cambiado.
 
 ## 4. La flash: 8 MB (W25Q64)
 
-Es el mapa que cambia respecto al 60K: el bitstream del GW5AST-138 mide unos 4,88 MB (el del GW5AT-60, 2,47) y se comía el pack que allí vivía en 400000, así que todo lo que va detrás del bitstream sube 1 MB. La flash es la misma W25Q64 de 8 MB que la del 60K, y la YRW801 ocupa su último par de megas.
+Es el mapa que cambia respecto al 60K: el bitstream del GW5AST-138 mide unos 4,9 MB (5.096.124 bytes; el del GW5AT-60, 2,47 MB) y se comía el pack que allí vivía en 400000, así que todo lo que va detrás del bitstream sube 1 MB. La flash es la misma W25Q64 de 8 MB que la del 60K, y la YRW801 ocupa su último par de megas.
 
 | Dirección | Tamaño | Contenido | En el 60K |
 |---|---|---|---|
-| 000000-4FFFFF | 5 MB | Bitstream del GW5AST-138 (unos 5,1 MB) y margen | 000000 |
+| 000000-4FFFFF | 5 MB | Bitstream del GW5AST-138, unos 4,9 MB (5.096.124 bytes: en la v3.8.4 llega hasta 4DC2BB), y margen | 000000 |
 | 500000-57FFFF | 512 KB | Pack de BIOS | 400000 |
 | 580000-58000A | 11 bytes | Configuración: 'A', 'B', config 1, config 2, turbo al arrancar ('T'), ganancia (C0h + valor), los 28 bits de niveles del mezclador en little-endian (4 bytes) y un byte de suma (xor ^ A5h) | 480000 |
 | 58000B-5FFFFF | | Libre (el guardado borra el sector de 4 KB entero, así que lo libre de verdad empieza en 581000) | |
 | 600000-7FFFFF | 2 MB | ROM de ondas YRW801 del OPL4 | 500000 |
 
-Las tres direcciones son tres `localparam` de `fpga/top.v` (`FLASH_START_ADDRESS`, `FLASH_CONFIG_ADDRESS`, `WL_FLASH_BASE`); es lo único del RTL que el mapa de flash obligó a tocar en el porte. Los packs y la YRW801 son los mismos ficheros que en el 60K: solo cambia la dirección donde se graban. El programador de Gowin graba el .fs en 000000 igual que allí. La otra ruta del 60K, grabar la flash desde el BL616 del dock con el `_jtag.bin`, en el 138 está pendiente: su firmware (el fork de TangCore) no se ha compilado para la 138K y la Console 138K trae el partner firmware de Sipeed.
+Las tres direcciones son tres `localparam` de `fpga/top.v` (`FLASH_START_ADDRESS`, `FLASH_CONFIG_ADDRESS`, `WL_FLASH_BASE`); es lo único del RTL que el mapa de flash obligó a tocar en el porte. Los packs y la YRW801 son los mismos ficheros que en el 60K: solo cambia la dirección donde se graban. El programador de Gowin graba el .fs en 000000 igual que allí. La otra ruta del 60K, grabar la flash desde el BL616 del dock con el `_jtag.bin`, en el 138 está sin probar: desde la v3.8.4 el BL616 lleva el fork de TangCore compilado para la 138K, pero no se ha usado para grabar la flash. Desde la v3.8.4 la graba también el propio MSX, con el puente de la flash y el mismo mapa ([capítulo 11](11-actualizacion.md)).
 
 El pack se flashea en 500000 y el core lo copia a la SDRAM en cada encendido. El mismo streaming que copia los 512 KB lee los once bytes siguientes: los seis primeros van a los registros 41h, 42h, 45h y 44h y los cuatro de niveles al mezclador por fuente. Un bloque viejo de seis bytes (flash borrada detrás) siembra lo de siempre y deja el mezclador a 8/8; un bloque con la suma mal o un nivel mayor que 8, igual. El menú, al hacer Save & Restart, reescribe solo esos once bytes. Desde el 9 de septiembre de 2026 el pack del MSXimus mide 512 KB justos, sin esa cola: así grabar un pack nuevo no pisa los ajustes guardados (en el 60K se perdió dos veces en un día el "Slot 1 = Game Master 2" por eso). El pack del MSXnano sí la lleva.
 

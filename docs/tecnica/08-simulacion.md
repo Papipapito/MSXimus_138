@@ -1,6 +1,6 @@
 # 08. Simulación
 
-Los bancos de pruebas que hay en `tools/`, qué cubre cada uno y cómo se corren. Son los mismos bancos que en el MSXimus 60K, porque el RTL que prueban es el mismo; la única pieza que cambia en el porte es el stub del PLL de la DDR3 (más abajo). La regla general del proyecto: nada entra en una campaña de síntesis sin haber pasado por su banco, porque una campaña cuesta decenas de minutos y un banco cuesta un minuto. En el 138, además, la simulación es de momento la única verificación que hay: ningún bitstream del porte se ha probado todavía en una placa 138K.
+Los bancos de pruebas que hay en `tools/`, qué cubre cada uno y cómo se corren. Son los mismos bancos que en el MSXimus 60K, porque el RTL que prueban es el mismo; en el porte cambia el stub del PLL de la DDR3 (más abajo), y `tools/t80mem` es solo del 138, porque prueba un cambio que el 60K no lleva. La regla general del proyecto: nada entra en una campaña de síntesis sin haber pasado por su banco, porque una campaña cuesta decenas de minutos y un banco cuesta un minuto. En el 138, además, la simulación es de momento la única verificación que hay: ningún bitstream del porte se ha probado todavía en una placa 138K.
 
 ## 1. Entorno
 
@@ -35,9 +35,15 @@ El resultado de cada prueba se imprime como OK o FALLO y el guion se para al pri
 
 `memory_tb.v` valida el controlador de SDRAM de 16 bits con las pruebas T1 a T10 y W1 a W4: lecturas y escrituras de la CPU en todas las fases del divisor, los puertos secundarios de ondas y de VRAM, y el refresco. Cualquier cambio en `memory.v` se pasa por aquí; una variante que mejoraba la corrección pero bajaba a la mitad la lectura sostenida en turbo se rechazó gracias a esta suite.
 
+### El dato de la CPU hacia la SDRAM: `tools/t80mem/`
+
+Solo del 138: prueba el registro `cpu_dout_ram` de la v3.8.4, que el 60K no lleva. Junta el T80 real del core (`fpga/G80A`, traducido a Verilog con la síntesis de GHDL 4.1 por `gen_t80.sh`), `memory_ctrl` y el modelo de la W9825 de `sdr16_tb`, con la cadencia de 3,58 y de 5,37 MHz, `turbo_eff`, las esperas, el freno de M1 y la petición de RAM copiados de `top.v`. El programa (`prog.asm`) escribe de todas las formas del Z80, con un dato distinto cada vez y corriendo desde la SDRAM: 2312 escrituras. El banco exige que cada una se capture una vez en `SdrDat` con su dato y su dirección, que `DO` no se mueva con /WR bajo y que la SDRAM acabe igual que una memoria sombra, y mide el margen entre el último cambio de `ram_din` y la captura.
+
+`run.sh` hace la matriz mínima en unos 2 minutos: el core (DLY=1, una etapa de registro) a 3,58 y a 5,37 MHz en dos fases de reloj, que tiene que pasar (margen mínimo de 11,5 ciclos de 54 MHz a 3,58 y de 8,5 a 5,37), y el control negativo, 10 etapas a 5,37 y 13 a 3,58, que captura el dato de la escritura anterior y tiene que fallar. Termina en `BANCO t80mem: TODO OK`. Lo generado va a `~/t80mem_work`, fuera del repositorio; las demás listas y los resultados, en su `README.md`.
+
 ### La megaram: `tools/megaram_tb/`
 
-`tb_megaram.sv` recorre los mappers Konami, Konami-SCC, ASCII8, ASCII16, NEO-8 y NEO-16, los registros de 9 bits, la mitad alta por el puerto 46h y la SRAM por el 43h, y compara contra la versión anterior del módulo (`megaram_old.v`) para asegurar que nada que funcionaba deja de hacerlo.
+`tb_megaram.sv` recorre los mappers Konami, Konami-SCC, ASCII8, ASCII16, NEO-8 y NEO-16, los registros de 9 bits, la mitad alta por el puerto 46h y la SRAM por el 43h, y compara contra la versión anterior del módulo (`megaram_old.v`) para asegurar que nada que funcionaba deja de hacerlo. No cubre Plain 0000h ni ASCII16-X, que llegaron después.
 
 ### El SCC: `tools/scc_tb/`
 
@@ -72,6 +78,16 @@ Lo que el banco no cubre es lo que de verdad cambia en silicio: si con `pll_stop
 
 El OPL3 se simula con Verilator desde C++: `run_vgm.sh` reproduce un VGM contra el core y saca un WAV, y `tb_opl3_storm` bombardea el interfaz de host. `opl4wave_sim` guarda los volcados con que se depuró el motor PCM y su caché. Ninguno de los dos modela el reloj del motor OPL4, que en el 138 es de 36 MHz en vez de 37,5 (capítulo 01): el cambio de velocidad está pendiente de escuchar en placa. La excepción es `run_slotrd.sh` (`tb_slotrd.v`), que sí pone el motor a 36 MHz: comprueba que los registros de slot del wavetable se releen bien **a la primera** por 7Fh, a través de `opl4_pcm.v` y con un Z80 que respeta /WAIT (los diez grupos por 24 slots, con la fase del acceso barrida por semilla, en reposo y con seis slots sonando). Desde el 14/10/2026 (motor wave de la Zynq, 3.8.3) `run_tl.sh` (`tb_tl.v`: el TL con LD=0, fundido de 24 pasos en ~15 ms y subida en ~7 ms sin el patrón de 3 muestras, TL=7Fh silencio) y `run_env.sh` (`tb_envfn.v` y `tb_env.v`: la envolvente, con `EffRateCalc`, `EnvStep` y `EnvInc` contra openMSX/libvgm para todas las combinaciones, la nota con OCT=−4/RC=0/D2R=1 que no se apaga y el ataque con AR=9 de ~24 ms) también ponen el motor a 36 MHz (`-P<banco>.ENG_HALF=13.889`), con ondas sintéticas; `run_pan.sh` comprueba la polaridad y la ley de −3 dB por paso del pan (pan 3 da L/R = 0,375) con la YRW801 de `yrw801_2m.hex` (que no va en el repositorio) y, como `run_pitch.sh` y `run_sim.sh`, usa el reloj de 37,5. `run_timer_stop.sh` (`tb_timer_stop.cpp`, traído de MoonTANG) para un timer del OPL3 en el ciclo exacto en que su preescalador da la vuelta (con 00h, 78h, 40h con el timer en FF y con /RESET) y comprueba que no se queda contando, que el ack y el /RESET lo dejan limpio y que los periodos no cambian; con `negativo` usa el `timer.sv` de antes del arreglo y tiene que fallar 5 de 9.
 
+### La actualización y el OSD (V3.8)
+
+| Banco | Qué cubre |
+|---|---|
+| `tools/flash_tb/` (`run.sh`) | `tb_fbr.sv`: el puente de la flash (`flash_bridge.v` y el módulo `flash` de `flash_rw.v`) contra un modelo de flash SPI. Hace lo que hace MXUPDATE (seleccionar el puente, borrar un sector, programar dos páginas esperando el bit 1, leer 600 bytes y comparar) y comprueba la firma del estado, el 4Eh, que sin seleccionar no obedece y que guardar los ajustes sigue igual. Termina en `OK: borrar, programar 2 paginas, leer 600 bytes, info, sin seleccionar y ajustes` |
+| `tools/osd_tb/` (`python tools/osd_tb/check.py`, desde Windows) | El OSD con color: `check.py` genera órdenes como las del firmware del BL616 (borrar, atributos por fila, texto con atributos, glifos y una fila a la antigua), `tb_osd.sv` se las manda por la UART a `iosys_bl616` y `textdisp` con la BSRAM real (la `DPX9B` del simlib de Gowin, de `C:\Gowin\Gowin_V1.9.12.03_x64`) y recorre el overlay como el HDMI a 720p, y `check.py` lo compara píxel a píxel con su propio modelo: `pixeles distintos: 0`. Deja `ref.png` y `rtl.png` |
+| `tools/mxupdate/banco/` (`run.sh`, en el WSL, con el módulo `z80` de Python) | `MXUPDATE.COM` de verdad en un Z80 emulado con un MSX-DOS de imitación, el puente de la flash y un ESP32 UNAPI con una web de imitación: flash del 60K, de la 138K (la W25Q64 de 8 MB con el mapa nuevo; un `.UPD` con el mapa viejo tiene que salir rechazado sin tocar nada) y del MSXnano, fichero dañado, otra placa, sin puente, `/C`, `/R`, y por red con el certificado validado, sin validar, 404, sin TLS, descarga cortada y completa. Necesita el `.COM` compilado (`tools/mxupdate/build.sh`; no va en el repositorio), las entregas del 60K y del MSXnano de sus `files/` y el bitstream de la 138K de `files/20261017/` (sin él, uno de imitación). Es el mismo banco que en el repositorio del 60K |
+
+Los de «Instalar actualización» (`tools/actualizar_tb`) y de la firma de tipo de ROM del menú (`tools/firma_tb`) están en el repositorio de la BIOS ([capítulo 11](11-actualizacion.md)).
+
 ### Pequeños: `mouse_sim`, `fan_sim`, `turbo_cadence_equiv`, `dbg_uart_tb`
 
 El ratón MSX por el puerto de joystick, el control del ventilador, la equivalencia de la cadencia del turbo con y sin el freno de M1, y la UART de depuración.
@@ -94,7 +110,7 @@ Para todo lo que es MSX estándar, openMSX es la referencia: los tests de V9958 
 
 ## 5. Qué no tiene banco
 
-- El bus entero con el T80: las pruebas de integración se hacen en placa, y en el 138 están por hacer.
+- El bus entero con el T80: `t80mem` lleva el T80 real con la memoria, pero solo el camino de la SDRAM (sin el VDP de verdad, sin E/S ni interrupciones). Las pruebas de integración se hacen en placa, y en el 138 están por hacer.
 - El HDMI: el puente se validó en placa en el 60K y con la plantilla de nand2mario; en el 138 cuelga del `clkout1` del PLL de la DDR3 y de `pll_74`, pendiente de placa.
 - El USB: el host HID se validó con dispositivos reales en el 60K.
 - La DDR3 real: el modelo de la IP cubre el protocolo, no la calibración analógica, que fue la saga de julio de 2026 en el 60K. En el 138 la calibración con el PLL + PLL_INIT en cascada es lo primero que hay que mirar cuando haya placa.

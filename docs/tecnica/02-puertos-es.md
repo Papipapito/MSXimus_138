@@ -2,7 +2,7 @@
 
 Todos los puertos a los que responde el core, sacados del decodificador de `fpga/top.v` y de los módulos que cuelgan de él. Los puertos que no aparecen devuelven FFh en lectura y se ignoran en escritura: no hay bus externo.
 
-El mapa es el mismo que el del MSXimus 60K: la Tang Console 138K es la misma placa base con otro SOM (el Tang Mega 138K), y el porte no toca la decodificación de E/S. Lo que cambia entre las dos máquinas (relojes, mapa de flash, licencia de Gowin) no se ve desde el Z80. Como el resto del porte, este mapa está compilado y comprobado en simulación, no en una placa 138K.
+El mapa es el mismo que el del MSXimus 60K: la Tang Console 138K es la misma placa base con otro SOM (el Tang Mega 138K), y el porte no toca la decodificación de E/S. La única diferencia son los puertos 20h-27h del 60K (los ocho bytes del último informe del mando, para diagnóstico), que la 138K no lleva. Lo que cambia entre las dos máquinas (relojes, mapa de flash, licencia de Gowin) no se ve desde el Z80. Como el resto del porte, este mapa está compilado y comprobado en simulación, no en una placa 138K.
 
 ## 1. Resumen
 
@@ -10,7 +10,7 @@ El mapa es el mismo que el del MSXimus 60K: la Tang Console 138K es la misma pla
 |---|---|---|
 | 06-07 | UART del ESP32 (WiFi UNAPI) | no |
 | 10-12 | Segundo PSG | no |
-| 2D-2F | Diagnóstico USB, diagnóstico del ratón, versión del core | no |
+| 29, 2A-2F | Tercer dígito de la versión, arranque de la DDR3, diagnóstico USB y del ratón, versión del core | no |
 | 34-37 | Diagnóstico de la DDR3 y del cargador de ondas | no |
 | 40-4F | E/S conmutada: configuración del core, SD por puertos, OCM, turbo Panasonic | OCM |
 | 7C-7D | OPLL (MSX-MUSIC) | sí |
@@ -29,13 +29,14 @@ El mapa es el mismo que el del MSXimus 60K: la Tang Console 138K es la misma pla
 
 ## 2. La E/S conmutada: 40h a 4Fh
 
-Es el mecanismo del OCM. Se escribe en el puerto **40h** el identificador de un dispositivo y a partir de ahí los puertos 41h a 4Fh son de ese dispositivo. Leer 40h devuelve el identificador invertido, que es como el software comprueba que el dispositivo existe. El MSXimus responde a tres identificadores:
+Es el mecanismo del OCM. Se escribe en el puerto **40h** el identificador de un dispositivo y a partir de ahí los puertos 41h a 4Fh son de ese dispositivo. Leer 40h devuelve el identificador invertido, que es como el software comprueba que el dispositivo existe. El MSXimus responde a cuatro identificadores:
 
 | OUT 40h | Lee 40h | Dispositivo |
 |---|---|---|
 | 48h | B7h | La configuración del core, la del menú de Ajustes. Es el dispositivo "goauld" heredado del MSXnano |
 | 08h | F7h | Turbo del T9769 de Panasonic, para el software que lo maneja así |
 | D4h | 2Bh | E/S conmutada del OCM: órdenes inteligentes en 41h y DIP virtuales en 42h |
+| 4Dh | B2h | El puente de la flash (v3.8; en la 138K desde la v3.8.4): leer, borrar y programar la flash SPI de la FPGA para actualizar desde el MSX. Detalle en el [capítulo 11](11-actualizacion.md) |
 
 Sin dispositivo seleccionado, o con otro identificador, 41h-4Fh caen en el módulo OCM.
 
@@ -48,10 +49,14 @@ Sin dispositivo seleccionado, o con otro identificador, 41h-4Fh caen en el módu
 | 43h | W | Configuración de la SRAM de la megaram, volátil. En ASCII8 el bit de habilitación; en ASCII16 distinto de cero activa el modo "valor 10h"; 0 la apaga |
 | 44h | R/W | Mezclador de audio (v3.7). Escritura: `{solo_sel[7], canal[6:4], nivel[3:0]}`. Canal 0 = la ganancia maestra de siempre (nivel 0-7 = x1..x8, así que `OUT 44h,0..7` sigue significando lo mismo); canales 1-6 = PSG, SCC, OPLL, MSX-Audio, OPL4 FM, OPL4 wave, nivel 0-8 = k/8 (8 = tal cual, 0 = mudo); el 7 (WaveGame) solo existe en la línea Zynq. Con el bit 7 a 1 no escribe: solo selecciona el canal. Lectura: `{0, canal seleccionado, su nivel}`; el canal 7 lee Fh en el Tang (60K y 138K). Sonda del menú: `OUT 44h,F0h` + `IN 44h` = 7nh si hay mezclador. Todo se guarda en la flash con la orden de 42h |
 | 45h | R/W | bit 0 = arrancar en turbo. Se guarda en la flash como el byte 'T' |
-| 46h | R/W | Extensión del mapper de la megaram, volátil pero sobrevive al reset del MSX: bit 0 NEO (convierte ASCII8 en NEO-8 y ASCII16 en NEO-16), bit 4 mitad alta de los 4 MB para el cargador, bit 6 Game Master 2 armado. En lectura, el bit 7 a 1 dice que el core trae el Game Master 2 |
+| 46h | R/W | Extensión del mapper de la megaram, volátil (lo que sobrevive al reset del MSX, debajo de la tabla): bit 0 NEO (convierte ASCII8 en NEO-8 y ASCII16 en NEO-16), bit 1 Plain 0000h (la megaram responde también en la página 0, con la dirección del Z80 tal cual), bit 2 ASCII16-X (con el mapper en ASCII16: bancos de 12 bits, hasta 8 MB), bits 4 y 5 el cuarto de 2 MB de la megaram en el que escribe el cargador del menú (A21 y A22; en juego, a 0), bit 6 Game Master 2 armado. En lectura, el bit 7 a 1 dice que el core trae el Game Master 2. Los bits 1, 2 y 5, en la 138K desde la v3.8.4 |
 | 47h-4Fh | | El controlador de la SD por puertos, en el apartado siguiente |
 
-Los registros 41h y 42h se escriben en una copia temporal y solo pasan a ser efectivos con la orden de guardar de 42h, que también reinicia la máquina. El 46h se pone a cero en cada reset a propósito: si el Game Master 2 quedara armado, el escaneo de slots de la BIOS se toparía con su firma en el slot 1.
+Una escritura en 41h o en 42h pasa por una copia temporal y se confirma en el registro **de ese mismo puerto** en el ciclo siguiente. Cada puerto confirma solo el suyo (en la 138K desde la v3.8.4; en el 60K, desde el 24 de septiembre de 2026): antes cualquiera de los dos confirmaba los dos, con la copia del otro a cero, y un `OUT 42h` suelto desde un programa (TURBO.COM `/P`, el estéreo desde BASIC) dejaba config1 a cero y, con el bit de guardar, lo grababa en la flash. Guardar en la flash es el bit 6 de 42h, y el bit 7 reinicia.
+
+El reset del MSX borra del 46h los bits 3-7 a propósito (si el Game Master 2 quedara armado, el escaneo de slots de la BIOS se toparía con su firma en el slot 1) y **conserva los bits 0-2** (en la 138K desde la v3.8.4): tras un reset la BIOS relanza la ROM cargada y sin ellos la lanzaba con el mapper básico.
+
+Las escrituras a 40h-43h, 45h y 46h, como la del 44h desde la v3.7, pasan por una etapa de registro en 27 MHz (en la 138K desde la v3.8.4; en el 60K, desde la 3.7.5): petición, dirección y dato se capturan juntos y se aplican un ciclo después. Es invisible para el software (un OUT dura unos 20 ciclos de 27 MHz) y quita un cruce de 54 a 27 MHz que en el 60K tumbaba casi todos los dados ([capítulo 07](07-sintesis-campanas.md)).
 
 ### Dispositivo 48h, puertos 47h a 4Fh: la SD por puertos
 
@@ -119,18 +124,19 @@ El módulo pone al Z80 en espera durante sus ciclos de E/S.
 
 Un segundo YM2149 completo, con la misma decodificación que el principal desplazada: 10h dirección, 11h escritura, 12h lectura. Para el software que espera un PSG ahí. (Con la opción `DIETA_V36H` desaparece y 12h lee FFh; en producción va.)
 
-### 2Ah-2Fh: diagnóstico y versión
+### 29h-2Fh: diagnóstico y versión
 
 | Puerto | Devuelve |
 |---|---|
+| 29h | Tercer dígito de la versión (FPGA_PATCH): 4 en la v3.8.4. El menú lo imprime tras «3.8» si vale 1-15; un core sin él (en la 138K, la v3.7 y la v3.7-8mb) devuelve FFh y el menú imprime «3.7» a secas. Comparte término del mux de lectura con el 2Fh: `bus_addr[2]` elige cuál |
 | 2Ah | Arranque de la DDR3 (v3.7b): décimas de segundo desde el encendido hasta que la VRAM calibró (255 = 25 s o más, o no ha calibrado) |
 | 2Bh | Arranque de la DDR3: duración en centésimas del intento de calibración que lo consiguió (255 = 2,55 s o más); sin calibrar, el intento en curso |
 | 2Ch | Arranque de la DDR3: bit 7 = calibrada; bits 6-0 = intentos de calibración fallidos antes (0 = a la primera, 127 = saturado) |
 | 2Dh | Estado del USB: bit 7 error de conexión en el USB 2, bit 6 en el USB 1, bits 5-4 tipo del USB 2 y bits 3-2 tipo del USB 1 (0 nada, 1 teclado, 2 ratón, 3 mando), bits 1-0 cuenta de informes recibidos, que cambia si el dispositivo habla |
 | 2Eh | Estado interno del ratón |
-| 2Fh | Versión del core, en BCD: 37h es la 3.7. El porte 138 devuelve el mismo valor que el 60K de la misma versión: no hay ningún byte que distinga las dos placas |
+| 2Fh | Versión del core, en BCD: 38h en la v3.8.4 (con el 29h, la 3.8.4); 37h en la v3.7 y la v3.7-8mb. El porte 138 devuelve el mismo valor que el 60K de la misma versión: no hay ningún byte que distinga las dos placas |
 
-El menú de Ajustes muestra la versión leyendo 2Fh. Un core anterior a que existiera devuelve FFh, y el menú dice "desconocida".
+El menú de Ajustes muestra la versión leyendo 2Fh y 29h. Un core anterior a que existiera el 2Fh devuelve FFh, y el menú dice "desconocida".
 
 Los tres de la DDR3 son la respuesta al arranque en negro desde un cargador que se vio en el 60K (capítulo 10 del manual); el 138 lleva la misma IP de DDR3 y el mismo motor de reintentos, así que la lotería de calibración por dado es igual de aplicable (pendiente de verificar en placa). Desde BASIC, `PRINT INP(&H2C) AND 127, INP(&H2B)*10, INP(&H2A)/10` dice cuántos intentos fallaron, cuántos milisegundos duró el bueno y a los cuántos segundos arrancó el vídeo.
 
@@ -149,6 +155,8 @@ La parte PCM del MoonSound: 7Eh registro y 7Fh dato del motor de 24 slots. La RO
 ### 88h-8Bh y 98h-9Bh: el V9968
 
 Los cuatro puertos clásicos del VDP: 98h datos de VRAM, 99h registros y estado, 9Ah paleta, 9Bh registros indirectos. El rango 88h-8Bh es un alias del mismo chip: el software escrito para el cartucho V9968 de HRA! lo busca ahí como VDP externo, y en el MSXimus el V9968 ya es el interno.
+
+El 99h recibe los registros en pares de bytes (dato y luego número con el bit 7 a 1). Un par a medias se cancela con cualquier lectura del VDP y con una escritura al 98h, como en el V9938/V9958 y en openMSX (en la 138K desde la v3.8.4; en el 60K, desde la 3.7.6); antes solo lo cancelaba la lectura del estado. El primer byte de la paleta (9Ah) comparte ese latch.
 
 Los puertos 9Ch y 8Ch, el "puerto 4" que el V9968 define para los flags de interrupción, **no están decodificados**. El capítulo 05 explica qué implica.
 
