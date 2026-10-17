@@ -84,7 +84,7 @@ Es el mapa que cambia respecto al 60K: el bitstream del GW5AST-138 mide unos 4,8
 
 | Dirección | Tamaño | Contenido | En el 60K |
 |---|---|---|---|
-| 000000-4FFFFF | 5 MB | Bitstream del GW5AST-138 (5.145.856 bytes, hasta 4E84FF) y margen | 000000 |
+| 000000-4FFFFF | 5 MB | Bitstream del GW5AST-138 (unos 5,1 MB) y margen | 000000 |
 | 500000-57FFFF | 512 KB | Pack de BIOS | 400000 |
 | 580000-58000A | 11 bytes | Configuración: 'A', 'B', config 1, config 2, turbo al arrancar ('T'), ganancia (C0h + valor), los 28 bits de niveles del mezclador en little-endian (4 bytes) y un byte de suma (xor ^ A5h) | 480000 |
 | 58000B-5FFFFF | | Libre (el guardado borra el sector de 4 KB entero, así que lo libre de verdad empieza en 581000) | |
