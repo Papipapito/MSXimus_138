@@ -6,7 +6,7 @@ Este es el porte del MSXimus a la **Tang Console 138K**. El core es el mismo que
 
 ## 1. La placa y lo que se usa de ella
 
-El MSXimus_138 corre en la **Sipeed Tang Console 138K**: la misma placa base que la Console 60K con el SOM **Tang Mega 138K** en vez del Mega 60K. El SOM lleva la FPGA **Gowin GW5AST-LV138PG484A** (484 bolas; 138.240 LUT, 340 bloques de BSRAM, 12 PLL, 298 DSP), una **DDR3** de 1 GB de la que el core usa una región (la VRAM del V9968) y una flash SPI de 16 MB. En la placa base hay una **SDRAM Winbond W9825G6KH** de 16 bits (el módulo de 40 pines de 32 MB, el mismo que en el 60K), la ranura de la tarjeta SD, dos puertos USB-A, el HDMI, el conector 2×20 libre donde va el ESP32-C6 y un microcontrolador **BL616** que hace de programador y de canal de servicio.
+El MSXimus_138 corre en la **Sipeed Tang Console 138K**: la misma placa base que la Console 60K con el SOM **Tang Mega 138K** en vez del Mega 60K. El SOM lleva la FPGA **Gowin GW5AST-LV138PG484A** (484 bolas; 138.240 LUT, 340 bloques de BSRAM, 12 PLL, 298 DSP), una **DDR3** de 1 GB de la que el core usa una región (la VRAM del V9968) y una flash SPI de 8 MB (W25Q64, la misma que en el 60K). En la placa base hay una **SDRAM Winbond W9825G6KH** de 16 bits (el módulo de 40 pines de 32 MB, el mismo que en el 60K), la ranura de la tarjeta SD, dos puertos USB-A, el HDMI, el conector 2×20 libre donde va el ESP32-C6 y un microcontrolador **BL616** que hace de programador y de canal de servicio.
 
 El SOM Mega 138K saca a la placa base las mismas bolas que el Mega 60K, dock y DDR3 incluidos, así que el fichero de pines (`fpga/constraints/msx_console138k.cst`) es una copia del del 60K con tres retoques que exige el chip: `IO_TYPE=SSTL15`/`SSTL15D` en la DDR3 (el 138 rechaza el sufijo `_I`), `s1`/`s2`/`fan_en_o` a `LVCMOS33` porque en el 138 el banco 5 va a 3,3 V, y fuera las `INS_LOC` del DLL/PLL de la DDR3. Quedan sin contrastar contra el esquemático las señales que nand2mario no usa en sus cores para la 138K: `sd_*`, `spi_irqn`, `s2`, `fan_en_o` y `esp_*` (pendiente de verificar en placa).
 
@@ -14,13 +14,13 @@ El SOM Mega 138K saca a la placa base las mismas bolas que el Mega 60K, dock y D
 |---|---|
 | SDRAM externa de 16 bits | Toda la memoria del MSX: BIOS y ROMs del pack, mapper de 2 MB, megaram de 4 MB, fuente kanji, driver de disco. Mapa en el capítulo 03. Y, por encima de los 8 MB que direcciona la CPU (filas 4096+), la tabla de ondas de 2 MB del OPL4 más 2 MB de RAM de muestras (`wave_sdram`, desde la _104) |
 | DDR3 del SOM | La VRAM del V9968, con su propio controlador (la misma IP x16 a 297 MHz que en el 60K). Es el único cliente de la DDR3: las ondas del OPL4 no van aquí |
-| Flash SPI de 16 MB | El bitstream (4,88 MB), el pack de BIOS de 512 KB, once bytes de configuración y la ROM de ondas YRW801 |
+| Flash SPI de 8 MB | El bitstream (4,9 MB), el pack de BIOS de 512 KB, once bytes de configuración y la ROM de ondas YRW801 |
 | Tarjeta SD | Discos y ROMs del usuario, con su propio controlador en el core (capítulo 06) |
 | BL616 | Flasheo por JTAG, y una UART con el core para el panel de estado F12 sobre el HDMI. El firmware del BL616 del 60K (fork de TangCore) no se ha compilado para la 138K, que trae el partner firmware de Sipeed: el panel F12 queda pendiente |
 | ESP32-C6 externo | WiFi UNAPI y pantalla de estado, por UART a unos 860 kbps |
 | USB-A ×2 | Teclado, ratón y mando, con un host USB HID propio en el fabric, sin hub |
 
-La flash está compartida con el BL616 y el bitstream del GW5AST-138 ocupa 4,88 MB (el del 60K, 2,47), así que todo el mapa sube 4 MB respecto al 60K: el pack de BIOS va en 0x800000 (60K: 0x400000), el bloque de configuración en 0x880000 (60K: 0x480000) y la YRW801 en 0x900000 (60K: 0x500000). Son tres `localparam` en `top.v` (`FLASH_START_ADDRESS`, `FLASH_CONFIG_ADDRESS`, `WL_FLASH_BASE`). Los packs son los mismos ficheros que en el 60K, solo cambia la dirección donde se graban; el programador de Gowin graba el `.fs` en 0x000000 igual.
+La flash está compartida con el BL616 y el bitstream del GW5AST-138 ocupa 4,88 MB (el del 60K, 2,47), así que todo el mapa sube 1 MB respecto al 60K: el pack de BIOS va en 0x500000 (60K: 0x400000), el bloque de configuración en 0x580000 (60K: 0x480000) y la YRW801 en 0x600000 (60K: 0x500000), que llena la flash hasta 0x7FFFFF. Son tres `localparam` en `top.v` (`FLASH_START_ADDRESS`, `FLASH_CONFIG_ADDRESS`, `WL_FLASH_BASE`). Los packs son los mismos ficheros que en el 60K, solo cambia la dirección donde se graban; el programador de Gowin graba el `.fs` en 0x000000 igual.
 
 El dispositivo en `build.tcl` es `GW5AST-138B`. Sipeed monta chips versión C desde julio de 2025 y para ellos Gowin pide compilar con `GW5AST-138C`: hay que mirar la serigrafía del chip del SOM. Hace falta Gowin EDA 1.9.12.03 en edición Standard con licencia; la Education no soporta el 138K.
 
@@ -175,8 +175,8 @@ El grupo clásico pasa por una ganancia maestra ajustable de 0 a 7 por el puerto
 ## 9. Qué pasa al encender
 
 1. `pll_27` engancha y con él la cascada de PLL. Un secuenciador de reset suelta tres etapas separadas 39 ms.
-2. El **streamer de flash** copia el pack de BIOS, 512 KB más once bytes, desde 0x800000 de la flash a la SDRAM, byte a byte por el camino de streaming. Al final lee los once bytes de configuración: los seis de siempre (los dos registros de Ajustes, el byte de turbo al arrancar y el de ganancia) más los cuatro niveles del mezclador por fuente y su byte de comprobación (V3.7). Con el botón S2 pulsado se cargan los valores de fábrica.
-3. Mientras tanto la DDR3 calibra y, en cuanto el pack está en su sitio, el **cargador de ondas** empieza a copiar los 2 MB de la YRW801 desde 0x900000 a la región de ondas de la SDRAM, en segundo plano.
+2. El **streamer de flash** copia el pack de BIOS, 512 KB más once bytes, desde 0x500000 de la flash a la SDRAM, byte a byte por el camino de streaming. Al final lee los once bytes de configuración: los seis de siempre (los dos registros de Ajustes, el byte de turbo al arrancar y el de ganancia) más los cuatro niveles del mezclador por fuente y su byte de comprobación (V3.7). Con el botón S2 pulsado se cargan los valores de fábrica.
+3. Mientras tanto la DDR3 calibra y, en cuanto el pack está en su sitio, el **cargador de ondas** empieza a copiar los 2 MB de la YRW801 desde 0x600000 a la región de ondas de la SDRAM, en segundo plano.
 4. El core espera unos tres segundos a que el **ESP32** haya arrancado, para que el driver de red lo encuentre a la primera.
 5. Cuando todo eso está, y la DDR3 de la VRAM ha calibrado (desde la V3.6g el paso a `reset3_n` espera al `ready` del backend, con un tope de unos 10 s desde la V3.7b para arrancar a ciegas si nunca calibra; mientras tanto el LED de la SD parpadea solo), el Z80 sale de reset y arranca la BIOS del pack. El menú de la BIOS vive como cartucho en el slot 3-1 y toma el control en el escaneo de slots; lo que hace a partir de ahí lo cuenta el capítulo 04 del manual.
 

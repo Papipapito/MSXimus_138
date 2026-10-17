@@ -3487,7 +3487,7 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
     // espera 0-19us antes de disparar: solo aprueban ojos que aguantan
     // lecturas frias — los de los arranques que SONABAN bien.
     reg  [9:0]  wl_gap;        // hueco frio pendiente (ciclos)
-    localparam  WL_FLASH_BASE = 24'h900000;   // 138K: el bitstream del GW5AST-138 ocupa 4,88 MB (v1 medida); todo el mapa sube 4 MB (ver FLASH_START_ADDRESS)
+    localparam  WL_FLASH_BASE = 24'h600000;   // 138K: YRW801 en 0x600000-0x7FFFFF, el final de la W25Q64 de 8 MB (ver FLASH_START_ADDRESS)
     localparam  WL_LEN        = 22'h200000;   // 2MB
     localparam  WL_PROBE_LEN  = 22'h010000;   // 64KB de sondeo
     localparam  WL_MAX_ATT    = 5'd24;
@@ -4923,15 +4923,18 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
     //  El bitstream del GW5AT-60 PISA el 0x200000 del TN20K (aviso del audit
     //  §5.B confirmado). El pack se flashea ahora en 0x400000.
     // ------------------------------------------------------------------
-    // MSXimus_138 (07/09/2026): el bitstream del GW5AST-138 es ~2,5x el del
-    // GW5AT-60 y se comia el pack en 0x400000. TODO EL MAPA SUBE 4 MB:
-    //    0x000000 - ~0x4DFFFF  bitstream (GW5AST-138B, 4,88 MB medidos en la v1)
-    //    0x800000 - 0x87FFFF  pack BIOS/menu (512 KB)   <- 0x400000 en el 60K
-    //    0x880000 - 0x88000A  config (11 bytes desde la 3.7, ver CONFIG_BYTES)  <- 0x480000 en el 60K
-    //    0x900000 - 0xAFFFFF  YRW801 (2 MB, OPL4 wave)   <- 0x500000 en el 60K
+    // MSXimus_138: el bitstream del GW5AST-138 es ~2,5x el del GW5AT-60 y se
+    // comia el pack en 0x400000. La flash de la Console 138K es la misma W25Q64
+    // de 8 MB que la del 60K (JEDEC EF4017, leido por el Gowin Programmer en la
+    // placa de un usuario el 16/10/2026): el mapa de la v1-v3.7 (pack en 0x800000,
+    // YRW801 en 0x900000) caia FUERA de la flash. Mapa del 60K + 1 MB:
+    //    0x000000 - 0x4E84FF  bitstream (GW5AST-138B, 5 145 856 bytes)
+    //    0x500000 - 0x57FFFF  pack BIOS/menu (512 KB)   <- 0x400000 en el 60K
+    //    0x580000 - 0x58000A  config (11 bytes desde la 3.7, ver CONFIG_BYTES)  <- 0x480000 en el 60K
+    //    0x600000 - 0x7FFFFF  YRW801 (2 MB, OPL4 wave)   <- 0x500000 en el 60K
     // Los PACKS son los mismos que en el 60K: solo cambia la direccion de flasheo.
-    localparam FLASH_START_ADDRESS = 24'h800000;
-    localparam FLASH_CONFIG_ADDRESS = 24'h880000;   // = FLASH_START + 512KB
+    localparam FLASH_START_ADDRESS = 24'h500000;
+    localparam FLASH_CONFIG_ADDRESS = 24'h580000;   // = FLASH_START + 512KB
     localparam RAM_START_ADDRESS = 23'h6fffff;
     localparam CONFIG_BYTES    = 11;           // V3.7: 6 de siempre + 4 niveles + xor
     localparam GOAULD_ROM_SIZE = 512*1024 + CONFIG_BYTES; //512KB + signature (AB) + config

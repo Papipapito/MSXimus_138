@@ -8,7 +8,7 @@ Cómo se convierte el RTL en un `.fs` que se pueda entregar. En el 138K no falta
 |---|---|
 | Gowin EDA | Edición **Standard con licencia**, versión **1.9.12.03**, en `C:\Gowin\Gowin_V1.9.12.03_x64`. La Education no soporta el 138K. La era v3 del core nació sin SSRAM (esa versión lo retiró de la GW5AT-60 a propósito por un problema del silicio) y el porte lo hereda: todo va en BSRAM y registros |
 | `fpga/build.tcl` | El guion de síntesis: dispositivo `GW5AST-138B GW5AST-LV138PG484AC1/I0` (para un chip de versión C, los montados desde julio de 2025, `GW5AST-138C`; mira la serigrafía del SOM), lista de ficheros, interruptores `USE_V9968` y `USE_VRAM_DDR3`, y las opciones del place and route |
-| `fpga/top.v` | Los `` `define `` de la cabecera eligen qué entra en el core; los tres `localparam` del mapa de flash (pack en `0x800000`, configuración en `0x880000`, YRW801 en `0x900000`) |
+| `fpga/top.v` | Los `` `define `` de la cabecera eligen qué entra en el core; los tres `localparam` del mapa de flash (pack en `0x500000`, configuración en `0x580000`, YRW801 en `0x600000`) |
 | `fpga/constraints/msx_console138k.cst/.sdc` | Pines (copia bola a bola del 60K, con `IO_TYPE=SSTL15/SSTL15D` en la DDR3, `LVCMOS33` en `s1/s2/fan_en_o` y sin las `INS_LOC` del DLL/PLL) y relojes. El `clk_86` del V9968 vive aparte, en `msx_v9968.sdc` |
 | `fpga/pll138/` | Los PLL del 138: el GW5AST no tiene `PLLA`, son `PLL` + `PLL_INIT` en cascada (`pll_27` → `pll_main`, `pll_86`, `pll_ddr3` → `pll_74`) |
 | `tools/lanzar_campana.ps1` | Lanza una campaña de tres copias en paralelo. Su `-Root` apunta por defecto al repositorio del 138 |
@@ -97,6 +97,8 @@ Del 60K, y que el porte hereda con el código:
 | p138i (3463/3467/3469) | + Game Master 2. 3469 gate OK con 0,006 ns (~0,35 reales), **v2** (`files/20260909`); 3463 y 3467 rechazados |
 | p138j (4339/4349/4357) | **v3.7** = porte de la V3.7b del 60K por merge (DMA de la SD, mandos HID por USB-A, espera a la DDR3, generación C del V9968, mezclador por fuente, motor de reintentos de la DDR3) | 0 de 3: 4339 −1,12 y 4349 −0,76 en el 86 (contra 11,30); 4357 cerraba el 86 pero `cpu1/DO → mem1/SdrDat` a −4,5 ns |
 | p138k (4363/4373/4391/4397/4409) | la misma v3.7 | **4391 GATE OK**, 0,034 ns contra 11,30 (~0,37 ns real), entregado en `files/20260918/`; 4373 −0,05 (`cpu1/IORQ`); 4363, 4397, 4409 rechazados. PnR 15-19 min por dado |
+| p138l (5303/5309/5323/5333/5347) | **v3.7-8mb** = la v3.7 con el mapa de flash dentro de los 8 MB | 0 de 5: 5333 casi (−0,056 en `cpu1/IORQ_n` a 54 MHz, medio ciclo, y −0,088 en el 86); 5303, 5309, 5323 y 5347 rechazados por `cpu1/DO`, `u_sdio/info_idx` y el 86 |
+| p138m (5503/5507/5519/5521/5527), place_option 2 | la misma v3.7-8mb | **5519 GATE OK**, 0,006 ns contra 11,30 (~0,35 ns real, como el 3469 de la v2), entregado en `files/20261017/`; los otros cuatro, por `cpu1/DO` → `mem1/SdrDat` (54 → 108) y `cpu1/IORQ` |
 
 Ninguno de estos bitstreams se ha probado nunca en una placa 138K: v1, v2 y v3.7 están compilados y verificados en simulación, pendientes de placa.
 
@@ -105,7 +107,7 @@ Ninguno de estos bitstreams se ha probado nunca en una placa 138K: v1, v2 y v3.7
 Cada entrega va a `files/<fecha>/`, fuera de git, y lleva:
 
 - El `.fs` y su `_jtag.bin`, siempre en pareja, con el dado en el nombre (`msximus138_<versión>_dado<n>.fs`).
-- Un `LEEME_138_<versión>.txt` con qué cambia, los resultados de la campaña dado a dado con el peor camino de cada uno, los hashes, la versión de chip con la que se compiló (B o C) y qué probar en placa. Como el pack de BIOS es el mismo fichero que en el 60K y solo cambia dónde se graba, el LEEME repite las direcciones del 138: bitstream en `0x000000` (unos 4,88 MB, frente a los 2,47 del 60K), pack en `0x800000`, configuración en `0x880000`, YRW801 en `0x900000`.
+- Un `LEEME_138_<versión>.txt` con qué cambia, los resultados de la campaña dado a dado con el peor camino de cada uno, los hashes, la versión de chip con la que se compiló (B o C) y qué probar en placa. Como el pack de BIOS es el mismo fichero que en el 60K y solo cambia dónde se graba, el LEEME repite las direcciones del 138: bitstream en `0x000000` (unos 4,9 MB, frente a los 2,47 del 60K), pack en `0x500000`, configuración en `0x580000`, YRW801 en `0x600000`.
 - Si hay respaldo, el segundo dado con su nombre.
 
 El `_jtag.bin` sale del `.fs` con el conversor del proyecto. En el 60K es lo que se flashea por el BL616; en la Console 138K el firmware del BL616 es el partner de Sipeed (el fork TangCore del 60K no se ha compilado para ella, pendiente), así que el camino conocido es el Gowin Programmer en modo flash externa, con el `.fs` en `0x000000`. Al publicar en GitHub, la pareja se copia además a `mi_release/<versión>/`.

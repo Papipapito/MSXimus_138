@@ -6,7 +6,7 @@ Los hashes son md5, los ocho primeros dígitos salvo donde se indica. El "dado" 
 
 ## Línea 138K
 
-El MSXimus_138 es el MSXimus portado a la Tang Console 138K: la misma placa base (dock con HDMI, SD, dos USB-A, PMOD, BL616, ESP32-C6 y el módulo SDRAM W9825 de 32 MB) con el SOM Tang Mega 138K (GW5AST-LV138PG484A: 138.240 LUT, 340 BSRAM, 12 PLL, 298 DSP, 1 GB de DDR3, flash SPI de 16 MB) en vez del Mega 60K. Menú, tarjeta, mappers, audio, V9968, packs y puertos son los del 60K; lo que cambia está en el [capítulo 01](01-arquitectura.md) y en el `README.138.md`. Las versiones del porte se numeraron aparte (v1, v2) hasta la v3.7, que toma el número del 60K porque es la V3.7b traída entera por merge. Gowin EDA 1.9.12.03 edición Standard con licencia (la Education no soporta el 138K).
+El MSXimus_138 es el MSXimus portado a la Tang Console 138K: la misma placa base (dock con HDMI, SD, dos USB-A, PMOD, BL616, ESP32-C6 y el módulo SDRAM W9825 de 32 MB) con el SOM Tang Mega 138K (GW5AST-LV138PG484A: 138.240 LUT, 340 BSRAM, 12 PLL, 298 DSP, 1 GB de DDR3; la flash SPI es la W25Q64 de 8 MB del 60K) en vez del Mega 60K. Menú, tarjeta, mappers, audio, V9968, packs y puertos son los del 60K; lo que cambia está en el [capítulo 01](01-arquitectura.md) y en el `README.138.md`. Las versiones del porte se numeraron aparte (v1, v2) hasta la v3.7, que toma el número del 60K porque es la V3.7b traída entera por merge. Gowin EDA 1.9.12.03 edición Standard con licencia (la Education no soporta el 138K).
 
 **Nada de esta línea ha corrido nunca en una placa 138K**: la placa era prestada, la v1 y la v2 se entregaron sin validar y la v3.7 está en campaña. Lo que hay es síntesis limpia, gate pasado y los bancos de simulación del 60K. Todo lo que en el historial del 60K de más abajo es "validado en placa" aquí es "compilado y verificado en simulación, pendiente de placa"; no se repite en cada entrada.
 
@@ -57,6 +57,23 @@ Lo que trae, con el detalle en el historial del 60K de abajo:
 Síntesis limpia para GW5AST-138B (LUT 38.468). El banco del backend DDR3 (`tb_ddr3_backend.sv`) lleva el stub del PLL del 138 (`init_clk`, `enclk0`, `enclk2`, `clkout1`) y pasa entero, incluida la secuencia de 18 intentos fallidos de la v3.7b; `run_ddr3_backend.sh` apunta a este repo.
 
 Core: dado **4391**, adf693b5, campaña `p138k`. Margen 0,034 ns contra los 11,30 ns del `clk_86` sobre-restringido, es decir, ~0,37 ns reales (la misma clase que el 3389 de la v1 y el 3469 de la v2); holds solo la IP DDR3. Campaña `p138j` (4339/4349/4357): 0 de 3 (dos por el dominio de 86 MHz, −1,12 y −0,76 contra 11,30; el 4357 cerraba el 86 pero colocó la CPU lejos de la SDRAM, `cpu1/DO → mem1/SdrDat` a −4,5 ns). Campaña `p138k` (4363/4373/4391/4397/4409): 1 de 5 (4373 se quedó a −0,05 en `cpu1/IORQ`; 4363, 4397 y 4409 por `ff_flash_state`, `cpu1/DO` y el 86). Con el diseño de la v3.7 el PnR del 138 pasa de 7 a 15-19 minutos por dado. Entrega en `files/20260918/` con `LEEME_138_v3.7.txt`. Sin validar en placa.
+
+### v3.7-8mb (17 de octubre de 2026): el mapa de flash dentro de los 8 MB
+
+La v1, la v2 y la v3.7 grababan el pack en 0x800000 y la YRW801 en 0x900000, pensando en una flash de 16 MB. La de la Console 138K es la misma **W25Q64 de 8 MB** que la del 60K: en la primera placa que lo ha probado (16 de octubre), el Gowin Programmer la identifica como `0xEF4017`, avisa de que el pack y las ondas no caben ("exceeding the limit") y no los graba. El core leía esas direcciones con el bit 23 ignorado, es decir, su propio bitstream, y la pantalla se quedaba en negro.
+
+El mapa nuevo es el del 60K más 1 MB, detrás del bitstream (5.145.856 bytes, hasta 0x4E84FF):
+
+| Dirección | Contenido | En el 60K |
+|---|---|---|
+| 0x000000 | bitstream | 0x000000 |
+| 0x500000 | pack de BIOS (512 KB) | 0x400000 |
+| 0x580000 | configuración (11 bytes) | 0x480000 |
+| 0x600000-0x7FFFFF | YRW801 (2 MB) | 0x500000 |
+
+Lo único que cambia frente a la v3.7 son los tres `localparam` de `top.v` (`FLASH_START_ADDRESS`, `FLASH_CONFIG_ADDRESS`, `WL_FLASH_BASE`). Los packs y la YRW801 son los mismos ficheros. La YRW801 ocupa el último mega de la flash, que en el 60K no se usa (allí acaba en 0x6FFFFF). En el Gowin Programmer el `.fs` va con *exFlash Erase,Program,Verify* y el pack y la YRW801 con *exFlash C Bin Erase,Program*; la YRW801 como `.bin`.
+
+Core: dado **5519**, `msximus138_v3.7-8mb_dado5519.fs` 11210f1d (`_jtag.bin` 83311e89), campaña `p138m` (la `p138l` dio 0 de 5), 0,006 ns contra los 11,30 ns del `clk_86` sobre-restringido (~0,35 ns reales), `place_option` 2; holds solo en la IP DDR3 y en BSRAM, con holgura positiva; compilado como 138B. Sin probar en placa.
 
 ## Historial del 60K (del que deriva el core)
 
