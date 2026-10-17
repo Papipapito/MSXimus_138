@@ -2782,10 +2782,11 @@ wire [11:0] usb_joy_snes;
 
     // V3.8.4 (138K, 17/10/2026): el dato de la CPU hacia la SDRAM, REGISTRADO a 54 MHz antes del cruce
     // a 108. cpu1/DO -> (mux de ram_din) -> (mux de SdrDat) -> mem1/SdrDat era un cruce 54 -> 108 de 9,26 ns que
-    // tumbaba los dados del 138 (v38b138 5/5, p138l/p138m: -0,07 a -2,9 ns). El T80 fija DO en T1 del ciclo de
-    // escritura y baja /WR en T2 (ram_write = any_ram_wr & ~bus_wr_n), al menos un estado T despues: 5 ciclos de
-    // 54 MHz a 10,74 MHz, 15 a 3,58. El ciclo de retraso del registro cae dentro de ese margen, igual que el
-    // cpu_run de la V3.7. La rama del stream (flash y DMA de la SD) no cambia.
+    // tumbaba los dados del 138 (v38b138 5/5, p138l/p138m: -0,07 a -2,9 ns). El T80 fija DO solo en el ClkEn que
+    // cierra T1 (tambien la via Save_ALU_r) y /WR baja a mitad de T2 (ram_write = any_ram_wr & ~bus_wr_n): 4,5
+    // ciclos de 54 MHz despues con el turbo de 5,37 MHz (el maximo del core) y 6,5-7,5 a 3,58. Hasta que memory_ctrl
+    // captura SdrDat sobran al menos 8,5 ciclos (banco t80mem con el T80 real: 2312/2312 escrituras, falla con 10
+    // ciclos de retraso). Mismo patron que el cpu_run de la V3.7. La rama del stream (flash y DMA de la SD) no cambia.
     reg [7:0] cpu_dout_ram = 8'h00;
     always @(posedge clk_54m) cpu_dout_ram <= cpu_dout;
     assign ram_din = (stream_active) ? { stream_dout, stream_dout }  : { cpu_dout_ram, cpu_dout_ram };
