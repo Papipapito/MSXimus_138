@@ -86,7 +86,7 @@ Two more pieces are **optional** and do not live in that flash: the **ESP32-C6**
 
 1. Connect the board over **USB-C** and open the **Gowin Programmer** (the 1.9.12 one works fine).
 2. Let it detect the device: it should report a **GW5AT-60**.
-3. For **each** of the three files, configure a write operation to the **external SPI flash** (the options starting with *exFlash*, not the SRAM ones), select the file as *Programming File*, and put **the address from the table into the start-address field**.
+3. For **each** of the three files, configure a write operation to the **external SPI flash** (the options starting with *exFlash*, not the SRAM ones), select the file as *Programming File*, and put **the address from the table into the start-address field**. Use *exFlash Erase,Program,Verify* for the `.fs` and *exFlash C Bin Erase,Program* for the pack and `yrw801.bin`: with the first one the Programmer refuses a raw file with a "different id-code" error. If the address field has seven digits, the pack goes as `0x0500000` and the waves as `0x0600000`.
 4. Flash the `.fs` first, then the other two. Their order doesn't matter — **the addresses do**: if the pack doesn't land exactly at `0x400000`, the core boots to a black screen.
 5. **Power-cycle the board.** A reset is **not** enough: the DDR3 needs a cold recalibration and may hang after a warm reset.
 

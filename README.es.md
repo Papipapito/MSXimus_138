@@ -86,7 +86,7 @@ Hay dos piezas más, **opcionales**, que no van a esa flash: el firmware del **E
 
 1. Conecta la placa por el **USB-C** y abre el **Gowin Programmer** (va bien el de la versión 1.9.12).
 2. Deja que detecte el dispositivo: debe salir el **GW5AT-60**.
-3. Para **cada** uno de los tres ficheros, configura una operación de escritura en la **flash SPI externa** (las opciones que empiezan por *exFlash*, no las de SRAM), pon el fichero en *Programming File* y **la dirección de la tabla en el campo de dirección de inicio**.
+3. Para **cada** uno de los tres ficheros, configura una operación de escritura en la **flash SPI externa** (las opciones que empiezan por *exFlash*, no las de SRAM), pon el fichero en *Programming File* y **la dirección de la tabla en el campo de dirección de inicio**. Usa *exFlash Erase,Program,Verify* para el `.fs` y *exFlash C Bin Erase,Program* para el pack y la `yrw801.bin`: con la primera, el Programmer rechaza un fichero en bruto con un error de "id-code" distinto. Si el campo de dirección tiene siete cifras, el pack va como `0x0500000` y las ondas como `0x0600000`.
 4. Graba primero el `.fs` y luego los otros dos. El orden entre ellos da igual, pero **las direcciones no**: si el pack no cae exactamente en `0x400000`, el core arranca y se queda en negro.
 5. **Apaga y enciende la placa.** Un reset **no** basta: la DDR3 necesita recalibrar desde frío y con un reset caliente puede quedarse colgada.
 
