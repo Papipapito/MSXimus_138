@@ -2780,7 +2780,15 @@ wire [11:0] usb_joy_snes;
     // se contiene con syn_maxfan (ISet/IStatus en t80.vhd) + sembrado.
     assign ram_req   = (stream_active) ? stream_write : any_ram_req;
 
-    assign ram_din = (stream_active) ? { stream_dout, stream_dout }  : { cpu_dout, cpu_dout };
+    // V3.8.4 (138K, 17/10/2026): el dato de la CPU hacia la SDRAM, REGISTRADO a 54 MHz antes del cruce
+    // a 108. cpu1/DO -> (mux de ram_din) -> (mux de SdrDat) -> mem1/SdrDat era un cruce 54 -> 108 de 9,26 ns que
+    // tumbaba los dados del 138 (v38b138 5/5, p138l/p138m: -0,07 a -2,9 ns). El T80 fija DO en T1 del ciclo de
+    // escritura y baja /WR en T2 (ram_write = any_ram_wr & ~bus_wr_n), al menos un estado T despues: 5 ciclos de
+    // 54 MHz a 10,74 MHz, 15 a 3,58. El ciclo de retraso del registro cae dentro de ese margen, igual que el
+    // cpu_run de la V3.7. La rama del stream (flash y DMA de la SD) no cambia.
+    reg [7:0] cpu_dout_ram = 8'h00;
+    always @(posedge clk_54m) cpu_dout_ram <= cpu_dout;
+    assign ram_din = (stream_active) ? { stream_dout, stream_dout }  : { cpu_dout_ram, cpu_dout_ram };
 
 // SDCLK_INVERT=1 CONFIRMADO EN HW (2026-07-08): con fase normal el auto-test
 // da ROJO (errores CPU) y con 180 grados VERDE; el core arranca (serial _18inv).
