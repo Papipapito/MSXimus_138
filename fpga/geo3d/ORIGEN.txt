@@ -27,8 +27,10 @@ MSXimus 138K (rama geo3d, 17/10/2026)
 ================================================================================
 Procedencia: copia de fpga/geo3d de la Zynq (los mismos tres .v + LICENSE). Es geo3d v1.0.0 de Alex: el
 mismo RTL que HRA! publico despues en su upstream (hra1129/V9968_Cartridge 3e81e92, 03/10/2026, "Added
-Geo3D", fpga/V9968_Cartridge_TangNano20K/src/geo3d/, su readme dice v1.0.0) y que la cabeza del repo de
-Alex (ace6868): diff = 0 con los tres.
+Geo3D", fpga/V9968_Cartridge_TangNano20K/src/geo3d/, su readme dice v1.0.0) y que el tag geo3d-v1.0.0 del
+repo de Alex (6ed10ff), igual en su main (eeb13f4, 04/10/2026): diff = 0 con los tres (mismos blobs).
+Su rama geo3d-v2.0 (14-16/10/2026, d354695; cambia geo3d_engine.v y geo3d_bus.v) esta en desarrollo, sin
+tag: no adoptada (revisado el 18/10/2026).
 
 Lo que cambia en el 138K es el reloj del motor. Alli no queda ninguna red global libre (PRIMARY 8/8, LW 8/8)
 para un clk_43 como el de la Zynq, asi que el motor va a clk_86 con un clock enable a 1/2:
