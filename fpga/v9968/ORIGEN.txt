@@ -853,3 +853,11 @@ CAMPANA _166 (rc5), dados 1181/1187/1193:
      hdmi_pal son DOS codificadores separados; unificarlos libera ~835 de logica
      (~543 CLS) segun project_syn_rsc.xml:69/78.
 ================================================================================
+
+================================================================================
+17/10/2026 (rama geo3d del 138K) — cambio PROPIO del MSXimus en este directorio:
+- vdp.v: puertos ext_cmd_wr/ext_cmd_num/ext_cmd_data (OR-eados en la instancia u_command) y ext_cmd_ce
+  (= CE de S#2) para geo3d (fpga/geo3d/, Alex Moncks, MIT). Copia literal del vdp.v de la Zynq (27/09):
+  diff = 0 entre los dos. Es el mismo parche, nombre por nombre, que HRA lleva upstream. Con ext_cmd_wr = 0
+  el VDP es identico (sin ENABLE_GEO3D, top.v los ata a 0); los bancos de tools/v9968_sim los atan a 0.
+================================================================================

@@ -41,6 +41,15 @@
 # Uso:
 #   .\tools\lanzar_campana.ps1 -Campana b167 -Dados 1201,1213,1217
 #   .\tools\lanzar_campana.ps1 -Campana s001 -Dados 1223,1229,1231 -Slim
+#   .\tools\lanzar_campana.ps1 -Campana g001 -Dados 1237,1249,1259 -Geo3d -Root C:\Users\alber\proyectosAI\msx\MSXimus_138_geo3d
+#
+# -Geo3d (rama geo3d, 17/10/2026): ademas del V9968 + DDR3 de siempre, enciende
+# geo3d (Alex Moncks, MIT) en 9Dh/9Fh: `define ENABLE_GEO3D y GEO3D_CE en top.v
+# y USE_GEO3D 1 en build.tcl (que compila geo3d/geo3d_ce.v y añade
+# constraints/msx_geo3d.sdc). Sin -Geo3d la campana es la de la V3.8 tal cual,
+# y se comprueba que geo3d sigue APAGADO. Combina con -Slim. -Root tiene que ser
+# un arbol con fpga\geo3d (el worktree de la rama geo3d): el Root por defecto
+# es el checkout de la V3.8, que no lo tiene.
 #
 # Los dados son NUMEROS PRIMOS que van al PERIOD_MS de dbg_uart.v: perturban el
 # placement sin cambiar la funcion (solo el periodo de la telemetria del COM11).
@@ -51,6 +60,7 @@ param(
     [Parameter(Mandatory=$true)][string]   $Campana,
     [Parameter(Mandatory=$true)][int[]]    $Dados,
     [switch] $Slim,
+    [switch] $Geo3d,
     [string] $Root    = 'C:\Users\alber\proyectosAI\msx\MSXimus_138',
     [string] $Scratch = "$env:LOCALAPPDATA\Temp\claude\campanas",
     [string] $Gowin   = 'C:\Gowin\Gowin_V1.9.12.03_x64\IDE\bin\gw_sh.exe'
@@ -62,6 +72,15 @@ $ErrorActionPreference = 'Stop'
 # migra a BSRAM/registros y la 1.9.11 queda solo para la era v2.x congelada.
 if (-not (Test-Path $Gowin)) { throw "No esta el gw_sh en $Gowin. La era v3 compila SIEMPRE con 1.9.12.03." }
 if ($Dados.Count -lt 1)      { throw "Hacen falta dados." }
+if ($Geo3d) {
+    foreach ($f in 'fpga\geo3d\geo3d_ce.v', 'fpga\geo3d\geo3d_engine.v', 'fpga\geo3d\geo3d_ce_audit.py', 'fpga\constraints\msx_geo3d.sdc') {
+        if (-not (Test-Path (Join-Path $Root $f))) { throw "-Geo3d: falta $f en $Root (¿-Root del worktree de la rama geo3d?)" }
+    }
+    # build.tcl pasa geo3d_ce_audit.py entre la sintesis y el PnR: sin python
+    # cada dado gastaria su sintesis entera para acabar en "SIN BITSTREAM"
+    & python -I -c 1 2>$null
+    if ($LASTEXITCODE -ne 0) { throw "-Geo3d: hace falta python en el PATH (geo3d_ce_audit.py)" }
+}
 
 # El audio grande. Se apagan los OCHO juntos porque tienen dependencias entre si
 # (ENABLE_OPL4_WAVE requiere WAVE_DDR3 + WAVE_LOADER, ver top.v:28).
@@ -73,7 +92,7 @@ $audio = @(
 )
 
 $base = Join-Path $Scratch $Campana
-Write-Output ("LINEA: {0}" -f $(if ($Slim) { 'LIGERA (desarrollo V9968)' } else { 'COMPLETA (produccion)' }))
+Write-Output ("LINEA: {0}{1}" -f $(if ($Slim) { 'LIGERA (desarrollo V9968)' } else { 'COMPLETA (produccion)' }), $(if ($Geo3d) { ' + geo3d (9Dh/9Fh, motor con CE)' } else { '' }))
 Write-Output ("campana {0}  dados {1}" -f $Campana, ($Dados -join ', '))
 Write-Output ""
 
@@ -109,12 +128,19 @@ foreach ($d in $Dados) {
             $tt = $tt.Replace("``define $a", "//``define $a")
         }
     }
+    # ---- geo3d: los dos defines de top.v (y USE_GEO3D en build.tcl, abajo) ----
+    if ($Geo3d) {
+        $tt = $tt.Replace('//`define ENABLE_GEO3D', '`define ENABLE_GEO3D').
+                  Replace('//`define GEO3D_CE', '`define GEO3D_CE')
+    }
     Set-Content -Path $pt -NoNewline -Value $tt
 
     $pb = "$dst\fpga\build.tcl"
-    Set-Content -Path $pb -NoNewline -Value ((Get-Content $pb -Raw).
+    $tb = (Get-Content $pb -Raw).
               Replace('set USE_V9968 0', 'set USE_V9968 1').
-              Replace('set USE_VRAM_DDR3 0', 'set USE_VRAM_DDR3 1'))
+              Replace('set USE_VRAM_DDR3 0', 'set USE_VRAM_DDR3 1')
+    if ($Geo3d) { $tb = $tb.Replace('set USE_GEO3D 0', 'set USE_GEO3D 1') }
+    Set-Content -Path $pb -NoNewline -Value $tb
 
     # ---- verificacion ANTES de gastar la campana ----
     $tt = Get-Content $pt -Raw; $tb = Get-Content $pb -Raw
@@ -122,6 +148,12 @@ foreach ($d in $Dados) {
     if ($tt -match '(?m)^//`define ENABLE_VRAM_DDR3')  { throw "$c : ENABLE_VRAM_DDR3 sigue comentado" }
     if ($tb -notmatch 'set USE_V9968 1')               { throw "$c : USE_V9968 no es 1" }
     if ($tb -notmatch 'set USE_VRAM_DDR3 1')           { throw "$c : USE_VRAM_DDR3 no es 1" }
+    # geo3d: los tres interruptores en sintonia, encendidos con -Geo3d y APAGADOS sin el
+    $g_def = $tt -match '(?m)^`define ENABLE_GEO3D'
+    $g_ce  = $tt -match '(?m)^`define GEO3D_CE'
+    $g_tcl = $tb -match 'set USE_GEO3D 1'
+    if ($Geo3d -and -not ($g_def -and $g_ce -and $g_tcl)) { throw "$c : -Geo3d sin aplicar (ENABLE_GEO3D=$g_def GEO3D_CE=$g_ce USE_GEO3D=$g_tcl)" }
+    if ((-not $Geo3d) -and ($g_def -or $g_ce -or $g_tcl)) { throw "$c : geo3d ENCENDIDO en una campana sin -Geo3d (ENABLE_GEO3D=$g_def GEO3D_CE=$g_ce USE_GEO3D=$g_tcl)" }
     foreach ($a in $audio) {
         $on = $tt -match "(?m)^``define $a"
         if ($Slim -and $on)        { throw "$c : $a sigue ENCENDIDO en una build ligera" }

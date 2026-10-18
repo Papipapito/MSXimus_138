@@ -35,8 +35,11 @@
 // en el CLON antes de sintetizar (y aborta si no lo consigue). O sea que
 // leer este fichero a secas te dice lo que NO lleva el bitstream. Para saber
 // que hay de verdad en un .fs, mira el script de campana, no estas lineas.
+// (Igual ENABLE_GEO3D y GEO3D_CE: los enciende lanzar_campana.ps1 -Geo3d.)
 //`define ENABLE_V9968_VDP   // F1 V9968: VDP de HRA! (fpga/v9968, tag+eco) + shim VRAM a SDRAM compartida (puerto wv2) + puente 800px (msx2hdmi_v9968). Sustituye v9958_top ENTERO. Activar en el build _117
 //`define ENABLE_VRAM_DDR3   // _128X EXPERIMENTO: la VRAM del V9968 en la DDR3 del SOM (v9968_ddr3_backend; requiere ENABLE_V9968_VDP y USE_VRAM_DDR3=1 en build.tcl). ADVERTENCIA: DDR3 analogicamente marginal en esta placa (saga _94-_103)
+//`define ENABLE_GEO3D       // 17/10/2026 (rama geo3d): geo3d (Alex Moncks, MIT, fpga/geo3d/), el coprocesador 3D de la Zynq: cartucho virtual SIEMPRE presente en 9Dh/9Fh que escribe LINE/LRMM en el motor de comandos del V9968. Requiere ENABLE_V9968_VDP, GEO3D_CE y USE_GEO3D=1 en build.tcl
+//`define GEO3D_CE           // geo3d: el motor va a clk_86 con clock enable 1/2 (las 8 PRIMARY estan ocupadas: no hay clk_43 como en la Zynq). build.tcl compila geo3d/geo3d_ce.v, que da el mismo define a los fuentes de Alex
 //`define TURBO_SIN_GUARDA_SDRAM  // 🧪 EXPERIMENTO 26/08 — **PROBADO Y DESCARTADO**: sin la guarda el MSX SE CUELGA al poner el turbo (placa, 26/08). La guarda NO estaba obsoleta pese a que la VRAM se mudo a la DDR3: lo que la justifica no es la CONTENCION del VDP sino la LATENCIA de la SDRAM (y su refresco), que a 5,37 no cabe en un T-estado de 186 ns. Se deja el define por si algun dia se acelera el controlador. Coste medido de la guarda: 18% (4,41 de 5,37).
 `define ENABLE_TURBOR_ID   // V3.1: S1990 del turboR (E4h-E7h) — la maquina se identifica como turboR y CHGCPU mueve el turbo. NO hay R800: ver fpga/src/msx_s1990.v
 // ---- DIETA 16/09 (V3.6h): fuera de produccion la telemetria COM11, la tira
@@ -238,6 +241,22 @@ module top
 `ifdef ENABLE_VRAM_DDR3
  `ifndef ENABLE_V9968_VDP
     ERROR_ENABLE_VRAM_DDR3_requiere_ENABLE_V9968_VDP u_guarda_def5();
+ `endif
+`endif
+// geo3d: cuelga del glue y del motor de comandos del V9968, y en el 138K solo
+// existe la variante con clock enable (sin GEO3D_CE el puerto ce_eng quedaria
+// al aire y el motor no avanzaria nunca, sin ningun error de sintesis).
+`ifdef ENABLE_GEO3D
+ `ifndef ENABLE_V9968_VDP
+    ERROR_ENABLE_GEO3D_requiere_ENABLE_V9968_VDP u_guarda_def6();
+ `endif
+ `ifndef GEO3D_CE
+    ERROR_ENABLE_GEO3D_requiere_GEO3D_CE u_guarda_def7();
+ `endif
+`endif
+`ifdef GEO3D_CE
+ `ifndef ENABLE_GEO3D
+    ERROR_GEO3D_CE_sin_ENABLE_GEO3D u_guarda_def8();
  `endif
 `endif
 // Stubs para builds SIN estos subsistemas (nets que el resto del top consume
@@ -1994,7 +2013,16 @@ assign keyboard_addr = ppi_port_c[3:0];
     // que el glue recibe el mismo puerto; BIOS/DOS siguen en 98-9B intactos.
     // 15/09 (gen C de HRA, ceeecd7): + puerto #4 = 9Ch (y su espejo 8Ch): flags de
     // interrupcion y el bit 7 que desbloquea R#20/R#21. 9Dh-9Fh/8Dh-8Fh siguen fuera.
+`ifdef ENABLE_GEO3D
+    // geo3d (como la Zynq): + 9Dh (indice/estado) y 9Fh (datos) del coprocesador 3D =
+    // mode 5 y 7 del glue; geo3d_bus se los queda (hit) y al VDP no le llega el valid
+    // de esos. 9Eh y los espejos 8Dh/8Fh siguen fuera. Ningun otro decodificador del
+    // top usa 9Dh ni 9Fh, y la lectura vuelve por el mismo vdp_csr_n -> vdp_dout.
+    assign vdp_io_hit = ( bus_addr[7:5] == 3'b100 && (bus_addr[3:2] == 2'b10 || bus_addr[3:0] == 4'b1100) )
+                     || ( bus_addr[7:2] == 6'b100111 && bus_addr[0] );
+`else
     assign vdp_io_hit = ( bus_addr[7:5] == 3'b100 && (bus_addr[3:2] == 2'b10 || bus_addr[3:0] == 4'b1100) );
+`endif
 `else
     assign vdp_io_hit = ( bus_addr[7:2] == 6'b100110 );
 `endif
@@ -2122,11 +2150,85 @@ assign keyboard_addr = ppi_port_c[3:0];
     wire       v68_valid_mx = v68_valid;
     wire [7:0] v68_wdata_mx = v68_wdata;
 
+`ifdef ENABLE_GEO3D
+    // ---- 17/10 geo3d (Alex Moncks, MIT; fpga/geo3d/): coprocesador 3D en 9Dh/9Fh ----
+    // El enganche de la Zynq (top_zynq.v) pieza a pieza: cuelga del MISMO bus
+    // valid/ready del glue, geo3d_bus se queda los accesos con mode 5/7 (hit) y
+    // el VDP no ve su valid; en las lecturas responde el que emite rdata_en (son
+    // exclusivos). Sus LINE/LRMM entran en vdp_command por ext_cmd_* solo con
+    // CE = 0 (lo vigila el propio motor). Sin accesos a 9Dh/9Fh el V9968 es el
+    // de siempre bit a bit; sin ENABLE_GEO3D, ext_cmd_* van a 0 (abajo) y la
+    // sintesis pliega el mux: el VDP de la V3.8.
+    // LO QUE CAMBIA RESPECTO A LA ZYNQ ES EL RELOJ DEL MOTOR. Alli va a clk_43, el
+    // CLKOUT1 /22 de la misma PLL, con su BUFG. Aqui las 8 PRIMARY y las 8 LW
+    // estan ocupadas, asi que el motor va a clk_86 con un clock enable 1/2
+    // (GEO3D_CE): ciclo a ciclo es el mismo diseno (toggles, guard y estrobos
+    // intactos; la fase del CE da igual) y ya no hay cruce de reloj. Entre
+    // registros con CE el SDC da 2 ciclos de setup y 1 de hold
+    // (constraints/msx_geo3d.sdc); bus <-> motor y VDP -> motor siguen a 1 ciclo.
+    wire       v68_valid_vdp, v68_ready_vdp, v68_rdata_en_vdp;
+    wire [7:0] v68_rdata_vdp;
+    wire       geo_cmd_wr, geo_cmd_ce;
+    wire [5:0] geo_cmd_num;
+    wire [7:0] geo_cmd_data;
+    wire       geo_hit, geo_ready, geo_rdata_en, geo_busy;
+    wire [7:0] geo_rdata;
+
+    // reset local: una etapa propia detras de rst86_n (que ya abanica a todo el
+    // dominio). El lado bus de geo3d_bus lo usa tal cual; el lado motor lo vuelve
+    // a registrar CON CE (rst_e, dentro del grupo multiciclo): en la Zynq el peor
+    // camino del cruce era justo rst86_sync -> u_engine/u_core.
+    reg        geo_rst_n = 1'b0;
+    always @(posedge clk_86) geo_rst_n <= rst86_n;
+ `ifdef GEO3D_CE
+    // CE del motor, PROPIO: el ce86 de mas abajo es el CE de pixel del puente
+    // HDMI y no se comparte. Cinco replicas, una por grupo de registros (ver
+    // geo3d_bus.v): [0] lado motor del bus + rst_e, [1] registros Z80, [2] FSM y
+    // emisor, [3] las seis memorias (BSRAM), [4] geo3d_core (con sus DSP). El CE
+    // va a ~3.300 FF + BSRAM + DSP en un camino de UN ciclo (11,30 ns en el SDC)
+    // y no quedan LW para promoverlo. syn_preserve: las replicas son equivalentes
+    // y la sintesis las fundiria. syn_maxfan NO vale aqui: GowinSynthesis no lo
+    // aplica a los enables (SUG550 5.11). Todas cargan ~geo_ce_m, asi que van en
+    // fase por construccion, sin depender del valor inicial (una replica
+    // desfasada partiria el motor en dos fases y el multiciclo seria falso).
+    // Fuera de u_geo3d A PROPOSITO: los patrones del SDC (u_geo3d/...) no las
+    // cogen como origen de multiciclo (cambian CADA ciclo).
+    reg        geo_ce_m /* synthesis syn_preserve = 1 */ = 1'b0;
+    reg  [4:0] geo_ce   /* synthesis syn_preserve = 1 */ = 5'd0;
+    always @(posedge clk_86) begin
+        geo_ce_m <= ~geo_ce_m;
+        geo_ce   <= {5{~geo_ce_m}};
+    end
+ `endif
+
+    geo3d_bus u_geo3d (
+        .clk(clk_86), .clk_eng(clk_86),   // GEO3D_CE: el motor tambien a clk_86, avanza con ce_eng
+ `ifdef GEO3D_CE
+        .ce_eng(geo_ce),
+ `endif
+        .reset_n(geo_rst_n),
+        .bus_address(v68_addr_mx), .bus_ioreq(v68_ioreq_mx), .bus_write(v68_write_mx),
+        .bus_valid(v68_valid_mx), .bus_wdata(v68_wdata_mx),
+        .hit(geo_hit), .bus_ready(geo_ready), .bus_rdata(geo_rdata), .bus_rdata_en(geo_rdata_en),
+        .cmd_wr(geo_cmd_wr), .cmd_num(geo_cmd_num), .cmd_data(geo_cmd_data), .cmd_ce(geo_cmd_ce),
+        .run_busy(geo_busy)
+    );
+    assign v68_valid_vdp = v68_valid_mx & ~geo_hit;
+    assign v68_ready     = geo_hit ? geo_ready : v68_ready_vdp;
+    assign v68_rdata     = geo_rdata_en ? geo_rdata : v68_rdata_vdp;
+    assign v68_rdata_en  = geo_rdata_en | v68_rdata_en_vdp;
+`endif
+
     vdp u_v9968 (
         .reset_n(rst86_n), .clk(clk_86), .initial_busy(1'b0),
         .bus_address(v68_addr_mx), .bus_ioreq(v68_ioreq_mx), .bus_write(v68_write_mx),
+`ifdef ENABLE_GEO3D
+        .bus_valid(v68_valid_vdp), .bus_ready(v68_ready_vdp),
+        .bus_wdata(v68_wdata_mx), .bus_rdata(v68_rdata_vdp), .bus_rdata_en(v68_rdata_en_vdp),
+`else
         .bus_valid(v68_valid_mx), .bus_ready(v68_ready),
         .bus_wdata(v68_wdata_mx), .bus_rdata(v68_rdata), .bus_rdata_en(v68_rdata_en),
+`endif
         .int_n(vdp_int),
         .vram_address(v68_vram_address), .vram_write(v68_vram_write),
         .vram_valid(v68_vram_valid), .vram_wdata(v68_vram_wdata),
@@ -2138,6 +2240,11 @@ assign keyboard_addr = ppi_port_c[3:0];
         .display_hs(v68_hs), .display_vs(v68_vs), .display_en(v68_de),
         .display_r(v68_r8), .display_g(v68_g8), .display_b(v68_b8),
         .force_highspeed(1'b0), .button(2'b00),
+`ifdef ENABLE_GEO3D
+        .ext_cmd_wr(geo_cmd_wr), .ext_cmd_num(geo_cmd_num), .ext_cmd_data(geo_cmd_data), .ext_cmd_ce(geo_cmd_ce),   // geo3d
+`else
+        .ext_cmd_wr(1'b0), .ext_cmd_num(6'd0), .ext_cmd_data(8'd0), .ext_cmd_ce(),   // sin geo3d: el VDP de la V3.8
+`endif
         .pulse0(), .pulse1(), .pulse2(), .pulse3(),
         .pulse4(), .pulse5(), .pulse6(), .pulse7()
     );

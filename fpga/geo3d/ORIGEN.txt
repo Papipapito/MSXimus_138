@@ -1,0 +1,48 @@
+geo3d — coprocesador de geometria 3D para MSX + V9968, de Alex Moncks (MIT).
+================================================================================
+Origen : https://github.com/alexmoncks/V9968_Cartridge (fork del V9968_Cartridge de HRA!), carpeta geo3d/rtl/
+         commit c938150507f9763ac41720104135096776d9f2af (27/09/2026, "Merge branch 'geo3d-phase2'").
+Ficheros: geo3d_core.v, geo3d_engine.v, geo3d_bus.v  — en la Zynq, SIN CAMBIOS (diff = 0); en el 138K, iguales
+         quitando los bloques `ifdef GEO3D_CE (ver la seccion 138K mas abajo). geo3d_z80if.v (su
+         fase 1, interfaz Z80 directa) no se usa: aqui entra por geo3d_bus, el adaptador al bus valid/ready.
+Licencia: MIT (LICENSE en esta carpeta, la del repo de origen).
+
+Como va en el MSXimus Z (27/09/2026, fpga/zynq/top_zynq.v, `define ENABLE_GEO3D):
+- Cartucho virtual SIEMPRE presente en los puertos 9Dh (indice / estado) y 9Fh (datos), los "offsets 5 y 7" del bloque
+  del VDP en 98h; 9Eh y los espejos 8Dh/8Fh no responden. Es lo que espera la ROM de demos GEO3D_98.ROM (build_rom.py
+  --base 0x98) y el openMSX de alexmoncks con `-ext geo3d`.
+- Cuelga del bus valid/ready del glue del V9968 (v9968_cpu_glue): la decodificacion vdp_io_hit incluye 9Dh/9Fh, el
+  glue hace la transaccion como con el VDP y geo3d_bus se la queda (hit); el VDP no ve el valid de esos accesos y en
+  las lecturas responde el que emite rdata_en.
+- Reloj: bus y VDP a clk_86 (85,909 MHz); el motor a clk_43 = CLKOUT1 (/22) de la MISMA PLLE2 del V9968, /2 exacto y
+  en fase, como el clk42g de su cartucho Tang. Cruces por toggle dentro de geo3d_bus.
+- fpga/v9968/vdp.v lleva su parche: puertos ext_cmd_wr/num/data OR-eados en vdp_command (R#32-R#46) y ext_cmd_ce
+  (= S#2 CE) hacia fuera. Con ext_cmd_wr = 0 el VDP es identico. Los bancos de tools/v9968_sim los atan a 0.
+- Banco de integracion: tools/v9968_sim/tb_geo3d_int.sv + run_geo3d_int_vl.sh (glue + geo3d_bus + vdp completo con
+  VRAM perfecta; reproduce sus escenas aleatorias de sim/gen_scenes.py por los puertos 9Dh/9Fh y compara el registro
+  de LINEs con su modelo).
+
+================================================================================
+MSXimus 138K (rama geo3d, 17/10/2026)
+================================================================================
+Procedencia: copia de fpga/geo3d de la Zynq (los mismos tres .v + LICENSE). Es geo3d v1.0.0 de Alex: el
+mismo RTL que HRA! publico despues en su upstream (hra1129/V9968_Cartridge 3e81e92, 03/10/2026, "Added
+Geo3D", fpga/V9968_Cartridge_TangNano20K/src/geo3d/, su readme dice v1.0.0) y que la cabeza del repo de
+Alex (ace6868): diff = 0 con los tres.
+
+Lo que cambia en el 138K es el reloj del motor. Alli no queda ninguna red global libre (PRIMARY 8/8, LW 8/8)
+para un clk_43 como el de la Zynq, asi que el motor va a clk_86 con un clock enable a 1/2:
+- GEO3D_CE (`ifdef en los tres .v): puerto ce_eng[4:0] en geo3d_bus, ce[3:0] en geo3d_engine y ce en
+  geo3d_core. Cada always secuencial del lado motor (11: los 6 de memoria, los 2 grandes de geo3d_engine, el
+  de geo3d_core y los 2 del lado motor de geo3d_bus) va dentro de "if (ce...) begin ... end", y con el las
+  seis memorias (BSRAM) y los registros de los DSP. El reset del motor se registra con CE (rst_e). Los
+  contadores (guard, ik, it, dcnt) cuentan ciclos de CE, como antes ciclos de clk_43.
+- SIN el define, cada fichero es BYTE A BYTE el original: las lineas de Alex no se tocan (ni la sangria);
+  todo lo nuevo va dentro de `ifdef GEO3D_CE / `else / `endif. Se comprueba quitando esos bloques.
+- geo3d_ce.v (nuevo, del MSXimus): `define GEO3D_CE + `include de los tres. build.tcl compila solo ese
+  fichero con USE_GEO3D = 1, para que el define llegue seguro a los fuentes.
+- El generador del CE (cinco replicas en fase, con syn_preserve) y el reset local estan en top.v; el
+  multiciclo 2/1 entre registros con CE, en constraints/msx_geo3d.sdc; la auditoria del netlist, en
+  geo3d_ce_audit.py (esta carpeta): build.tcl la pasa entre run syn y run pnr y, con --emit, añade al
+  SDC combinado un set_max_delay de un ciclo para cada FF del motor con el CE solo en el D.
+Propuesta pendiente para Alex: un parametro de CE en su upstream, para no divergir.

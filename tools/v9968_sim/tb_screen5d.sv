@@ -46,6 +46,7 @@ vdp u_vdp (
     .display_hs(display_hs), .display_vs(display_vs), .display_en(display_en),
     .display_r(display_r), .display_g(display_g), .display_b(display_b),
     .force_highspeed(1'b0), .button(2'b00),
+    .ext_cmd_wr(1'b0), .ext_cmd_num(6'd0), .ext_cmd_data(8'd0), .ext_cmd_ce(),   // geo3d: sin motor 3D aqui
     .pulse0(), .pulse1(), .pulse2(), .pulse3(),
     .pulse4(), .pulse5(), .pulse6(), .pulse7()
 );

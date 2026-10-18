@@ -129,6 +129,21 @@ add_file src/wondertang/sdc_ioport.sv
 # (colision de nombre vdp/VDP con el core V9968 + ahorro de CLS).
 set USE_V9968 0
 set USE_VRAM_DDR3 0
+# geo3d (rama geo3d, 17/10/2026): coprocesador 3D de Alex Moncks en 9Dh/9Fh. En
+# sintonia con los `define ENABLE_GEO3D y GEO3D_CE de top.v; los tres los pone
+# tools/lanzar_campana.ps1 -Geo3d. Requiere USE_V9968.
+set USE_GEO3D 0
+if {$USE_GEO3D && !$USE_V9968} { error "USE_GEO3D=1 requiere USE_V9968=1 (geo3d cuelga del V9968)" }
+# y en sintonia con top.v tambien en una build a mano: con ENABLE_GEO3D y sin
+# USE_GEO3D, geo3d_bus seria una caja negra sin ningun error de sintesis
+set fp_t [open top.v r]
+set top_txt [read $fp_t]
+close $fp_t
+foreach d {ENABLE_GEO3D GEO3D_CE} {
+    if {[regexp -line [format {^`define %s\M} $d] $top_txt] != $USE_GEO3D} {
+        error "top.v tiene `define $d [expr {$USE_GEO3D ? {comentado} : {activo}}] y USE_GEO3D = $USE_GEO3D: van juntos (lanzar_campana.ps1 -Geo3d)"
+    }
+}
 add_file tn_vdp_v3_v9958/src/hdmi/audio_clock_regeneration_packet.sv
 add_file tn_vdp_v3_v9958/src/hdmi/audio_info_frame.sv
 add_file tn_vdp_v3_v9958/src/hdmi/audio_sample_packet.sv
@@ -179,6 +194,14 @@ if {$USE_V9968} {
         add_file ddr3/ddr3_memory_interface.v
         add_file pll138/pll_ddr3.v
         add_file src/v9968_ddr3_backend.v
+    }
+    # geo3d (Alex Moncks, MIT; ver geo3d/ORIGEN.txt). UN solo fichero:
+    # geo3d_ce.v hace `define GEO3D_CE y `include de geo3d_core/engine/bus.v,
+    # asi el define llega seguro a los fuentes de Alex (un `define solo vale
+    # para los ficheros que vienen DETRAS en esta lista, y top.v va despues).
+    # NO añadir aqui los tres .v sueltos: serian modulos duplicados.
+    if {$USE_GEO3D} {
+        add_file geo3d/geo3d_ce.v
     }
 }
 add_file top.v
@@ -302,6 +325,13 @@ if {$USE_V9968} {
         puts $fp_o "create_clock -name ddr_clk1x -period 13.47 -waveform {0 6.734} \[get_pins {u_vddr3/u_ddr3/gw3_top/u_ddr_phy_top/fclkdiv/CLKOUT}\]"
         puts $fp_o "set_clock_groups -asynchronous -group \[get_clocks {ddr_clk4x ddr_clk1x}\] -group \[get_clocks {clk_86}\] -group \[get_clocks {clk_in clk_108m clk_54m clk_27m clk_135m eng_clk375}\] -group \[get_clocks {clk27_video clk_hdmi clk_hdmi5}\]"
     }
+    if {$USE_GEO3D} {
+        # geo3d: multiciclo 2/1 del motor con CE (solo con geo3d en el netlist:
+        # sin el, cada linea seria un match vacio = TA2003)
+        set fp_g [open constraints/msx_geo3d.sdc r]
+        puts $fp_o [read $fp_g]
+        close $fp_g
+    }
     close $fp_o
     add_file constraints/msx_v9968_combined.sdc
 } else {
@@ -324,4 +354,23 @@ set_option -route_option 2
 # rutar con la full ya colocada): maximo esfuerzo del router 1.9.12.
 
 run syn
+if {$USE_GEO3D} {
+    # geo3d: el multiciclo 2/1 del motor solo vale para los FF que reciben el CE
+    # por su pin CE. Los que la sintesis deja con CE = VCC y el CE en el D (un
+    # mux de "mantener") capturan en todos los ciclos: su D va a UN ciclo con un
+    # set_max_delay, que manda sobre el multiciclo. Cuales son lo decide la
+    # sintesis y cambia de un netlist a otro, asi que se sacan de ESTE netlist y
+    # se añaden al SDC combinado antes del PnR (que lo lee al arrancar: medido).
+    # El mismo script para la build si algun FF, BSRAM o DSP del motor se queda
+    # sin CE. Necesita python en el PATH. El periodo del set_max_delay es el
+    # de clk_86 en msx_v9968.sdc (la sobre-restriccion ya se ha retocado antes).
+    if {![regexp {create_clock\s+-name\s+clk_86\s+-period\s+([0-9.]+)} $sdc_b -> per86]} {
+        error "geo3d: no encuentro el -period de clk_86 en constraints/msx_v9968.sdc"
+    }
+    if {[catch {exec python -I geo3d/geo3d_ce_audit.py impl/gwsynthesis/project.vg constraints/msx_v9968_combined.sdc --emit --periodo $per86} res]} {
+        puts $res
+        error "geo3d_ce_audit.py: el CE del motor de geo3d no llega bien o falta python (ver arriba). PnR cancelado."
+    }
+    puts $res
+}
 run pnr
