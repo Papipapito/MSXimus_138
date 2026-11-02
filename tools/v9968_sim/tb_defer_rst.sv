@@ -16,14 +16,18 @@
 // ratio real ~121:140 — el pelin de deriva del ps-grid BARRE el punto de
 // aterrizaje por muchas fases = mas cobertura, no menos.
 // ============================================================================
-`timescale 1ns/1ps
+`timescale 1ns/1fs
 module tb_defer_rst;
 
-    logic clk_pixel = 0;  always #6.734  clk_pixel = ~clk_pixel;  // 74.25M
-    logic clk_86    = 0;  always #5.8201 clk_86    = ~clk_86;     // 85.909M
+    // v3.8.6: semiperiodos EXACTOS (1/74.25M y 1/85.90909M): con 6.734 y 5.8201 el ratio salia 2 ppm tarde y el cuadro de pixel
+    // cambiaba ~2 px por cuadro, que ahora importa (el cuadro recortado queda solo 5 px por encima de 1650*750)
+    logic clk_pixel = 0;  always #6.734006734  clk_pixel = ~clk_pixel;  // 74.25M
+    logic clk_86    = 0;  always #5.820105820  clk_86    = ~clk_86;     // 85.909M
 
     // frame_tgl: toggle cada frame V9968 NTSC = 2736*524 ciclos clk_86
-    localparam int FRAME_86 = 2736 * 524;
+    // v3.8.6: +FRAME86=<n> para el cuadro recortado del VDP (2736*524 - 1840 = 1431824); sin argumento, el cuadro de siempre
+    int FRAME_86 = 2736 * 524;
+    initial if ($value$plusargs("FRAME86=%d", FRAME_86)) ;
     int f86 = 0;
     logic frame_tgl = 0;
     always @(posedge clk_86) begin
@@ -117,17 +121,44 @@ module tb_defer_rst;
         end
     end
 
+    // ---------------- v3.8.6: punto de aterrizaje del reinicio ----------------
+    // En regimen (tras 4 cuadros) el reinicio crudo tiene que llegar con cy = 720 (el cuadro de siempre: cx ~1595; el recortado:
+    // cx de unos pocos px) o, a lo sumo, con cy = 719 en sus ultimos pixeles (blanking). NUNCA en una linea activa: seria una linea
+    // activa acortada y la imagen se movia. Se mira en A (reset crudo) justo antes de aplicarlo.
+    int nfr_land = 0, land_n = 0, land_720 = 0, land_719 = 0, land_bad = 0, land_cxmin = 99999, land_cxmax = -1;
+    always @(posedge clk_pixel) begin
+        if (hdmi_rst_raw) begin
+            nfr_land <= nfr_land + 1;
+            if (nfr_land >= 4) begin
+                land_n <= land_n + 1;
+                if (cyA == 10'd720) begin
+                    land_720 <= land_720 + 1;
+                    if (int'(cxA) < land_cxmin) land_cxmin <= cxA;
+                    if (int'(cxA) > land_cxmax) land_cxmax <= cxA;
+                end
+                else if (cyA == 10'd719 && cxA >= 11'd1640) land_719 <= land_719 + 1;
+                else begin
+                    land_bad <= land_bad + 1;
+                    if (land_bad < 5) $display("FALLO aterrizaje t=%0t cxA=%0d cyA=%0d", $time, cxA, cyA);
+                end
+            end
+        end
+    end
+
     initial begin
         // 20 frames ~ 24.8M ciclos de pixel
         repeat (20) @(posedge frame_tgl or negedge frame_tgl);
         repeat (1000) @(posedge clk_pixel);
+        $display("CUADRO: %0d ciclos de clk_86 = %0f px", FRAME_86, FRAME_86 * 121.0 / 140.0);
+        $display("ATERRIZAJE: n=%0d cy720=%0d (cx %0d..%0d) cy719_final=%0d en_linea_activa=%0d",
+                 land_n, land_720, land_cxmin, land_cxmax, land_719, land_bad);
         $display("RESULTADO: defers=%0d tears=%0d errsP1=%0d", defers, tears, errsP1);
-        if (tears == 0 && errsP1 == 0 && defers > 0)
-            $display("*** DEFER_RST: FASE IDENTICA + ISLA A SALVO — TODO OK ***");
-        else if (defers == 0)
+        if (tears != 0 || errsP1 != 0 || land_bad != 0)
+            $display("*** DEFER_RST: %0d FALLOS ***", tears + errsP1 + land_bad);
+        else if (defers == 0 && FRAME_86 >= 2736 * 524)
             $display("*** DEFER_RST: OJO — el diferidor nunca engancho (aterrizaje fuera de ventana?) ***");
         else
-            $display("*** DEFER_RST: %0d FALLOS ***", tears + errsP1);
+            $display("*** DEFER_RST: FASE IDENTICA + ISLA A SALVO + ATERRIZAJE EN BLANKING — TODO OK ***");
         $finish;
     end
 

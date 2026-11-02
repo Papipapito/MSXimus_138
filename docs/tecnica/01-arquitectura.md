@@ -142,7 +142,7 @@ El VDP es el **V9968** de Takayuki Hara, el superconjunto del V9958 con comandos
 3. **Backend DDR3**. La VRAM vive en la DDR3 del SOM, con un controlador propio calcado del framebuffer de nand2mario para esta placa. La IP de Gowin (v3.0, x16, 297 MHz) es la misma que en el 60K: el netlist encriptado es portable dentro de Arora V, y nand2mario usa una sola para las dos consolas. El motor de reintentos escalonado de la calibración y los puertos 2Ah-2Ch (capítulo 05) van igual; la lotería de calibración por dado que se vio en el 60K es igual de aplicable aquí (pendiente de verificar en placa). Existe una línea de respaldo con la VRAM en la SDRAM compartida, que serializa cada palabra en hasta cuatro accesos al controlador de memoria; se conserva pero no es la que se entrega.
 4. **msx2hdmi**. El puente al HDMI de 720p a 60 Hz. El HDMI corre en su dominio de 74,25 MHz y se alimenta del VDP a través de un anillo de 32 líneas en BRAM de doble reloj; la captura se auto-alinea con las señales reales de sincronismo y blanking del VDP. El audio va embebido en el mismo HDMI. Sobre esta imagen el BL616 puede superponer el panel de texto de la tecla F12.
 
-Solo hay salida de 60 Hz. La geometría de 50 Hz del V9968 no está medida.
+Solo hay salida de 60 Hz. La geometría de 50 Hz del V9968 no está medida: el bit NT de R#9 se ignora y el VDP corre siempre con el cuadro NTSC. El puente reinicia el raster del HDMI en cada cuadro del VDP, así que el HDMI hereda su periodo; el candidato v3.8.6 acorta ese cuadro de 1.433.664 a 1.431.824 ciclos de `clk_86` para que el HDMI salga a 60,000 Hz en vez de 59,92 (véase el changelog).
 
 ## 7. El audio
 

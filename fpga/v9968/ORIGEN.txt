@@ -945,3 +945,49 @@ ESTADO: simulado, SIN build de Gowin y SIN probar en placa (la b9/b10 de la Zynq
   rama claude/msximus-60k-138k-update-54c650) lleva el mismo fichero. Antes de llamarlo v3.8.5: una campana de dados con el gate (el cambio toca el camino sprite -> mezcla -> paleta
   del reloj del VDP) y una prueba en placa con un demo en SCREEN 10-12 (no hay placa 138K: se prueba en la del 60K).
 ================================================================================
+
+[2026-11-02] V3.8.6 (candidato, SIN build): CUADRO DEL VDP RECORTADO PARA QUE EL HDMI SALGA A 60,000 Hz.
+################################################################################
+Pedido de Albert: resolver los 59,9 Hz del HDMI. En la Zynq hubo monitores (BenQ, Dell) que parpadeaban con 59,92 Hz y alli se resolvio
+con un frame buffer en la DDR y el HDMI libre a 60,000 Hz (V9991f, LEEME_V9991.txt del 29/10). Aqui no hay sitio para un frame buffer (un
+cuadro no cabe en BRAM) y la DDR3 de la placa es marginal, asi que se recorta el cuadro del VDP.
+CAUSA: msx2hdmi_v9968.sv reinicia el raster HDMI en cada cuadro del VDP (frame_tgl -> hdmi_rst, con el diferidor de la _136), asi que
+  el HDMI hereda el periodo del VDP: 524 medias lineas x 2736 ciclos = 1.433.664 ciclos de clk_86 (85,909 MHz = 27*35/11) = 59,9227 Hz.
+  El raster 720p60 son 1650x750 = 1.237.500 px a 74,25 MHz (27*11/4). Las dos frecuencias salen de los 27,000 de pll_27 por multiplos
+  enteros, asi que la relacion es EXACTA: 121 px por cada 140 ciclos de clk_86. El cuadro del VDP son 1.239.095,3 px: el HDMI espera ~1.595
+  px (casi una linea) de mas en cada cuadro, y por eso el reinicio aterriza siempre en cy = 720, cx ~1595 (comentario de la _134).
+CAMBIO (un fichero de RTL, vdp_timing_control_ssg.v, +36 lineas): se salta c_frame_trim = 1840 ciclos de UNA media linea del blanking
+  vertical. Cuando v_count == 4 (linea de entrada 2, fuera de la imagen: la imagen empieza en v_count 15) y h_count llega a 800,
+  ff_h_count y ff_half_count saltan a la CONSTANTE 800 + 1 + 1840 = 2641. Resultado: cuadro de 524*2736 - 1840 = 1.431.824 ciclos =
+  1.237.505,0 px = 59,99976 Hz (+5 px sobre 1650x750, ver abajo); el MSX corre un 0,13 % mas rapido (IRQ de cuadro a 60,00 Hz y no a 59,92).
+  - 1840 = 115 x 16: multiplo de 16 ciclos (un punto de 5,37 MHz) y par, asi que no se mueve ninguna fase del punto ni la de ce86.
+  - Los dos contadores saltan a la vez y a una constante: ff_half_count sigue valiendo 0..5471 por par de lineas (solo se saltan los
+    valores 801..2640 de una linea de blanking). Ningun evento de half_count cae ahi salvo los de pantalla activa (640 = IRQ de cuadro,
+    refresco 384, HSYNC 539/4863, IRQ de linea 4864 quedan fuera).
+  - Los eventos de vdp_video_out.v saltados son solo active_area_end (2027) y h_en_end (2028): inocuo en una linea con v_en = 0. El pulso
+    HS de la linea corta se conserva (sube en 567, baja en 2735): el puente cuenta los mismos 524 flancos de HS por cuadro.
+  - DEBE quedar por ENCIMA de 1.237.500 px: si el cuadro del VDP fuera mas corto que el del HDMI, el reinicio llegaria antes de que
+    acabe su cuadro, en la linea activa 719, y esa linea saldria acortada y la imagen deriva. Con +5 px el reinicio aterriza en cy = 720, cx 4:
+    FUERA de la ventana de las data islands (cx 1280-1618), asi que el diferidor de la _136 deja de engancharse (defers = 0).
+  - El disparo va registrado un ciclo antes (ff_frame_trim_go), para no alargar el camino de los contadores del dominio de 86 MHz.
+  - Macro FRAME_TRIM_OFF: deja el salto en 0 (cuadro de siempre) para los bancos de referencia.
+  - El bit NT de R#9 se IGNORA en este VDP (vdp_cpu_interface.v, MSXimus _125: NTSC-only, el puente HDMI es 60 Hz fijo), asi que el recorte
+    esta siempre activo; la guarda !reg_50hz_mode es solo prevision (no se puede ejercitar por el bus).
+SINTESIS (GowinSynthesis 1.9.12.03, vdp_timing_control_ssg SOLO, GW5AST-138B): REG 146 -> 147, ALU 84 -> 61, LUT 142 -> 184 (el mux de carga
+  de los contadores saca parte del incrementador de la cadena de acarreo: +19 celdas de logica en total). Sin RAM.
+BANCOS (WSL; tools/v9968_sim):
+  run_frame_trim.sh     VDP completo (Verilator), con y sin -DFRAME_TRIM_OFF, 192/212 lineas, entrelazado y NT = 1: periodo del cuadro
+                        1.431.824 ciclos con recorte y 1.433.664 sin el, SIEMPRE el mismo en todos los cuadros; 524 flancos HS y 480
+                        lineas con display_en por cuadro; con recorte UNA linea corta (896 ciclos) por cuadro, siempre en el mismo sitio.
+  run_frame_trim_ab.sh  A/B de PIXELES con tb_sprite_yjk_vdp.sv (SCREEN 8, 10/11 y 12): volcados identicos byte a byte con y sin recorte.
+  run_defer_rst.sh      tb_defer_rst.sv (diferidor del reinicio del HDMI y punto de aterrizaje) con el cuadro de siempre y el recortado:
+                        los dos TODO OK; relojes ahora exactos (1/74,25M y 1/85,909M). Cuadro viejo: aterriza en cy 720, cx 1594-1595, defers = 20.
+                        Recortado: cy 720, cx 4, defers = 0, tears = 0, ninguna linea activa acortada.
+  Regresiones: run_palette_yjk.sh (0 fallos) y tb_ssgblink (la cadencia del blink, 6 valores de R#13, con y sin recorte: salida identica; solo
+  cambia la hora final de la simulacion, en la proporcion 1.431.824 / 1.433.664).
+NO CUBIERTO: la integracion VDP completo + msx2hdmi_v9968 (el banco del puente modela los sincronismos del VDP); en teoria la geometria
+  del anillo no cambia (el reinicio y la imagen quedan despues de la linea recortada y el lag de lectura se mide desde el bloqueo).
+ESTADO: simulado, SIN build de Gowin y SIN probar en placa. Antes de llamarlo v3.8.6: una campana de dados con el gate (los contadores del
+  dominio de 86 MHz son los que cuelgan screen_pos_x) y mirar en un monitor que antes parpadeaba con 59,92 Hz que ahora dice 60 Hz.
+  El 60K (repo MSXimus) NO lo lleva: iria despues, con su propia campana (va al 98 % de CLS).
+================================================================================

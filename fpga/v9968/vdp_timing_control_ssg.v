@@ -110,6 +110,24 @@ module vdp_timing_control_ssg (
 	localparam			c_intr_line_timing		= 13'd4864;
 	localparam			c_intr_frame_timing192	= 10'd191;
 	localparam			c_intr_frame_timing212	= 10'd211;
+	//	MSXimus v3.8.6 (candidato): recorte del cuadro NTSC para que el HDMI salga a 60,000 Hz.
+	//	El puente msx2hdmi_v9968 reinicia el raster HDMI en cada cuadro del VDP, asi que el HDMI hereda su periodo:
+	//	524 medias lineas x 2736 ciclos = 1.433.664 ciclos de clk (85,909 MHz) = 59,92 Hz, y el raster 720p60 (1.237.500 px a
+	//	74,25 MHz; 121 px por cada 140 ciclos de clk) espera ~1.595 px de mas en cada cuadro. Se saltan c_frame_trim ciclos de UNA
+	//	media linea del blanking vertical (v_count 4 = linea de entrada 2, fuera de la imagen): el cuadro pasa a 1.431.824 ciclos =
+	//	1.237.505 px = 59,99976 Hz. DEBE quedar por encima de 1.237.500 px: si fuera menor, el reinicio del HDMI llegaria antes de
+	//	que acabe su cuadro, en la linea activa 719.
+	//	El salto es multiplo de 16 ciclos (115 puntos de 5,37 MHz): no mueve ninguna fase del punto ni la de ce86. Los dos contadores
+	//	saltan a la vez y a una CONSTANTE (c_trim_h + 1 + c_frame_trim), asi ff_half_count sigue valiendo 0..5471 por par de lineas.
+	//	Solo en 60 Hz (el 50 Hz no se toca). FRAME_TRIM_OFF lo deja en 0 (bancos de referencia).
+`ifdef FRAME_TRIM_OFF
+	localparam			c_frame_trim			= 12'd0;
+`else
+	localparam			c_frame_trim			= 12'd1840;
+`endif
+	localparam			c_trim_line				= 10'd4;
+	localparam			c_trim_h				= 12'd800;
+	reg					ff_frame_trim_go;
 	reg			[11:0]	ff_h_count;
 	reg			[12:0]	ff_half_count;
 	reg			[ 9:0]	ff_v_count;					/* synthesis syn_preserve = 1 */
@@ -210,12 +228,26 @@ module vdp_timing_control_ssg (
 	// --------------------------------------------------------------------
 	//	Horizontal Counter
 	// --------------------------------------------------------------------
+	//	MSXimus v3.8.6: disparo del salto, registrado un ciclo antes para no alargar el camino de los contadores
+	//	(v_count y reg_50hz_mode no cambian durante la linea). Vale 1 mientras ff_h_count == c_trim_h.
+	always @( posedge clk ) begin
+		if( !reset_n ) begin
+			ff_frame_trim_go <= 1'b0;
+		end
+		else begin
+			ff_frame_trim_go <= (c_frame_trim != 12'd0) && !reg_50hz_mode && (ff_v_count == c_trim_line) && (ff_h_count == (c_trim_h - 12'd1));
+		end
+	end
+
 	always @( posedge clk ) begin
 		if( !reset_n ) begin
 			ff_h_count <= 12'd0;
 		end
 		else if( w_h_count_end ) begin
 			ff_h_count <= 12'd0;
+		end
+		else if( ff_frame_trim_go ) begin
+			ff_h_count <= c_trim_h + 12'd1 + c_frame_trim;
 		end
 		else begin
 			ff_h_count <= ff_h_count + 12'd1;
@@ -228,6 +260,10 @@ module vdp_timing_control_ssg (
 		end
 		else if( (ff_v_count[0] == 1'b1) && w_h_count_end ) begin
 			ff_half_count <= 13'd0;
+		end
+		else if( ff_frame_trim_go ) begin
+			//	linea par: ff_half_count == ff_h_count (los dos arrancan en 0 con el reset y con el fin de cada par)
+			ff_half_count <= { 1'b0, c_trim_h } + 13'd1 + { 1'b0, c_frame_trim };
 		end
 		else begin
 			ff_half_count <= ff_half_count + 13'd1;
