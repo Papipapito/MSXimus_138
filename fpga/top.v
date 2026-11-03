@@ -5565,6 +5565,16 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
     always @(posedge clk_27m) begin
         sdio_sel <= (config_enable_sdcard == 1) && (config_ok == 1) && (bus_iorq_n == 0) && (bus_m1_n == 1) && (bus_addr[7:4] == 4'h4);
     end
+    // 03/11/2026 (rama geo3d-v2): el dato de la CPU hacia el dominio de la SD (27 MHz) pasa por un registro a 54 MHz.
+    // cpu1/u0/IStatus (la salida de la BSRAM del T80, con ~50 cargas en tres dominios) -> ff_sd_sector, sd_win_cmd_val,
+    // ff_sd_en, el bufer de sectores y u_sdio era el camino que tumbaba los dados con geo3d (de -2,7 a -3,7 ns en cuatro de
+    // cinco; el 4b ya lo tenia a -0,45) porque cruza clk_54m -> clk_27m con 18,5 ns y ~22 de retardo. Es el mismo remedio que
+    // cpu_dout_ram (v3.8.4): el T80 fija DO al cerrar T1 y baja /WR a mitad de T2 (4,5 ciclos de 54 MHz con el turbo
+    // maximo), asi que este registro ya vale el dato cuando la SD lo captura, con 3,5 ciclos de sobra; y /WR sube DESPUES
+    // de que DO deje de cambiar, de modo que la ultima captura tambien es buena. syn_preserve: es el mismo valor que
+    // cpu_dout_ram y la sintesis lo fundiria con el, cargandole las ~50 cargas de la SD.
+    reg [7:0] cpu_dout_sd /* synthesis syn_preserve = 1 */ = 8'h00;
+    always @(posedge clk_54m) cpu_dout_sd <= cpu_dout;
     reg        sd_win_cmd_wr  = 1'b0;      // orden dada por la ventana de memoria (-> count = 1)
     reg  [7:0] sd_win_cmd_val = 8'd0;      // ... y su dato, capturado en el mismo flanco
     sdc_ioport u_sdio (
@@ -5574,7 +5584,7 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
         .addr(bus_addr[3:0]),
         .rd_n(bus_rd_n),
         .wr_n(bus_wr_n),
-        .din(cpu_dout),
+        .din(cpu_dout_sd),
         .force1(sd_win_cmd_wr),
         .cmd_wr(sdio_cmd_wr),
         .cmd_val(sdio_cmd_val),
@@ -5688,7 +5698,7 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
         .wren_a((bus_clk_3m6_27 && sram_cs_w && ~bus_wr_n) || sdio_data_wr),
         .rden_a((bus_clk_3m6_27 && sram_cs_w && ~bus_rd_n) || (sdio_data_sel && ~bus_rd_n)),
         .address_a(sdio_data_sel ? sdio_ptr : bus_addr[8:0]),
-        .data_a(sdio_data_wr ? sdio_data_val : cpu_dout),   // V3.5d: dato capturado en el modulo
+        .data_a(sdio_data_wr ? sdio_data_val : cpu_dout_sd),   // V3.5d: dato capturado en el modulo
         .q_a(sram_cd_w),
     
         .clock_b(clk_27m),
@@ -5805,7 +5815,7 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
             ff_sd_en <= 0;
         end else begin
             if (config_enable_sdcard == 1 && pri_slot_num[SD_SLOT] == 1 && exp_slotx_num[2] == 1 && bus_addr == SDC_ENABLE && ~bus_wr_n && bus_iorq_n && bus_m1_n) 
-                ff_sd_en <= cpu_dout[0];
+                ff_sd_en <= cpu_dout_sd[0];
         end
     end
     
@@ -5822,7 +5832,7 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
             sd_win_cmd_val <= 8'd0;
         end else begin
             sd_win_cmd_wr  <= sd_cs_w && ~bus_wr_n && (bus_addr == SDC_CMD);
-            if (sd_cs_w && ~bus_wr_n && (bus_addr == SDC_CMD)) sd_win_cmd_val <= cpu_dout;
+            if (sd_cs_w && ~bus_wr_n && (bus_addr == SDC_CMD)) sd_win_cmd_val <= cpu_dout_sd;
         end
     end
     wire sd_busreq_w;
@@ -5959,10 +5969,10 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
                         SDC_CMD: begin
                             // V3.5d: ver sd_win_cmd_wr, justo arriba
                         end
-                        SDC_SADDR+0:    ff_sd_sector[ 7: 0] <= cpu_dout;
-                        SDC_SADDR+1:    ff_sd_sector[15: 8] <= cpu_dout;
-                        SDC_SADDR+2:    ff_sd_sector[23:16] <= cpu_dout;
-                        SDC_SADDR+3:    ff_sd_sector[31:24] <= cpu_dout;
+                        SDC_SADDR+0:    ff_sd_sector[ 7: 0] <= cpu_dout_sd;
+                        SDC_SADDR+1:    ff_sd_sector[15: 8] <= cpu_dout_sd;
+                        SDC_SADDR+2:    ff_sd_sector[23:16] <= cpu_dout_sd;
+                        SDC_SADDR+3:    ff_sd_sector[31:24] <= cpu_dout_sd;
                     endcase
                 end else
                 if (~bus_rd_n) begin
