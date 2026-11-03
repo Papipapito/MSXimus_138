@@ -110,12 +110,30 @@ function Test-Dado {
         else { $malos += "HOLD $slack FUERA DE CLASE: $org -> $dst" }
     }
 
+    # 18/10 (rama geo3d): el bitstream de la 138K tiene que acabar ANTES del pack
+    # (FLASH_START_ADDRESS de top.v, 0x500000). Su tamaño cambia de un dado a
+    # otro (la compresion depende de la colocacion): en g3138a iban de 5.214.814
+    # a 5.243.796 bytes, y ese ultimo se metia 916 bytes en el pack con el gate
+    # en verde. El .bin es lo que se escribe en la flash a partir de 0x0.
+    $bin = Join-Path $dir 'fpga\impl\pnr\project.bin'
+    $top = Join-Path $dir 'fpga\top.v'
+    $bits = ''
+    if ((Test-Path $bin) -and (Test-Path $top)) {
+        $m = Select-String -Path $top -Pattern "localparam\s+FLASH_START_ADDRESS\s*=\s*24'h([0-9A-Fa-f]+)" | Select-Object -First 1
+        if ($m) {
+            $limite = [Convert]::ToInt64($m.Matches[0].Groups[1].Value, 16)
+            $tam = (Get-Item $bin).Length
+            if ($tam -gt $limite) { $malos += ("BITSTREAM de {0} bytes: pisa el pack en 0x{1:X} ({2} bytes de mas)" -f $tam, $limite, ($tam - $limite)) }
+            else { $bits = "; bitstream {0} bytes, {1} libres antes del pack" -f $tam, ($limite - $tam) }
+        }
+    }
+
     $cls = (Select-String -Path $rp -Pattern '^  CLS ' -ErrorAction SilentlyContinue | Select-Object -First 1).Line
     if ($cls) { $cls = ($cls -replace '\s+', ' ').Trim() }
     [pscustomobject]@{
         dado      = $nombre
         veredicto = $(if ($malos.Count -eq 0) { 'GATE OK' } else { 'RECHAZADO' })
-        detalle   = $(if ($malos.Count) { $malos -join ' | ' } else { "$($tolerados.Count) holds tolerados (suelo del chip)" })
+        detalle   = $(if ($malos.Count) { $malos -join ' | ' } else { "$($tolerados.Count) holds tolerados (suelo del chip)$bits" })
         cls       = $cls
     }
 }

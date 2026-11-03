@@ -20,6 +20,9 @@
 #   Una entrada con "SoloGate":true no se lanza: se espera a que acaben los
 #   gw_sh que ya corren y se le pasa el gate (para retomar una campana lanzada
 #   a mano).
+#   Una entrada con "Geo3d":true (o -Geo3d para todas) lanza con geo3d en
+#   9Dh/9Fh (lanzar_campana.ps1 -Geo3d); -Root / "Root" tienen que ser entonces
+#   el worktree de la rama geo3d.
 #
 # Variantes: 'po1' = el arbol del repo tal cual (place_option 1);
 #            'po2' = copia del arbol con `set_option -place_option 2`.
@@ -33,7 +36,9 @@ param(
     [string] $Scratch = "$env:LOCALAPPDATA\Temp\claude\campanas",
     [int]    $PollSeg = 120,
     # 17/09 noche: no parar al primer GATE OK (para dejar candidatos de varias campanas)
-    [switch] $SinParar
+    [switch] $SinParar,
+    # 17/10: geo3d en todas las campanas de la lista (o "Geo3d":true por entrada)
+    [switch] $Geo3d
 )
 $ErrorActionPreference = 'Stop'
 $log = Join-Path $Scratch "encadenadas_$Etiqueta.txt"
@@ -74,8 +79,13 @@ foreach ($c in $Campanas) {
         # relanza, solo se espera a que acabe y se pasa el gate
         Nota ("campana {0} ya lanzada: solo espero y paso el gate" -f $c.Nombre)
     } else {
-        Nota ("campana {0} ({1}) dados {2}" -f $c.Nombre, $c.Variante, ($c.Dados -join ','))
-        & (Join-Path $Root 'tools\lanzar_campana.ps1') -Campana $c.Nombre -Dados ([int[]]$c.Dados) -Root $arbol 2>&1 | Out-Null
+        $g = [bool]($Geo3d -or $c.Geo3d)
+        Nota ("campana {0} ({1}{2}) dados {3}" -f $c.Nombre, $c.Variante, $(if ($g) { ', geo3d' } else { '' }), ($c.Dados -join ','))
+        # el lanzar de ESTA carpeta (el de un -Root sin la rama geo3d no conoce
+        # -Geo3d) y el parametro solo cuando hace falta
+        $extra = @{}
+        if ($g) { $extra.Geo3d = $true }
+        & (Join-Path $PSScriptRoot 'lanzar_campana.ps1') -Campana $c.Nombre -Dados ([int[]]$c.Dados) -Root $arbol @extra 2>&1 | Out-Null
         Start-Sleep -Seconds 60
     }
     while ((Get-Process -Name gw_sh -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0) { Start-Sleep -Seconds $PollSeg }
