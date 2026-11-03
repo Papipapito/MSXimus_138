@@ -305,12 +305,16 @@ end
     // 138K: CASCADA. El PLL del 138 exige PFD 19-81,25 MHz y VCO 650-1300: desde el
     // pad de 50 no salen 108/54/27 exactos y enteros. pll_27 (50/2 x27 = VCO 675)
     // da 27,000 exactos y de ahi cuelgan pll_main (x40 = VCO 1080), pll_86 y
-    // pll_ddr3 (x33 = VCO 891), que a su vez presta 891/12 = 74,25 al PLL del HDMI.
+    // pll_ddr3 (x33 = VCO 891). v3.8.4b: el HDMI ya NO cuelga de pll_ddr3 sino de su
+    // propio pll_hdmiref (x33 /12 = 74,25), que reinicia el motor de reintentos de la DDR3.
     wire clk27_video;           // 27,000 de pll_27: referencia de pll_main, pll_86 y pll_ddr3
     wire clk_hdmi;              // 74.25 MHz pixel 720p
     wire clk_hdmi5;             // 371.25 MHz TMDS x5
     wire pll27_lock;            // gatea el reset de pll_main y del PLL DDR3
-    wire clk_7425;              // 74,25 del PLL de la DDR3 (VCO 891/12): referencia de pll_74
+    wire clk_7425;              // 74,25 de pll_hdmiref (VCO 891/12): referencia de pll_74
+    wire hdmiref_lock;          // lock (filtrado por PLL_INIT) de pll_hdmiref
+    wire pll74_lock;            // lock de pll_74 (74,25 / 371,25 del HDMI)
+    wire hdmi_pll_ok = pll27_lock & hdmiref_lock & pll74_lock;   // a la telemetria (byte 15, bit 7)
     Gowin_PLL pll_main (
         .clkin  (clk27_video),  // 138K: 27,000 de pll_27 (cascada; PFD 27, VCO 1080)
         .reset  (~pll27_lock),  // 138K: PLL_INIT en reset hasta que el 27 engancha
@@ -351,11 +355,24 @@ end
         .clkout0(clk27_video),
         .lock_o (pll27_lock)
     );
+    // v3.8.4b: PLL PROPIO de la referencia del HDMI (antes salia de pll_ddr3). Espera al
+    // lock de pll_27 como pll_main y pll_ddr3, y pll_74 espera al lock de este: la
+    // calibracion de ICP/LPF del PLL_INIT es de un solo intento y con I_RST fijo a 0 se
+    // hacia en los primeros ~16 ms, antes de que existiera el reloj de entrada.
+    pll_hdmiref pll_hdmiref_video (
+        .init_clk(ex_clk_27m),  // 138K: reloj del PLL_INIT (50 MHz)
+        .clkin  (clk27_video),  // 27,000 de pll_27 (PFD 27, VCO 891)
+        .reset  (~pll27_lock),
+        .clkout0(clk_7425),     // 74,250 MHz
+        .lock   (hdmiref_lock)
+    );
     pll_74 pll74_video (
         .init_clk(ex_clk_27m),  // 138K: reloj del PLL_INIT (50 MHz)
-        .clkin  (clk_7425),     // 138K: 74,25 del PLL de la DDR3 -> x10 entero (VCO 742,5)
+        .clkin  (clk_7425),     // 74,25 de pll_hdmiref -> x10 entero (VCO 742,5)
+        .reset  (~hdmiref_lock),
         .clkout0(clk_hdmi),
-        .clkout1(clk_hdmi5)
+        .clkout1(clk_hdmi5),
+        .lock   (pll74_lock)
     );
 
     // _84: el OPL3 corre en clk_27m (PLLA principal, HERMANO de clk_54m):
@@ -2076,7 +2093,7 @@ assign keyboard_addr = ppi_port_c[3:0];
 
     // ---- reloj maestro 85.909 MHz (27 x 35/11, 0 ppm vs 24x colorburst) ----
     wire clk_86, pll86_lock;
-    pll_86 pll86_vdp ( .init_clk(ex_clk_27m), .clkout0(clk_86), .lock(pll86_lock), .clkin(clk27_video) );   // 138K: init_clk
+    pll_86 pll86_vdp ( .init_clk(ex_clk_27m), .clkout0(clk_86), .lock(pll86_lock), .clkin(clk27_video), .reset(~pll27_lock) );   // 138K: init_clk; v3.8.4b: PLL_INIT en reset hasta que pll_27 engancha
 
     // _125b: syn_maxfan — rst86_n abanica a TODO el dominio clk_86 (shim +
     // core V9968) y su ultima etapa aparecio como migaja de -0.063 en el
@@ -2223,7 +2240,7 @@ assign keyboard_addr = ppi_port_c[3:0];
         .a_dout(vddr_a_dout), .a_done(vddr_a_done),
         .b_req(vddr_b_req), .b_addr(vddr_b_addr),
         .b_dout(vddr_b_dout), .b_done(vddr_b_done),
-        .clk_x1_out(vddr_clk_x1), .clk_7425_out(clk_7425), .ready(vddr_ready), .diag(vddr_diag),
+        .clk_x1_out(vddr_clk_x1), .clk_7425_out(), .ready(vddr_ready), .diag(vddr_diag),
         .dbg_ops(vddr_ops),        // _129b: {lecturas, escrituras} servidas
         .dbg_att(vddr_att), .dbg_calib_10ms(vddr_calib10), .dbg_boot_100ms(vddr_boot100),   // V3.7b
         .recal_req(1'b0),
@@ -3957,9 +3974,10 @@ memory_ctrl #(.SDCLK_INVERT(1'b1)) mem1 (
         .mem_rword   (weng_rword),    // _104: palabra (cache de palabra)
         .mem_done_t  (weng_done),
         .diag        (wdbg_diag_eng),
-        // _114diag: estado del video a la telemetria (COM11). {pll27_lock,
+        // _114diag: estado del video a la telemetria (COM11). {hdmi_pll_ok,
         // frame_cnt[2:0]} del modo activo; opl4_pcm lo cruza a clk_eng.
-        .vid_diag    ({pll27_lock, dbg_video_w[0] ? dbg_fdiv_pal[2:0]
+        // v3.8.4b: el bit 3 es pll27 Y pll_hdmiref Y pll_74 enganchados (antes solo pll27_lock).
+        .vid_diag    ({hdmi_pll_ok, dbg_video_w[0] ? dbg_fdiv_pal[2:0]
                                                   : dbg_fdiv_ntsc[2:0]})
     );
 `else
@@ -6068,7 +6086,7 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
     end
 
     // _115: LEDs restaurados (el estado del video vive PERMANENTE en la
-    // telemetria UART: byte15 nibble alto = {pll27_lock, frame_cnt[2:0]},
+    // telemetria UART: byte15 nibble alto = {hdmi_pll_ok (v3.8.4b: pll27+hdmiref+pll74), frame_cnt[2:0]},
     // lector tools/dbg_video_reader.py — diagnostico de HDMI sin cables).
     assign led[0] = turbo ? led_cnt[18] : led_cnt[20];  // VISIBLE (G11): rapido=turbo, lento=normal
     // V3.6g: el LED de la SD hace ademas de chivato de la DDR3 de la VRAM: mientras

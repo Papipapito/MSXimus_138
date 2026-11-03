@@ -248,6 +248,7 @@ if {!$USE_V9968} {
 
 # ----- v3.0 FASE 1-REDUX: video 720p (cadena monitorcore + puente ring-BRAM) -----
 add_file pll138/pll_27.v
+add_file pll138/pll_hdmiref.v
 add_file pll138/pll_74.v
 add_file video720/msx2hdmi.sv
 

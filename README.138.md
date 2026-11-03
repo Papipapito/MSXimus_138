@@ -82,14 +82,29 @@ asi que los PLL van en cascada, como nand2mario en esta misma consola:
 | `pll_27` | 50 MHz del pad, /2 x27 | 675 | 27,000 exactos, referencia de los demas |
 | `pll_main` | 27 x40 | 1080 | 108, 54, 27, 135 y **36** para el motor OPL4 (ya no puede ser 37,5) |
 | `pll_86` | 27 x35/11 | 945 | 85,9 para el V9968 |
-| `pll_ddr3` | 27 x33 | 891 | 297 para la DDR3 y `CLKOUT1` = 74,25 sin gatear |
+| `pll_ddr3` | 27 x33 | 891 | 297 para la DDR3 (su `CLKOUT1` de 74,25 ya no se usa desde la v3.8.4b) |
+| `pll_hdmiref` | 27 x33 /12 | 891 | 74,25 para `pll_74` (propio del HDMI desde la v3.8.4b) |
 | `pll_74` | 74,25 x10 | 742,5 | 74,25 y 371,25 para el HDMI |
 
-`pll_main` y `pll_ddr3` esperan al lock de `pll_27`. El `pll_stop` de la IP DDR3 va
+`pll_main`, `pll_ddr3`, `pll_hdmiref` y `pll_86` esperan al lock de `pll_27`, y `pll_74` al de
+`pll_hdmiref` (v3.8.4b): el `PLL_INIT` calibra ICP/LPF una sola vez, en unos 16 ms, y con `I_RST` fijo a 0
+lo hacia antes de que existiera el reloj de entrada. El `pll_stop` de la IP DDR3 va
 directo a `ENCLK2` del PLL (en el 60K era la danza mDRP con `pll_mDRP_intf`). La
 salida del OPLL se registra en `clk_27m` antes del mezclador (`jt2413_wav_r27`): el
 arbol de sumas de 22 ns que en el 60K cabia por poco en la relacion 54→27 aqui no
 cerraba en ningun dado.
+
+### Relojes globales: 8 PRIMARY y 8 LW
+
+El 138K tiene 8 relojes `PRIMARY` y 8 `LW` (`BUFG[0..15]` en las restricciones de Gowin) y en este
+core los 8 `PRIMARY` estan en uso: `clk_108m`, `clk_54m`, `clk_27m`, `clk_wave375`, `clk27_video`,
+`clk_hdmi`, `vddr_clk_x1` y `clk_86`. Un net de reloj nuevo desplaza a otro, y el allocator elige solo.
+Con `pll_hdmiref` propio, `clk_7425` (el 74,25 que solo alimenta el `CLKIN` de `pll_74`) se llevo un
+`PRIMARY` y mando a `clk_86` (el V9968) a `LW`: la campana `h138a` salio 0 de 5, con 109 endpoints en
+rojo en `clk_86`. Se arreglo con `CLOCK_LOC "clk_7425" BUFG[15] = CLK;` en `msx_console138k.cst`
+(`BUFG[15]` cae en `LW`; `LOCAL_CLOCK` no vale, Gowin da `CT1018` porque un `CLKIN` de PLL exige red
+de reloj). Antes de dar por buena una campana, mirar "Global Clock Signals" del `.rpt.txt`: `clk_86`
+tiene que estar en `PRIMARY`.
 
 ## Version del chip: B o C
 
