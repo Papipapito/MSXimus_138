@@ -5561,9 +5561,19 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
     // chip desde siempre (los CE de config2/config6/snd_gain, clk_54m->clk_27m):
     // el dado 3187 se fue a -1,55 ns con ellos. Registrarlo no cambia nada
     // funcional -- un ciclo de clk_27m contra un ciclo de E/S de ~30.
+    // 03/11/2026 (rama geo3d-v2): la DIRECCION del Z80 hacia los decodificadores de la SD (27 MHz) pasa por un registro a
+    // 54 MHz. La campana g3v2b (cpu_dout_sd ya puesto) siguio rechazando los cinco dados por cpu1/u0/IStatus_0 ->
+    // ff_sd_sector/D, sd_win_cmd_*: el desglose del camino es IStatus_0/DO[6] -> RegAddrC -> A_i_* -> decodificador, o sea
+    // bus_addr, la direccion que el T80 saca combinacional de la BSRAM de su banco de registros (clk_54m -> clk_27m: 18,5 ns
+    // de relacion y ~22 de retardo). Solo se retrasa la direccion: /WR y /RD bajan como minimo medio estado T despues de que
+    // la direccion es valida (en el turbo maximo, unos 90 ns), asi que cuando la SD los ve la direccion ya esta, y despues de
+    // que suban la direccion se mantiene hasta el inicio del ciclo siguiente. syn_preserve: la sintesis no debe fundirlo con
+    // ninguna otra copia de la direccion.
+    reg [15:0] bus_addr_sd /* synthesis syn_preserve = 1 */ = 16'h0000;
+    always @(posedge clk_54m) bus_addr_sd <= bus_addr;
     reg        sdio_sel = 1'b0;
     always @(posedge clk_27m) begin
-        sdio_sel <= (config_enable_sdcard == 1) && (config_ok == 1) && (bus_iorq_n == 0) && (bus_m1_n == 1) && (bus_addr[7:4] == 4'h4);
+        sdio_sel <= (config_enable_sdcard == 1) && (config_ok == 1) && (bus_iorq_n == 0) && (bus_m1_n == 1) && (bus_addr_sd[7:4] == 4'h4);
     end
     // 03/11/2026 (rama geo3d-v2): el dato de la CPU hacia el dominio de la SD (27 MHz) pasa por un registro a 54 MHz.
     // cpu1/u0/IStatus (la salida de la BSRAM del T80, con ~50 cargas en tres dominios) -> ff_sd_sector, sd_win_cmd_val,
@@ -5581,7 +5591,7 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
         .clk(clk_27m),
         .rstn(bus_reset_n),
         .sel(sdio_sel),
-        .addr(bus_addr[3:0]),
+        .addr(bus_addr_sd[3:0]),
         .rd_n(bus_rd_n),
         .wr_n(bus_wr_n),
         .din(cpu_dout_sd),
@@ -5683,7 +5693,7 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
     //wire scc_enable_w;
     //assign scc_enable_w = ff_scc_enable;
     always @ (posedge clk_27m) begin
-        sram_cs_w <= config_enable_sdcard == 1 && bus_reset_n && ff_sd_en && bus_iorq_n == 1 && bus_m1_n == 1 && bus_mreq_n == 0 && pri_slot_num[SD_SLOT] == 1 && exp_slotx_num[2] == 1 && ( bus_addr >= SDC_SDATA && bus_addr < SDC_ENABLE) ? 1 : 0;
+        sram_cs_w <= config_enable_sdcard == 1 && bus_reset_n && ff_sd_en && bus_iorq_n == 1 && bus_m1_n == 1 && bus_mreq_n == 0 && pri_slot_num[SD_SLOT] == 1 && exp_slotx_num[2] == 1 && ( bus_addr_sd >= SDC_SDATA && bus_addr_sd < SDC_ENABLE) ? 1 : 0;
     end
     assign sram_busreq_w = (sram_cs_w && ~bus_rd_n) || (sdio_data_sel && ~bus_rd_n);   // V3.5c: IN #4C lee el bufer
     
@@ -5814,14 +5824,14 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
         if (~bus_reset_n) begin
             ff_sd_en <= 0;
         end else begin
-            if (config_enable_sdcard == 1 && pri_slot_num[SD_SLOT] == 1 && exp_slotx_num[2] == 1 && bus_addr == SDC_ENABLE && ~bus_wr_n && bus_iorq_n && bus_m1_n) 
+            if (config_enable_sdcard == 1 && pri_slot_num[SD_SLOT] == 1 && exp_slotx_num[2] == 1 && bus_addr_sd == SDC_ENABLE && ~bus_wr_n && bus_iorq_n && bus_m1_n) 
                 ff_sd_en <= cpu_dout_sd[0];
         end
     end
     
     reg sd_cs_w;
     always @ (posedge clk_27m) begin
-        sd_cs_w <= config_enable_sdcard == 1 && bus_reset_n && ff_sd_en && bus_iorq_n && bus_m1_n && bus_mreq_n == 0 && pri_slot_num[SD_SLOT] == 1 && exp_slotx_num[2] == 1 && (bus_addr >= SDC_ENABLE && bus_addr <= SDC_END) ? 1 : 0;
+        sd_cs_w <= config_enable_sdcard == 1 && bus_reset_n && ff_sd_en && bus_iorq_n && bus_m1_n && bus_mreq_n == 0 && pri_slot_num[SD_SLOT] == 1 && exp_slotx_num[2] == 1 && (bus_addr_sd >= SDC_ENABLE && bus_addr_sd <= SDC_END) ? 1 : 0;
     end
     // V3.5c/d: orden dada por la VENTANA. Registrada, por lo mismo que todo lo
     // del modulo de puertos: sin registrar, este termino colgaba del WR_n del
@@ -5831,8 +5841,8 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
             sd_win_cmd_wr  <= 1'b0;
             sd_win_cmd_val <= 8'd0;
         end else begin
-            sd_win_cmd_wr  <= sd_cs_w && ~bus_wr_n && (bus_addr == SDC_CMD);
-            if (sd_cs_w && ~bus_wr_n && (bus_addr == SDC_CMD)) sd_win_cmd_val <= cpu_dout_sd;
+            sd_win_cmd_wr  <= sd_cs_w && ~bus_wr_n && (bus_addr_sd == SDC_CMD);
+            if (sd_cs_w && ~bus_wr_n && (bus_addr_sd == SDC_CMD)) sd_win_cmd_val <= cpu_dout_sd;
         end
     end
     wire sd_busreq_w;
@@ -5965,7 +5975,7 @@ reg [1:0]  sd_wr_seq     = 2'd0;    // rueda con cada escritura: una linea
 
             if (sd_cs_w) begin
                 if (~bus_wr_n) begin
-                    case(bus_addr) 
+                    case(bus_addr_sd) 
                         SDC_CMD: begin
                             // V3.5d: ver sd_win_cmd_wr, justo arriba
                         end
