@@ -16,9 +16,6 @@
 // salida = mismo registro (L/M/K/F) para diff con scenes_expect.txt. Ademas cuenta escrituras de comando con CE = 1
 // (violaciones) y comprueba que el VDP sigue respondiendo (S#0 por 99h) despues de cada cuadro.
 // Se corre con run_geo3d_int_vl.sh (verilado con --timing). 27/09/2026.
-// 138K (18/10/2026): copia del banco de la Zynq con el enganche de top.v del 138K bajo +define+GEO3D_CE (el motor a
-// clk con el clock enable 1/2 de cinco replicas y el reset local de una etapa, como tb_geo3d_int.sv); sin el define,
-// el de la Zynq (motor a clk_43 = clk/2 en fase). +maxpoll=N cambia el tope de sondeos de RUN (400000).
 // ============================================================================
 `timescale 1ns/1ps
 module tb_geo3d_sys;
@@ -45,11 +42,11 @@ module tb_geo3d_sys;
     );
 
     // ---- geo3d ----
-    wire       geo_hit, geo_ready, geo_rdata_en, geo_busy, geo_cmd_wr, geo_cmd_ce;
+    wire       geo_hit, geo_ready, geo_rdata_en, geo_busy, geo_cmd_wr, geo_cmd_ce, geo_cmd_fill_span;
     wire [7:0] geo_rdata, geo_cmd_data;
     wire [5:0] geo_cmd_num;
 `ifdef GEO3D_CE
-    // el generador de top.v (138K): toggle maestro + cinco replicas que cargan ~geo_ce_m, y el reset local.
+    // 138K: el generador de top.v (toggle maestro + cinco replicas que cargan ~geo_ce_m) y el reset local de una etapa.
     // +define+GEO3D_CE_FASE_B arranca el toggle en la otra fase (la fase del CE frente al bus no esta fijada).
 `ifdef GEO3D_CE_FASE_B
     logic       geo_ce_m = 1'b1;
@@ -72,7 +69,7 @@ module tb_geo3d_sys;
 `endif
         .bus_address(b_addr), .bus_ioreq(b_ioreq), .bus_write(b_write), .bus_valid(b_valid), .bus_wdata(b_wdata),
         .hit(geo_hit), .bus_ready(geo_ready), .bus_rdata(geo_rdata), .bus_rdata_en(geo_rdata_en),
-        .cmd_wr(geo_cmd_wr), .cmd_num(geo_cmd_num), .cmd_data(geo_cmd_data), .cmd_ce(geo_cmd_ce), .run_busy(geo_busy)
+        .cmd_wr(geo_cmd_wr), .cmd_num(geo_cmd_num), .cmd_data(geo_cmd_data), .cmd_fill_span(geo_cmd_fill_span), .cmd_ce(geo_cmd_ce), .run_busy(geo_busy)
     );
     // ---- el mux de top_zynq.v ----
     wire       v_ready, v_rdata_en;
@@ -103,7 +100,7 @@ module tb_geo3d_sys;
         .vram_tag(v_vtag), .vram_rtag(v_vrtag_r), .vram_stall(1'b0), .vram_refresh(v_vrefresh),
         .display_hs(v_hs), .display_vs(v_vs), .display_en(v_en), .display_r(v_r), .display_g(v_g), .display_b(v_b),
         .force_highspeed(1'b0), .button(2'b00),
-        .ext_cmd_wr(geo_cmd_wr), .ext_cmd_num(geo_cmd_num), .ext_cmd_data(geo_cmd_data), .ext_cmd_ce(geo_cmd_ce),
+        .ext_cmd_wr(geo_cmd_wr), .ext_cmd_num(geo_cmd_num), .ext_cmd_data(geo_cmd_data), .ext_cmd_fill_span(geo_cmd_fill_span), .ext_cmd_ce(geo_cmd_ce),   // 01/11: filas rellenas = HMMV rapido en SCREEN 8
         .pulse0(), .pulse1(), .pulse2(), .pulse3(), .pulse4(), .pulse5(), .pulse6(), .pulse7()
     );
     logic [31:0] vram_mem [0:65535];
@@ -175,7 +172,7 @@ module tb_geo3d_sys;
         begin z_wr(3'd1, d); z_wr(3'd1, {2'b10, r}); end
     endtask
 
-    integer fi, r, a, b, frames = 0, maxcyc = 0, cyc, k, vdp_bad = 0, maxpoll;
+    integer fi, r, a, b, frames = 0, maxcyc = 0, cyc, k, vdp_bad = 0, gi;
     integer ff, dumps = 0, nx = 0, y, xb, c1, c2, c3, ccyc, maxce = 0;
     reg [17:0] next_addr = 18'h3FFFF;
     reg [8*200-1:0] frames_name;
@@ -186,7 +183,6 @@ module tb_geo3d_sys;
         if (!$value$plusargs("stim=%s", stim_name)) stim_name = "scenes_stim.txt";
         if (!$value$plusargs("got=%s",  got_name))  got_name  = "geo3d_sys_got.txt";
         if (!$value$plusargs("frames=%s", frames_name)) frames_name = "geo3d_sys_frames.hex";
-        if (!$value$plusargs("maxpoll=%d", maxpoll)) maxpoll = 400000;
         ff = $fopen(frames_name, "w");
         for (k = 0; k < 65536; k = k + 1) vram_mem[k] = 32'd0;
         fo = $fopen(got_name, "w");
@@ -211,9 +207,16 @@ module tb_geo3d_sys;
                     z_wr(a[0] ? 3'd7 : 3'd5, b[7:0]);
                 end else if (op[7:0] == "R") begin
                     cyc = 0; st = 8'h01;
-                    while (st[0] && cyc < maxpoll) begin z_rd(3'd5, st); cyc = cyc + 1; end
+                    while (st[0] && cyc < 8000000) begin z_rd(3'd5, st); cyc = cyc + 1; end
                     if (st[0]) $display("*** RUN no acaba (cuadro %0d) ***", frames);
                     if (cyc > maxcyc) maxcyc = cyc;
+                end else if (op[7:0] == "G") begin
+                    // G <indice, hex> <n>: lee n registros por 9Fh tras poner el indice (v2.0, como tb_bus.v)
+                    r = $fscanf(fi, "%h %d", a, b);
+                    z_wr(3'd5, a[7:0]);
+                    $fwrite(fo, "G %02x", a[7:0]);
+                    for (gi = 0; gi < b; gi = gi + 1) begin z_rd(3'd7, k0); $fwrite(fo, " %02x", k0); end
+                    $fwrite(fo, "\n");
                 end else if (op[7:0] == "K") begin
                     z_wr(3'd5, 8'h4A);
                     z_rd(3'd7, k0); z_rd(3'd7, k1); z_rd(3'd7, k2); z_rd(3'd7, k3); z_rd(3'd7, k4); z_rd(3'd7, k5);

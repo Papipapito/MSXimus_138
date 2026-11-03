@@ -13,7 +13,8 @@ QUE HACE (sobre el .vg JERARQUICO: modulos geo3d_bus, geo3d_engine y geo3d_core)
   2. los FF del motor/core con el CE SOLO en el D necesitan un set_max_delay de un ciclo en su D (en
      Gowin manda sobre el multiciclo, SUG940 3.8). Con --emit se escriben esas lineas (nombre exacto de
      cada FF) al final del SDC indicado; sin --emit se comprueba que el SDC ya las cubre;
-  3. el lado motor de geo3d_bus (rst_e, req_seen, ack_r, e_wr, e_rd, ce_s, cmd_t, cmd_num_e, cmd_data_e)
+  3. el lado motor de geo3d_bus (rst_e, req_seen, ack_r, e_wr, e_rd, ce_s, cmd_t, cmd_num_e, cmd_data_e,
+     cmd_fill_span_e)
      recibe el CE, el lado bus no, y los suyos con el CE solo en el D no son destino de ningun multiciclo;
   4. cada registro USADO de cada DSP (parametro *_CLK distinto de BYPASS) y cada CEA/CEB de cada BSRAM
      (y su OCE si lleva registro de salida, READ_MODE = 1) tiene el CE. Los defparam se leen por modulo,
@@ -29,7 +30,8 @@ import sys
 from collections import defaultdict
 
 PREFIJO = {"geo3d_bus": "u_geo3d/", "geo3d_engine": "u_geo3d/u_engine/", "geo3d_core": "u_geo3d/u_engine/u_core/"}
-LADO_MOTOR_BUS = ("rst_e", "req_seen", "ack_r", "e_wr", "e_rd", "ce_s", "cmd_t", "cmd_num_e", "cmd_data_e")
+LADO_MOTOR_BUS = ("rst_e", "req_seen", "ack_r", "e_wr", "e_rd", "ce_s", "cmd_t", "cmd_num_e", "cmd_data_e",
+                  "cmd_fill_span_e")   # v2.0 + HMMV rapido (HRA 3d55af4): la etiqueta de fila rellena, como cmd_data_e
 CELL = re.compile(r"(?ms)^\s*(\w+)\s+(\\\S+|\w+)\s*\((.*?)\)\s*;")
 PIN = re.compile(r"\.(\w+)\(\s*(.*?)\s*\)\s*(?:,|$)", re.S)
 COMB = re.compile(r"^(LUT\d|MUX2\w*|ALU|INV|AND\w*|OR\w*|XOR\w*)$")

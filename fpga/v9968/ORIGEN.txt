@@ -906,3 +906,15 @@ Los bancos de este porte (tb_port1_latch.sv de HRA, g2cmd_check.py check_diy) y 
   diff = 0 entre los dos. Es el mismo parche, nombre por nombre, que HRA lleva upstream. Con ext_cmd_wr = 0
   el VDP es identico (sin ENABLE_GEO3D, top.v los ata a 0); los bancos de tools/v9968_sim los atan a 0.
 ================================================================================
+
+================================================================================
+03/11/2026 (rama geo3d-v2 del 138K): la fila rapida de geo3d (HRA! 3d55af4, v0.92, 01/11/2026)
+- vdp_command.v: IGUAL que el de la Zynq beta Z1.3.2b10 (diff = 0). Una fila rellena de una cara plana de geo3d llega como
+  LINE horizontal + IMP con register_fill_span = 1; en SCREEN 8 (G7 sin YJK) se arranca como HMMV de una fila y los
+  registros que ve la CPU (NX, NY, DX, DY) quedan como los dejaria la LINE al acabar, al volver a LINE o al abortar la CPU.
+  Entra reg_yjk_mode (ya existia en vdp.v).
+- vdp.v: el puerto ext_cmd_fill_span, register_fill_span = ext_cmd_wr & ext_cmd_fill_span y reg_yjk_mode hacia u_command.
+  Igual que el de la Zynq salvo la salida hires512 (4:3 con Scale3x), que aqui no se porta.
+- Con ext_cmd_wr = 0 el VDP es identico al de antes (top.v ata ext_cmd_fill_span a 0 sin ENABLE_GEO3D).
+- Bancos: tools/v9968_sim/run_geo3d_hmmv.sh y run_geo_abort.sh (de la Zynq), PASS.
+================================================================================

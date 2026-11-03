@@ -2033,10 +2033,14 @@ assign keyboard_addr = ppi_port_c[3:0];
 `ifdef ENABLE_GEO3D
     // geo3d (como la Zynq): + 9Dh (indice/estado) y 9Fh (datos) del coprocesador 3D =
     // mode 5 y 7 del glue; geo3d_bus se los queda (hit) y al VDP no le llega el valid
-    // de esos. 9Eh y los espejos 8Dh/8Fh siguen fuera. Ningun otro decodificador del
-    // top usa 9Dh ni 9Fh, y la lectura vuelve por el mismo vdp_csr_n -> vdp_dout.
+    // de esos. 9Eh/8Eh siguen fuera (8Eh es de la megaram); 8Dh/8Fh, espejos del geo3d
+    // como la Zynq desde el 30/10/2026 (Z1.3.4): con el V9968 tambien en 88h-8Ch, las
+    // demos de renatus (geo3d-motion-stage, MOT2N/MOT8N) lo encuentran en 88h y piden el
+    // geo3d en 8Dh/8Fh; sin espejo se paraban con el borde amarillo. Ningun otro
+    // decodificador del top usa 8Dh/8Fh ni 9Dh/9Fh, y la lectura vuelve por el mismo
+    // vdp_csr_n -> vdp_dout.
     assign vdp_io_hit = ( bus_addr[7:5] == 3'b100 && (bus_addr[3:2] == 2'b10 || bus_addr[3:0] == 4'b1100) )
-                     || ( bus_addr[7:2] == 6'b100111 && bus_addr[0] );
+                     || ( bus_addr[7:5] == 3'b100 && bus_addr[3:2] == 2'b11 && bus_addr[0] );
 `else
     assign vdp_io_hit = ( bus_addr[7:5] == 3'b100 && (bus_addr[3:2] == 2'b10 || bus_addr[3:0] == 4'b1100) );
 `endif
@@ -2185,7 +2189,7 @@ assign keyboard_addr = ppi_port_c[3:0];
     // (constraints/msx_geo3d.sdc); bus <-> motor y VDP -> motor siguen a 1 ciclo.
     wire       v68_valid_vdp, v68_ready_vdp, v68_rdata_en_vdp;
     wire [7:0] v68_rdata_vdp;
-    wire       geo_cmd_wr, geo_cmd_ce;
+    wire       geo_cmd_wr, geo_cmd_ce, geo_cmd_fill_span;
     wire [5:0] geo_cmd_num;
     wire [7:0] geo_cmd_data;
     wire       geo_hit, geo_ready, geo_rdata_en, geo_busy;
@@ -2227,7 +2231,8 @@ assign keyboard_addr = ppi_port_c[3:0];
         .bus_address(v68_addr_mx), .bus_ioreq(v68_ioreq_mx), .bus_write(v68_write_mx),
         .bus_valid(v68_valid_mx), .bus_wdata(v68_wdata_mx),
         .hit(geo_hit), .bus_ready(geo_ready), .bus_rdata(geo_rdata), .bus_rdata_en(geo_rdata_en),
-        .cmd_wr(geo_cmd_wr), .cmd_num(geo_cmd_num), .cmd_data(geo_cmd_data), .cmd_ce(geo_cmd_ce),
+        .cmd_wr(geo_cmd_wr), .cmd_num(geo_cmd_num), .cmd_data(geo_cmd_data), .cmd_fill_span(geo_cmd_fill_span),
+        .cmd_ce(geo_cmd_ce),
         .run_busy(geo_busy)
     );
     assign v68_valid_vdp = v68_valid_mx & ~geo_hit;
@@ -2258,9 +2263,9 @@ assign keyboard_addr = ppi_port_c[3:0];
         .display_r(v68_r8), .display_g(v68_g8), .display_b(v68_b8),
         .force_highspeed(1'b0), .button(2'b00),
 `ifdef ENABLE_GEO3D
-        .ext_cmd_wr(geo_cmd_wr), .ext_cmd_num(geo_cmd_num), .ext_cmd_data(geo_cmd_data), .ext_cmd_ce(geo_cmd_ce),   // geo3d
+        .ext_cmd_wr(geo_cmd_wr), .ext_cmd_num(geo_cmd_num), .ext_cmd_data(geo_cmd_data), .ext_cmd_fill_span(geo_cmd_fill_span), .ext_cmd_ce(geo_cmd_ce),   // geo3d
 `else
-        .ext_cmd_wr(1'b0), .ext_cmd_num(6'd0), .ext_cmd_data(8'd0), .ext_cmd_ce(),   // sin geo3d: el VDP de la V3.8
+        .ext_cmd_wr(1'b0), .ext_cmd_num(6'd0), .ext_cmd_data(8'd0), .ext_cmd_fill_span(1'b0), .ext_cmd_ce(),   // sin geo3d: el VDP de la V3.8
 `endif
         .pulse0(), .pulse1(), .pulse2(), .pulse3(),
         .pulse4(), .pulse5(), .pulse6(), .pulse7()

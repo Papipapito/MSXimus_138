@@ -7,9 +7,9 @@
 // salida = mismo registro (L/M/K/F) para diff con scenes_expect.txt. Ademas cuenta escrituras de comando con CE = 1
 // (violaciones) y comprueba que el VDP sigue respondiendo (S#0 por 99h) despues de cada cuadro.
 // Se corre con run_geo3d_int_vl.sh (verilado con --timing). 27/09/2026.
-// 138K (17/10/2026): con +define+GEO3D_CE (GEO3D_CE=1 run_geo3d_int_vl.sh ...) el enganche es el de top.v del 138K:
-// el motor a clk con el clock enable 1/2 (cinco replicas en fase de geo_ce) y el reset local de una etapa. Sin el
-// define, el de la Zynq (motor a clk_43 = clk/2 en fase). El registro de comandos tiene que salir IGUAL en los dos.
+// 01/11/2026 (HMMV rapido de geo3d, HRA v0.92): +sc8 pone el VDP en SCREEN 8 (con SCREEN 5, el defecto, la fila rellena sigue por LINE);
+// +vdump=<fichero> vuelca la VRAM entera (65536 palabras, hex) al acabar, para comparar el RTL nuevo con el anterior bit a bit;
+// -DGEO_FAST_STATS cuenta los arranques por HMMV y por LINE del motor de comandos (mira senales internas del RTL nuevo).
 // ============================================================================
 `timescale 1ns/1ps
 module tb_geo3d_int;
@@ -36,13 +36,19 @@ module tb_geo3d_int;
     );
 
     // ---- geo3d ----
-    wire       geo_hit, geo_ready, geo_rdata_en, geo_busy, geo_cmd_wr, geo_cmd_ce;
+    wire       geo_hit, geo_ready, geo_rdata_en, geo_busy, geo_cmd_wr, geo_cmd_ce, geo_cmd_fill_span;
     wire [7:0] geo_rdata, geo_cmd_data;
     wire [5:0] geo_cmd_num;
 `ifdef GEO3D_CE
-    // el generador de top.v (138K): toggle maestro + cinco replicas que cargan ~geo_ce_m, y el reset local
+    // 138K: el generador de top.v (toggle maestro + cinco replicas que cargan ~geo_ce_m) y el reset local de una etapa.
+    // +define+GEO3D_CE_FASE_B arranca el toggle en la otra fase (la fase del CE frente al bus no esta fijada).
+`ifdef GEO3D_CE_FASE_B
+    logic       geo_ce_m = 1'b1;
+    logic [4:0] geo_ce   = 5'h1F;
+`else
     logic       geo_ce_m = 1'b0;
     logic [4:0] geo_ce   = 5'd0;
+`endif
     logic       geo_rst_n = 1'b0;
     always @(posedge clk) begin
         geo_ce_m  <= ~geo_ce_m;
@@ -57,7 +63,7 @@ module tb_geo3d_int;
 `endif
         .bus_address(b_addr), .bus_ioreq(b_ioreq), .bus_write(b_write), .bus_valid(b_valid), .bus_wdata(b_wdata),
         .hit(geo_hit), .bus_ready(geo_ready), .bus_rdata(geo_rdata), .bus_rdata_en(geo_rdata_en),
-        .cmd_wr(geo_cmd_wr), .cmd_num(geo_cmd_num), .cmd_data(geo_cmd_data), .cmd_ce(geo_cmd_ce), .run_busy(geo_busy)
+        .cmd_wr(geo_cmd_wr), .cmd_num(geo_cmd_num), .cmd_data(geo_cmd_data), .cmd_fill_span(geo_cmd_fill_span), .cmd_ce(geo_cmd_ce), .run_busy(geo_busy)
     );
     // ---- el mux de top_zynq.v ----
     wire       v_ready, v_rdata_en;
@@ -88,7 +94,7 @@ module tb_geo3d_int;
         .vram_tag(v_vtag), .vram_rtag(v_vrtag_r), .vram_stall(1'b0), .vram_refresh(v_vrefresh),
         .display_hs(v_hs), .display_vs(v_vs), .display_en(v_en), .display_r(v_r), .display_g(v_g), .display_b(v_b),
         .force_highspeed(1'b0), .button(2'b00),
-        .ext_cmd_wr(geo_cmd_wr), .ext_cmd_num(geo_cmd_num), .ext_cmd_data(geo_cmd_data), .ext_cmd_ce(geo_cmd_ce),
+        .ext_cmd_wr(geo_cmd_wr), .ext_cmd_num(geo_cmd_num), .ext_cmd_data(geo_cmd_data), .ext_cmd_fill_span(geo_cmd_fill_span), .ext_cmd_ce(geo_cmd_ce),   // 01/11: filas rellenas = HMMV rapido en SCREEN 8
         .pulse0(), .pulse1(), .pulse2(), .pulse3(), .pulse4(), .pulse5(), .pulse6(), .pulse7()
     );
     logic [31:0] vram_mem [0:65535];
@@ -160,23 +166,28 @@ module tb_geo3d_int;
         begin z_wr(3'd1, d); z_wr(3'd1, {2'b10, r}); end
     endtask
 
-    integer fi, r, a, b, frames = 0, maxcyc = 0, cyc, k, vdp_bad = 0, maxpoll;
+    integer fi, r, a, b, frames = 0, maxcyc = 0, cyc, k, vdp_bad = 0, gi;
+    integer fast_starts = 0, line_starts = 0, fv;
+    reg [8*200-1:0] vdump_name;
+`ifdef GEO_FAST_STATS
+    always @(posedge clk) if (u_vdp.u_command.ff_start) begin
+        if (u_vdp.u_command.ff_geo_hmmv) fast_starts = fast_starts + 1;
+        else if (u_vdp.u_command.ff_command == 4'h7) line_starts = line_starts + 1;
+    end
+`endif
     reg [8*4-1:0] op;
     reg [7:0] st, k0, k1, k2, k3, k4, k5;
     reg [8*200-1:0] stim_name, got_name;
     initial begin
         if (!$value$plusargs("stim=%s", stim_name)) stim_name = "scenes_stim.txt";
         if (!$value$plusargs("got=%s",  got_name))  got_name  = "geo3d_int_got.txt";
-        // 17/10: tope de sondeos de RUN por cuadro. 400000 basta para las escenas de alambre; las de caras
-        // (gen_face_scenes) y texturas (gen_tex_scenes) tienen cuadros mas largos (+maxpoll=4000000).
-        if (!$value$plusargs("maxpoll=%d", maxpoll)) maxpoll = 400000;
         for (k = 0; k < 65536; k = k + 1) vram_mem[k] = 32'd0;
         fo = $fopen(got_name, "w");
         repeat (20) @(negedge clk);
         rst_n = 1;
         repeat (200) @(negedge clk);
         // SCREEN 5, pantalla apagada; puerto 4 (9Ch) bit7 = 0 desbloquea R#20/R#21; R#21 = 0 (modo V9968), R#20 = 1 (alta velocidad)
-        vdp_reg(6'd0, 8'h06); vdp_reg(6'd1, 8'h00); vdp_reg(6'd2, 8'h1F);
+        vdp_reg(6'd0, $test$plusargs("sc8") ? 8'h0E : 8'h06); vdp_reg(6'd1, 8'h00); vdp_reg(6'd2, 8'h1F);
         z_wr(3'd4, 8'h00);
         vdp_reg(6'd21, 8'h00); vdp_reg(6'd20, 8'h01);
         // geo3d ha de contestar: estado con RUN = 0
@@ -193,9 +204,16 @@ module tb_geo3d_int;
                     z_wr(a[0] ? 3'd7 : 3'd5, b[7:0]);
                 end else if (op[7:0] == "R") begin
                     cyc = 0; st = 8'h01;
-                    while (st[0] && cyc < maxpoll) begin z_rd(3'd5, st); cyc = cyc + 1; end
+                    while (st[0] && cyc < 8000000) begin z_rd(3'd5, st); cyc = cyc + 1; end
                     if (st[0]) $display("*** RUN no acaba (cuadro %0d) ***", frames);
                     if (cyc > maxcyc) maxcyc = cyc;
+                end else if (op[7:0] == "G") begin
+                    // G <indice, hex> <n>: lee n registros por 9Fh tras poner el indice (v2.0, como tb_bus.v)
+                    r = $fscanf(fi, "%h %d", a, b);
+                    z_wr(3'd5, a[7:0]);
+                    $fwrite(fo, "G %02x", a[7:0]);
+                    for (gi = 0; gi < b; gi = gi + 1) begin z_rd(3'd7, k0); $fwrite(fo, " %02x", k0); end
+                    $fwrite(fo, "\n");
                 end else if (op[7:0] == "K") begin
                     z_wr(3'd5, 8'h4A);
                     z_rd(3'd7, k0); z_rd(3'd7, k1); z_rd(3'd7, k2); z_rd(3'd7, k3); z_rd(3'd7, k4); z_rd(3'd7, k5);
@@ -211,6 +229,12 @@ module tb_geo3d_int;
             end
         end
         $fclose(fo);
+        if ($value$plusargs("vdump=%s", vdump_name)) begin
+            fv = $fopen(vdump_name, "w");
+            for (k = 0; k < 65536; k = k + 1) $fwrite(fv, "%08x\n", vram_mem[k]);
+            $fclose(fv);
+        end
+        $display("HMMV rapidos %0d, LINE %0d (solo con -DGEO_FAST_STATS)", fast_starts, line_starts);
         $display("tb_geo3d_int: cuadros %0d, comandos %0d, escrituras con CE=1: %0d, sondeos RUN max: %0d, S#2 raros: %0d",
                  frames, ncmd, violations, maxcyc, vdp_bad);
         if (violations == 0 && vdp_bad == 0) $display("##### INTEGRACION geo3d: SIN VIOLACIONES (comparar got con expect) #####");

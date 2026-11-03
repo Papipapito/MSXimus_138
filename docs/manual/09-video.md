@@ -40,6 +40,12 @@ Un detalle para quien programe o pruebe software de V9968: hay tres versiones de
 
 El V9968 se identifica como V9958 ante el software que pregunta, y el MSXimus como MSX2+. Los programas de diagnóstico dirán "V9958", y con el programa CHKVDP de HRA! saldrán dos V9968: es correcto, sondea las dos direcciones estándar y el MSXimus responde en las dos.
 
+### El coprocesador 3D (builds con geo3d)
+
+Las builds con geo3d llevan además el **geo3d** de Alex Moncks: un coprocesador que transforma, recorta, ordena y sombrea modelos 3D (hasta 1.023 vértices, aristas y caras con la v2.0) y dibuja él mismo las caras con el motor de comandos del V9968. Está siempre presente en los puertos 9Dh/9Fh (y 8Dh/8Fh); no hay nada que activar. En la Zynq da unos 200 cuadros sombreados por segundo; **en la 138K no se ha medido**.
+
+Para probarlo, las ROM de demos de Alex Moncks (`GEO3D_98.ROM`, `GEO FIGHTER`, `Cube Maze`) y las de kanon-ai se compilan desde sus repositorios, con la base de puertos 98h. Si no llevan la firma de tipo de ROM, hay que poner `[ASCII16]` en el nombre del fichero. El modo rápido del V9968 se activa con `OUT (9Ch),0`, R#21 = 0 y R#20 = 1. Las demos de kanon-ai marcan el ritmo con el temporizador del S1990 (puertos E6h/E7h).
+
 ## 4. Lo que no hay
 
 - Salida analógica de ningún tipo: ni compuesto, ni RGB, ni VGA.

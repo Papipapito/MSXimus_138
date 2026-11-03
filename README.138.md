@@ -146,6 +146,15 @@ Lo propio del 138:
   [capitulo 07](docs/tecnica/07-sintesis-campanas.md) y en el
   [changelog](docs/tecnica/09-changelog.md)).
 
+## geo3d (coprocesador 3D)
+
+Rama `geo3d-v2`: la v3.8.4b con **geo3d v2.0** de Alex Moncks (MIT) en 9Dh/9Fh y los espejos 8Dh/8Fh, el coprocesador 3D de la
+Zynq que no cabe en el 60K (98 % de CLS). Es el RTL de HRA! 3d55af4 (v0.92) con la fila rapida de caras planas
+(HMMV de una fila en SCREEN 8). El 138K no tiene ninguna red de reloj global libre, asi que el motor va en `clk_86` con un
+clock enable a 1/2 (`GEO3D_CE`); detalle y verificacion en `fpga/geo3d/ORIGEN.txt` y
+[docs/tecnica/01-arquitectura.md](docs/tecnica/01-arquitectura.md). Se compila con
+`tools/lanzar_campana.ps1 -Campana <nombre> -Dados <primos> -Geo3d -Root <este arbol>`.
+
 ## Versiones del porte
 
 | Version | Fecha | Dado | Equivale a | Que trae |
