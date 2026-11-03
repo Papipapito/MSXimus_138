@@ -155,6 +155,13 @@ clock enable a 1/2 (`GEO3D_CE`); detalle y verificacion en `fpga/geo3d/ORIGEN.tx
 [docs/tecnica/01-arquitectura.md](docs/tecnica/01-arquitectura.md). Se compila con
 `tools/lanzar_campana.ps1 -Campana <nombre> -Dados <primos> -Geo3d -Root <este arbol>`.
 
+Entrega de prueba (03/11/2026, sin probar en placa): dado **5867** (campana `g3v2d`; 1 de 21 dados con geo3d pasa el gate; +0,004 ns
+contra los 11,30 del `clk_86` sobre-restringido = ~0,34 ns reales; CLS 66 %, BSRAM 136/340, DSP 32/298; `.fs` ab77822305dd;
+`files/20261103/`). Con geo3d el CLS pasa del 58 % al 66 % y salieron dos problemas, ambos del T80 y no de geo3d: el camino de
+la CPU a la SD (la direccion que el T80 saca combinacional de la BSRAM de su banco de registros, hacia los decodificadores y las
+escrituras de la SD en 27 MHz: de -1 a -3,7 ns en 11 dados) se arreglo registrando a 54 MHz el dato (`cpu_dout_sd`) y,
+sobre todo, la direccion (`bus_addr_sd`), y despues quedo el cierre de `clk_86` en el shim del V9968, resuelto por dados.
+
 ## Versiones del porte
 
 | Version | Fecha | Dado | Equivale a | Que trae |
