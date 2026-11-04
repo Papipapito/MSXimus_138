@@ -1,10 +1,10 @@
 # 02. Instalación
 
-Qué hay que grabar en la placa y con qué herramienta. Todo lo obligatorio va a la flash de la propia placa por el USB-C; las dos piezas opcionales, el ESP32-C6 y el BL616, tienen su propio procedimiento.
+Qué hay que grabar en la placa y con qué herramienta. Son **dos pasos obligatorios, en este orden**: **primero el firmware del BL616** (sección 2) y **después** el core, el pack y las ondas en la flash de la propia placa por el USB-C (sección 1). La única pieza opcional, el ESP32-C6, tiene su propio procedimiento.
 
 > **Aviso.** El MSXimus_138 es el porte del MSXimus a la Tang Console 138K: la misma placa base con el SOM Tang Mega 138K en vez del Mega 60K. Ninguna versión del 138, tampoco la v3.8.4, se ha validado todavía en una placa 138K: el core está compilado y verificado en simulación, pendiente de placa (la v3.8.4 del 60K, con el mismo RTL, sí está validada). Lo que este capítulo cuenta como procedimiento es el del 60K trasladado al mapa de flash del 138; lo que se ve al encender (logo, menú, calibración de la DDR3) está pendiente de verificar en placa.
 
-## 1. Lo que va a la flash de la placa
+## 1. Lo que va a la flash de la placa (paso 2)
 
 Tres ficheros, cada uno a una dirección distinta de la misma flash SPI de 8 MB (una W25Q64, la misma que en el 60K):
 
@@ -26,7 +26,7 @@ La release de la v3.8.4 trae:
 | `pack_bios_msximus.bin` (menú en castellano), `_en` (inglés), `_nextor3` y `_en_nextor3` (Nextor 3.0 beta 2) | El pack, en 0x500000: uno de los cuatro |
 | `yrw801.bin` | Las ondas del OPL4, en 0x600000 |
 | `MXUPDATE.COM` (1.3) | A la SD: actualizar desde el MSX ([capítulo 11](11-actualizar.md)) |
-| `bl616_msximus_v3.8_138k.zip` | El panel F12, en el BL616 (sección 2) |
+| `bl616_msximus_v3.8_138k.zip` | El firmware del BL616: el **paso 1** (sección 2) |
 | `firmware_esp32c6_v3.8_merged.bin` | La WiFi, en el ESP32-C6 (sección 3) |
 
 No lleva imagen de tarjeta: la SD se prepara con [MSX SD Maker](https://github.com/Papipapito/SD_Maker) ([capítulo 03](03-tarjeta-sd.md)). Con `yrw801.bin` sin grabar todo funciona igual, salvo la tabla de ondas del MoonSound.
@@ -41,7 +41,7 @@ No lleva imagen de tarjeta: la SD se prepara con [MSX SD Maker](https://github.c
 4. Graba primero el core y luego los otros dos. El orden no importa; **las direcciones sí**: si el pack no cae exactamente en 0x500000, la máquina arranca a pantalla negra. En el Gowin Programmer, el `.fs` va con *exFlash Erase,Program,Verify* y el pack y la ROM de ondas con *exFlash C Bin Erase,Program*, la segunda con la extensión cambiada a `.bin` (con un `.rom`, o con la primera operación, el programador da un error de "id-code"). Si el campo de dirección tiene siete cifras, se escribe `0x0500000` y `0x0600000`. Si el programador avisa de que el fichero no cabe en la flash ("exceeding the limit"), no ha grabado nada: la dirección está mal.
 5. **Apaga y enciende la placa.** Un reset no basta: la DDR3 necesita calibrar en frío y, en el 60K, puede quedarse colgada tras un reset en caliente (en el 138, misma IP y mismo motor de reintentos, pendiente de verificar en placa).
 
-Si al encender solo hay una pantalla azul, es casi siempre el pack en una dirección equivocada o que falta el apagado y encendido.
+Si al encender solo hay una pantalla azul, es casi siempre el pack en una dirección equivocada o que falta el apagado y encendido. Si lo que sale no es el MSXimus sino el firmware de fábrica de la Console (el de Sipeed), falta el paso 1: el BL616 (sección 2).
 
 Para el Gowin Programmer vale el `.fs`, el único que trae la release. Las entregas de `files/<fecha>/` traen además un `_jtag.bin`: el mismo bitstream en binario, que es lo que llevan los `.UPD` en 0x000000. Con el Programmer se usa el `.fs`.
 
@@ -70,22 +70,22 @@ Con eso, una microSD con ROMs y discos, y ya está. El [capítulo 03](03-tarjeta
 
 Copia también a la SD el `MXUPDATE.COM` de la release: con él, las siguientes versiones se instalan desde el MSX ([capítulo 11](11-actualizar.md)). Una tarjeta hecha con MSX SD Maker ya lo lleva en la carpeta `FPGA`, en el `PATH`, pero la 138K necesita la 1.3 o posterior y la release publicada de SD Maker (la 1.4) trae la 1.2: copia el de esta release encima de `FPGA\MXUPDATE.COM`, o lanza `MXUPDATE /N`, que antes de nada se pone al día solo.
 
-## 2. El panel F12: el BL616 (opcional)
+## 2. El BL616 (paso 1, obligatorio) y el panel F12
 
-La Console 138K lleva, como la 60K, un microcontrolador **BL616** cableado a la FPGA de fábrica. Con un firmware, dibuja un panel de estado en color sobre la imagen del MSX cuando se pulsa **F12**: versión del core, CPU y turbo, vídeo, tarjeta, los ajustes principales (scanlines, estéreo, segundo SCC), qué hay en cada USB-A, ventilador y bloqueo de mayúsculas, y la orden para actualizar (`MXUPDATE /N`). En la cabecera dice `MSXimus 138K`. Con F12 otra vez (o ESC), el juego sigue donde estaba. Es de solo lectura: no hay menú ni cursor. Habla el idioma del menú.
+La Console 138K lleva, como la 60K, un microcontrolador **BL616** cableado a la FPGA de fábrica. **Hay que grabarle el firmware del MSXimus antes que nada:** de serie lleva el de Sipeed (de NES y otras cosas) y, si no se lo cambias, es lo que sale al encender, no el MSXimus. Con el del MSXimus, además, dibuja un panel de estado en color sobre la imagen del MSX cuando se pulsa **F12**: versión del core, CPU y turbo, vídeo, tarjeta, los ajustes principales (scanlines, estéreo, segundo SCC), qué hay en cada USB-A, ventilador y bloqueo de mayúsculas, y la orden para actualizar (`MXUPDATE /N`). En la cabecera dice `MSXimus 138K`. Con F12 otra vez (o ESC), el juego sigue donde estaba. Es de solo lectura: no hay menú ni cursor. Habla el idioma del menú.
 
-No cuesta nada en hardware: la línea serie entre los dos chips ya está en la placa. Sin el firmware, el MSX funciona igual; solo falta el panel. Como el BL616 se queda la tecla F12, el turbo va en **F11**.
+No cuesta nada en hardware: la línea serie entre los dos chips ya está en la placa. Sin el firmware del MSXimus no hay MSXimus: al encender sale el de fábrica de la Console. Como el BL616 se queda la tecla F12, el turbo va en **F11**.
 
 En la release va en un ZIP, `bl616_msximus_v3.8_138k.zip`: la imagen del panel, que va en **0x40000**, y el `flash_prog_cfg.ini` que la graba. El *partner firmware* de Sipeed que la Console 138K trae en 0x0 no se toca: los dos conviven.
 
 1. **Mantén pulsado el botón BOOT mientras conectas el USB.** Eso pone el chip en modo ISP.
 2. Aparece un **puerto COM nuevo**: ese es el BL616. Listar los puertos antes y después de conectar es la forma fácil de saber cuál.
 3. Descomprime el ZIP en una carpeta, abre **BLDevCube** (el [Bouffalo Lab Dev Cube](https://github.com/bouffalolab/bouffalo_sdk)) y carga su `flash_prog_cfg.ini`: ya lleva la imagen con su dirección.
-4. Desconecta el USB del PC y alimenta la placa con un **cargador USB**. El panel solo funciona así: con el USB del PC enchufado, el BL616 hace de puente JTAG para el Gowin Programmer y no hay panel.
+4. Sigue con el **paso 2** (sección 1): el core, el pack y las ondas con el Gowin Programmer. El panel solo funciona con la placa alimentada por un **cargador USB**: cuando termines de grabar, quita el USB del PC. Con el USB del PC enchufado, el BL616 hace de puente JTAG para el Gowin Programmer y no hay panel.
 
 El modo ISP vive en la ROM del chip, no en su flash, así que funciona escriba lo que se escriba: no se puede dejar la placa inservible por aquí.
 
-Es el firmware del 60K compilado para la Console 138K; en una placa 138K está pendiente de verificar.
+Es el firmware del 60K compilado para la Console 138K. Que sin este paso sale el firmware de fábrica de la Console está comprobado en una 138K y en una 60K; el panel F12 en la 138K sigue pendiente de verificar.
 
 ## 3. La WiFi: el ESP32-C6 (opcional)
 

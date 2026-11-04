@@ -37,7 +37,7 @@ del porte.
 | Flash: pack | 0x400000 | **0x500000** |
 | Flash: config (11 bytes desde la 3.7) | 0x480000 | **0x580000** |
 | Flash: YRW801 (OPL4 wave, 2 MB) | 0x500000 | **0x600000** (hasta el final de la flash) |
-| Firmware del BL616 | fork TangCore (V3.8, OSD con color) en 0x40000, con el partner de Sipeed en 0x0 | **el mismo, compilado para la Console 138K** (`bl616_msximus_v3.8_138k.zip`): solo la imagen en 0x40000; el partner firmware de Sipeed de la 138K, en 0x0, no se toca |
+| Firmware del BL616 | fork TangCore (V3.8, OSD con color) en 0x40000, con el partner de Sipeed en 0x0 | **el mismo, compilado para la Console 138K** (`bl616_msximus_v3.8_138k.zip`): solo la imagen en 0x40000; el partner firmware de Sipeed de la 138K, en 0x0, no se toca. Es el **paso 1 obligatorio**: sin él sale el firmware de fábrica de la Console |
 | MXUPDATE e "Instalar actualizacion" | pack en 0x400000, `MSXIMUS.UPD`, web `tang60k/` | pack en **0x500000** (MXUPDATE 1.3 y bios `30f1ce2`), **`MSX138K.UPD`** (MXUPDATE y el menu), web `tang138k/` |
 | Dato de la CPU hacia la SDRAM | directo al cruce 54 -> 108 | **registrado a 54 MHz** antes del cruce (`cpu_dout_ram`, v3.8.4) |
 | Gowin EDA | 1.9.12.03 Standard (la Education 1.9.11.03 tambien cubre el GW5AT-60B) | **1.9.12.03 Standard con licencia** (la Education no soporta el 138K) |

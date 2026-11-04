@@ -41,7 +41,7 @@ That is a change at the foundation rather than on the surface, and it earned its
 
 **Input** · USB keyboard straight into the board (no hub needed), with physical F1–F10 · USB gamepads mapped to MSX joysticks · USB mouse as an MSX mouse
 
-**On screen** · Optional **status panel on F12**, in colour, painted over the MSX by the BL616 the board already carries
+**On screen** · **Status panel on F12**, in colour, painted over the MSX by the BL616 the board already carries
 
 **Updates** · From the MSX itself, no PC: `MXUPDATE /N` downloads the latest version from the internet and flashes it; an `.UPD` file on the SD works too
 
@@ -60,13 +60,15 @@ That is a change at the foundation rather than on the surface, and it earned its
 | Optional | **USB** keyboard and gamepad | Straight into the board's USB-A ports, no hub |
 | Optional | **USB mouse**, wired | Straight into the board. ⚠️ A **wireless** receiver will not work: it presents itself as a composite device |
 | Optional | **ESP32-C6** (Waveshare C6-LCD-1.3) | For **WiFi**, with an optional info display |
-| Optional | *Nothing to buy* — the board's own **BL616** | Enables the F12 status panel. Needs its firmware flashed once |
+| **Required** | *Nothing to buy* — the board's own **BL616** | Its MSXimus firmware has to be flashed **first**: from the factory it carries Sipeed's own, and that is what you get at power-on. It also gives the F12 status panel |
 
 The fan is not needed for operation. If you fit one, the core drives it by itself: it measures the die temperature with an internal thermometer and only spins it when needed.
 
 ## Installation
 
-Everything goes into the board's **SPI flash**, at three different addresses. ⚠️ **These are the 138K addresses**: the 138K bitstream is twice as big, so the pack and the OPL4 waves sit 1 MB higher than on the 60K (`0x400000` / `0x500000` there). The flash holds 8 MB, and the waves fill its last 2 MB.
+> **Two mandatory steps, in this order.** **Step 1:** the BL616 firmware ([Flashing the BL616](#flashing-the-bl616), with BLDevCube): from the factory the Console carries Sipeed's own firmware (NES and other things) and, unless you replace it, that is what you get at power-on — not the MSXimus. **Step 2:** the core, the pack and the waves into the SPI flash, with the Gowin Programmer (what follows).
+
+**Step 2 — the SPI flash.** Everything goes into the board's **SPI flash**, at three different addresses. ⚠️ **These are the 138K addresses**: the 138K bitstream is twice as big, so the pack and the OPL4 waves sit 1 MB higher than on the 60K (`0x400000` / `0x500000` there). The flash holds 8 MB, and the waves fill its last 2 MB.
 
 | # | File | Address | Required? |
 |---|---|---|---|
@@ -79,10 +81,10 @@ The rest of the release does not go into that flash:
 | File | Where |
 |---|---|
 | `MXUPDATE.COM` | To the SD card: it updates the board from the MSX ([below](#updating-from-the-msx)) |
-| `bl616_msximus_v3.8_138k.zip` | The BL616, for the F12 panel (optional) |
+| `bl616_msximus_v3.8_138k.zip` | The BL616: it is **step 1** ([below](#flashing-the-bl616)) |
 | `firmware_esp32c6_v3.8_merged.bin` | The ESP32-C6, for WiFi (optional) |
 
-Each optional piece has its own section below.
+Each one has its own section below.
 
 **This is only needed once.** From v3.8.4 on, the next updates are done from the MSX itself: see [Updating from the MSX](#updating-from-the-msx).
 
@@ -92,7 +94,7 @@ Each optional piece has its own section below.
 |---|---|
 | The three files above | [**Gowin Programmer**](https://www.gowinsemi.com/en/support/download_eda/) (the one bundled with the 1.9.12 IDE works fine) |
 | ESP32-C6 (WiFi) | [**esptool-js**](https://espressif.github.io/esptool-js/) in the browser — nothing to install — or `esptool` |
-| BL616 (F12 panel) | [**Bouffalo Lab Dev Cube**](https://github.com/bouffalolab/bouffalo_sdk) (BLDevCube) |
+| BL616 (step 1) | [**Bouffalo Lab Dev Cube**](https://github.com/bouffalolab/bouffalo_sdk) (BLDevCube) |
 
 ### How to flash
 
@@ -103,6 +105,8 @@ Each optional piece has its own section below.
 5. **Power-cycle the board.** A reset is **not** enough: the DDR3 needs a cold recalibration and may hang after a warm reset.
 
 > If you power up and only get a blue screen, it's almost always (a) the pack at the wrong address, or (b) a missing power-cycle.
+>
+> If what comes up is not the MSXimus but the Console's factory firmware (Sipeed's), step 1 is missing: the BL616.
 
 ### About the BIOS pack
 
@@ -166,9 +170,9 @@ Every file is checked **before anything is erased**, and the flash is read back 
 
 Times, since the Z80 does all the work: pack only, 1.5 minutes. The 138K's core is twice the size of the 60K's, so core and pack take about 16 minutes and the full one about 22 (estimated from the 60K's measurements) — plus the download. Everything else is in the manual: [`docs/manual/11-actualizar.md`](docs/manual/11-actualizar.md) (Spanish).
 
-## The status panel — F12 (optional)
+## The BL616 and the status panel — F12
 
-The Console 138K carries, like the 60K, a second chip you have probably never used: a **BL616** microcontroller, wired to the FPGA from the factory. Give it a firmware and it will paint a status panel straight over the MSX picture.
+The Console 138K carries, like the 60K, a second chip: a **BL616** microcontroller, wired to the FPGA from the factory. **It has to be given the MSXimus firmware before anything else**: out of the box it runs Sipeed's own (NES and other things), and that is what shows up at power-on, not the MSXimus. With the MSXimus one it also paints a status panel straight over the MSX picture.
 
 Press **F12** and the MSX freezes and the panel comes up, in colour. Press it again (or ESC) and the game carries on exactly where it was. It is **read-only** — there is no menu, no cursor, nothing to break. It reports what the core says about itself, in the menu's language:
 
@@ -197,18 +201,18 @@ This costs you nothing in hardware: **no wires, no soldering, no module**. The l
 
 ### Flashing the BL616
 
-The release ships it in a ZIP, **`bl616_msximus_v3.8_138k.zip`**: the MSXimus image, which goes at **`0x40000`**, and the `.ini` that writes it. The Sipeed firmware the Console 138K carries at `0x0` is not touched: the two **coexist**.
+**Step 1, before the core.** The release ships it in a ZIP, **`bl616_msximus_v3.8_138k.zip`**: the MSXimus image, which goes at **`0x40000`**, and the `.ini` that writes it. The Sipeed firmware the Console 138K carries at `0x0` is not touched: the two **coexist**.
 
 1. **Hold the BOOT button down while you plug in the USB.** That puts the chip in ISP mode.
 2. A **new COM port** appears — that one is the BL616. (Listing the ports before and after plugging it in is the easy way to tell which.)
 3. Unzip it into a folder, open **BLDevCube** and load its **`flash_prog_cfg.ini`**: it already carries the image and its address, so there is nothing to type.
-4. Unplug the PC's USB and power the board from a **USB charger**.
+4. Carry on with **step 2**: the core, the pack and the waves with the Gowin Programmer ([Installation](#installation)).
 
-> The panel only works with the board powered from a charger: with the PC's USB plugged in, the BL616 acts as the JTAG bridge for the Gowin Programmer and there is no panel.
+> The panel only works with the board powered from a charger: once you have finished flashing, unplug the PC's USB and use a **USB charger**. With the PC's USB plugged in, the BL616 acts as the JTAG bridge for the Gowin Programmer and there is no panel.
 
 ISP mode lives in the chip's ROM, not in its flash, so it works no matter what you have written. **It is the reverse gear that never fails** — you cannot brick the board this way.
 
-If you would rather not flash it at all, don't: the MSX works exactly the same, you simply won't have the F12 panel.
+Don't skip it: without this step the board powers up with the Console's factory firmware (Sipeed's) and not the MSXimus.
 
 ## Wiring the ESP32-C6 (WiFi)
 

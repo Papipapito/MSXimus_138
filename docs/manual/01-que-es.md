@@ -49,7 +49,7 @@ Todo lo demás (menú, tarjeta SD, mappers, megaram, guardado, DMA, DOS/Nextor, 
 | Opcional | Teclado y mando USB | Directos a los USB-A de la placa |
 | Opcional | Ratón USB **con cable** | Un receptor inalámbrico no funciona: se presenta como dispositivo compuesto |
 | Opcional | **ESP32-C6** Waveshare C6-LCD-1.3 | Para la WiFi y su pantalla. Tres cables y la alimentación desde la placa |
-| Opcional | Nada que comprar: el **BL616** de la placa | Para el panel F12. Solo hay que flashearle un firmware una vez: `bl616_msximus_v3.8_138k.zip`, en la release |
+| **Obligatorio** | Nada que comprar: el **BL616** de la placa | Hay que flashearle el firmware del MSXimus una vez y **antes que nada**: de fábrica lleva el de Sipeed y es lo que sale al encender. Además da el panel F12: `bl616_msximus_v3.8_138k.zip`, en la release |
 | Opcional | Una **carcasa** impresa en 3D | Con forma de Spectravideo SVI-728, con sitio para la placa, el C6 con su pantalla y el ventilador. Como la placa base es la misma, vale la del 60K. Los ficheros y las fotos están en [`carcasa/`](../../carcasa/README.md) |
 
 ## Lo que no es
