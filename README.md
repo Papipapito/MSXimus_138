@@ -66,7 +66,24 @@ The fan is not needed for operation. If you fit one, the core drives it by itsel
 
 ## Installation
 
-> **Two mandatory steps, in this order.** **Step 1:** the BL616 firmware ([Flashing the BL616](#flashing-the-bl616), with BLDevCube): from the factory the Console carries Sipeed's own firmware (NES and other things) and, unless you replace it, that is what you get at power-on — not the MSXimus. **Step 2:** the core, the pack and the waves into the SPI flash, with the Gowin Programmer (what follows).
+### From zero to running, step by step
+
+For a Console 138K fresh out of the box, or to bring one back to a clean state. Steps **1 and 2 are done with the PC, once**; from step 3 on everything is done from the MSX itself, no PC.
+
+**What you need.** The board and a USB-C cable; a Windows PC; a good-brand Class 10 microSD; and, for the MSX to download things from the internet, the ESP32-C6 module with its firmware ([Wiring the ESP32-C6](#wiring-the-esp32-c6-wifi)) and a 2.4 GHz WiFi network. From the GitHub release: `bl616_msximus_v3.8_138k.zip`, the `.fs` (`msximus138_…fs`), `pack_bios_msximus.bin` and `MXUPDATE.COM`. **You do not need the OPL4 waves (`yrw801.bin`):** `MXUPDATE` downloads them.
+
+1. **The BL616 firmware** (mandatory, and first). Hold **BOOT** while plugging in the USB, open **BLDevCube**, load the ZIP's `flash_prog_cfg.ini` and flash. Without it, power-on gives Sipeed's factory firmware, not the MSXimus. [Details](#flashing-the-bl616).
+2. **The core and the pack into the SPI flash**, with the **Gowin Programmer** (it should detect a **GW5AST-138**): the `.fs` at `0x000000` with *exFlash Erase,Program,Verify* and `pack_bios_msximus.bin` at `0x500000` with *exFlash C Bin Erase,Program*. **These are the 138K addresses, not the 60K ones.** Then **power-cycle** the board: a reset is not enough. The MSXimus should come up; if something else does, see [How to flash](#how-to-flash). That ends the PC part.
+3. **The SD card.** Prepare it with [MSX SD Maker](https://github.com/Papipapito/SD_Maker): it partitions it the way Nextor does, copies the system and puts `MXUPDATE.COM` in the `FPGA` folder, which is on the `PATH` (on the 138K, 1.3 or later will do). Put it in the board and power on: the machine boots MSX-DOS (if the card browser shows up, press **ESC**; [chapter 06](docs/manual/06-msxdos-nextor.md)). Without MSX SD Maker, any FAT16 SD with Nextor (`NEXTOR.SYS` and `COMMAND2.COM` in the root) and `MXUPDATE.COM` copied over will do.
+4. **WiFi.** In the card browser, or during the logo, press **W**, go to *Scan/Join Access Points*, pick your network and type the password. It is stored in the module: it connects by itself at power-on ([chapter 07](docs/manual/07-wifi-file-hunter.md)).
+5. **`MXUPDATE /N`**, from MSX-DOS. It first updates itself and relaunches. Then it says which core you have and which one is on msx.barcelona, and asks for the variant: **1** is the usual one (Nextor 2.1.4, Spanish menu); 2 to 4 switch to Nextor 3 or the English menu and need an SD prepared for it. It downloads the file, checks it and asks `Fichero correcto. Grabar en la flash? (S/N)` (file OK, flash it?): **S**, and **do not power off** (about 16 minutes: the 138K bitstream is twice the size). Because a freshly flashed board has no OPL4 waves, when done it asks `Bajarlas e instalarlas ahora? (S/N)` (download and install them now?): **S** (about 5 more minutes). When it says `Listo`, **power-cycle**.
+6. **That's it.** Core and pack up to date, and the MoonSound with its waves. From here on, `MXUPDATE /N` whenever you want to catch up, and `MXUPDATE /O` if you ever need the waves again (if you already have the latest version and only the waves are missing, `MXUPDATE /O` alone is enough).
+
+If something doesn't go as described, [Updating from the MSX](#updating-from-the-msx) and [manual chapter 11](docs/manual/11-actualizar.md) explain every message.
+
+### The flash files, in detail
+
+> **Two mandatory steps, in this order.** **Step 1:** the BL616 firmware ([Flashing the BL616](#flashing-the-bl616), with BLDevCube): from the factory the Console carries Sipeed's own firmware (NES and other things) and, unless you replace it, that is what you get at power-on — not the MSXimus. **Step 2:** the core and the pack into the SPI flash, with the Gowin Programmer (what follows).
 
 **Step 2 — the SPI flash.** Everything goes into the board's **SPI flash**, at three different addresses. ⚠️ **These are the 138K addresses**: the 138K bitstream is twice as big, so the pack and the OPL4 waves sit 1 MB higher than on the 60K (`0x400000` / `0x500000` there). The flash holds 8 MB, and the waves fill its last 2 MB.
 
@@ -151,7 +168,7 @@ From v3.8 the MSXimus updates **itself**: the core and the BIOS pack are written
 
 **Fixes only come this way.** GitHub carries the big versions; the fixes are published only for `MXUPDATE /N`. Install the GitHub release once and `MXUPDATE /N` takes you to the latest.
 
-`MXUPDATE.COM` is in the release and, on a card made with [MSX SD Maker](https://github.com/Papipapito/SD_Maker), in the `FPGA` folder (on the `PATH`). The 138K needs **version 1.3 or later**: 1.2 expected the 138K's pack at the old address and refuses its files without touching anything. The published MSX SD Maker release (1.4) carries 1.2: copy this release's `MXUPDATE.COM` over `FPGA\MXUPDATE.COM`, or just run `MXUPDATE /N`, which updates itself first. It recognises the board by itself, speaks the menu's language and **updates itself**: before looking for a new core on the internet it checks whether there is a newer MXUPDATE; if there is, it downloads it, checks it, replaces itself and carries on with the new one.
+`MXUPDATE.COM` is in the release and, on a card made with [MSX SD Maker](https://github.com/Papipapito/SD_Maker), in the `FPGA` folder (on the `PATH`). The 138K needs **version 1.3 or later**: 1.2 expected the 138K's pack at the old address and refuses its files without touching anything. MSX SD Maker 1.4 and earlier carry 1.2 (from 1.5 on it carries 1.3 or later): in that case copy this release's `MXUPDATE.COM` over `FPGA\MXUPDATE.COM`, or just run `MXUPDATE /N`, which updates itself first. It recognises the board by itself, speaks the menu's language and **updates itself**: before looking for a new core on the internet it checks whether there is a newer MXUPDATE; if there is, it downloads it, checks it, replaces itself and carries on with the new one.
 
 ```
 MXUPDATE                  flashes this board's file from the current directory (MSX138K.UPD on the

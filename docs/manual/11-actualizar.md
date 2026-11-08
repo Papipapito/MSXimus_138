@@ -30,7 +30,7 @@ Los **ajustes** que guardas con *Save & Restart* (en 0x580000) **nunca** van en 
 
 Se lanza desde MSX-DOS. Va en la release y, en una tarjeta hecha con [MSX SD Maker](https://github.com/Papipapito/SD_Maker), en la carpeta `FPGA`, que está en el `PATH`: se lanza desde cualquier sitio. Reconoce la placa sola (60K, 138K o MSXnano 2.1.1) por el chip del core que hay grabado, y habla en el idioma del menú.
 
-En la 138K hace falta la **1.3** o posterior; las ondas del OPL4 por internet (`/O` y la pregunta de después de `/N`) son de la **1.4**. La 1.2 llevaba la 138K con el pack en 0x800000 (el mapa de la v3.7) y rechaza los ficheros de la 138K de ahora con `El fichero no es valido o esta danado. No se ha tocado nada.`. La release publicada de MSX SD Maker (la 1.4) pone la 1.2 en `FPGA`: copia encima el `MXUPDATE.COM` de la release de la v3.8.4. Por internet no hay que hacer nada: antes de bajar el core, MXUPDATE se actualiza solo.
+En la 138K hace falta la **1.3** o posterior; las ondas del OPL4 por internet (`/O` y la pregunta de después de `/N`) son de la **1.4**. La 1.2 llevaba la 138K con el pack en 0x800000 (el mapa de la v3.7) y rechaza los ficheros de la 138K de ahora con `El fichero no es valido o esta danado. No se ha tocado nada.`. MSX SD Maker 1.4 y anteriores ponen la 1.2 en `FPGA` (desde la 1.5 pone la 1.3 o posterior): en ese caso copia encima el `MXUPDATE.COM` de la release de la v3.8.4. Por internet no hay que hacer nada: antes de bajar el core, MXUPDATE se actualiza solo.
 
 ```
 MXUPDATE                  graba el fichero de esta placa del directorio actual: MSX138K.UPD en la

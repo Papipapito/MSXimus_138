@@ -1,6 +1,24 @@
 # 02. Instalación
 
-Qué hay que grabar en la placa y con qué herramienta. Son **dos pasos obligatorios, en este orden**: **primero el firmware del BL616** (sección 2) y **después** el core, el pack y las ondas en la flash de la propia placa por el USB-C (sección 1). La única pieza opcional, el ESP32-C6, tiene su propio procedimiento.
+Qué hay que grabar en la placa y con qué herramienta. Son **dos pasos obligatorios, en este orden**: **primero el firmware del BL616** (sección 2) y **después** el core y el pack en la flash de la propia placa por el USB-C (sección 1). Las ondas del OPL4 las baja el propio MSX con `MXUPDATE`. La única pieza opcional, el ESP32-C6, tiene su propio procedimiento.
+
+## 0. De cero a funcionando, paso a paso
+
+Para una Console 138K recién sacada de la caja, o para dejarla como nueva. Los pasos 1 y 2 se hacen con el PC, **una sola vez**; del 3 en adelante todo va desde el propio MSX.
+
+**Qué necesitas.** La placa y un cable USB-C; un PC con Windows; una microSD de marca y Clase 10; y, para que el MSX baje cosas de internet, el módulo ESP32-C6 con su firmware (sección 3) y una red WiFi de 2,4 GHz. De la release de GitHub: `bl616_msximus_v3.8_138k.zip`, el `.fs` (`msximus138_…fs`), `pack_bios_msximus.bin` y `MXUPDATE.COM`. **Las ondas del OPL4 (`yrw801.bin`) no hacen falta:** las baja `MXUPDATE`.
+
+| # | Qué | Con qué | Dónde se explica |
+|---|---|---|---|
+| 1 | **El firmware del BL616**: mantén **BOOT** pulsado al enchufar el USB, carga el `flash_prog_cfg.ini` del ZIP y graba. Obligatorio y el primero: sin él sale el firmware de fábrica de Sipeed | BLDevCube | sección 2 |
+| 2 | **El core y el pack**: el `.fs` en `0x000000` (*exFlash Erase,Program,Verify*) y `pack_bios_msximus.bin` en `0x500000` (*exFlash C Bin Erase,Program*), a la flash SPI externa. **Son las direcciones del 138K, no las del 60K.** Después, **apagar y encender** (un reset no basta). Tiene que salir el MSXimus | Gowin Programmer (detecta un GW5AST-138) | sección 1 |
+| 3 | **La tarjeta SD**, preparada con [MSX SD Maker](https://github.com/Papipapito/SD_Maker) (deja `MXUPDATE.COM` en `FPGA\`, en el `PATH`; en la 138K vale la 1.3 o posterior). Se pone en la placa y se enciende: arranca MSX-DOS (si sale el navegador, **ESC**) | MSX SD Maker | [capítulo 03](03-tarjeta-sd.md), [06](06-msxdos-nextor.md) |
+| 4 | **La WiFi**: tecla **W**, *Scan/Join Access Points*, tu red y su contraseña. Se guarda en el módulo | el menú | [capítulo 07](07-wifi-file-hunter.md) |
+| 5 | **`MXUPDATE /N`** desde MSX-DOS: se actualiza a sí mismo, baja la última versión (variante **1** = Nextor 2.1.4 y menú en castellano), la comprueba y la graba (**S**; unos 16 minutos, sin apagar). Al acabar pregunta `Bajarlas e instalarlas ahora?` por las ondas del OPL4 (**S**; unos 5 minutos más). Con `Listo`, **apagar y encender** | `MXUPDATE.COM` | [capítulo 11](11-actualizar.md) |
+
+Y ya está: core y pack al día y el MoonSound con sus ondas. A partir de aquí, `MXUPDATE /N` para ponerse al día y `MXUPDATE /O` si alguna vez hay que volver a poner las ondas; si la placa ya tiene la última versión y solo faltan las ondas, basta `MXUPDATE /O`.
+
+Sin el módulo ESP32-C6 no hay internet: el core y el pack se graban igual desde un `.UPD` en la SD (`MXUPDATE fichero.UPD`) y las ondas, con tu propio `yrw801.bin` en 0x600000 desde el Gowin Programmer (sección 1).
 
 > **Aviso.** El MSXimus_138 es el porte del MSXimus a la Tang Console 138K: la misma placa base con el SOM Tang Mega 138K en vez del Mega 60K. Ninguna versión del 138, tampoco la v3.8.4, se ha validado todavía en una placa 138K: el core está compilado y verificado en simulación, pendiente de placa (la v3.8.4 del 60K, con el mismo RTL, sí está validada). Lo que este capítulo cuenta como procedimiento es el del 60K trasladado al mapa de flash del 138; lo que se ve al encender (logo, menú, calibración de la DDR3) está pendiente de verificar en placa.
 
@@ -67,7 +85,7 @@ En una placa recién grabada la máquina arranca en el navegador de la tarjeta. 
 
 Con eso, una microSD con ROMs y discos, y ya está. El [capítulo 03](03-tarjeta-sd.md) explica cómo prepararla; la forma más fácil es [MSX SD Maker](https://github.com/Papipapito/SD_Maker).
 
-Copia también a la SD el `MXUPDATE.COM` de la release: con él, las siguientes versiones se instalan desde el MSX ([capítulo 11](11-actualizar.md)). Una tarjeta hecha con MSX SD Maker ya lo lleva en la carpeta `FPGA`, en el `PATH`, pero la 138K necesita la 1.3 o posterior y la release publicada de SD Maker (la 1.4) trae la 1.2: copia el de esta release encima de `FPGA\MXUPDATE.COM`, o lanza `MXUPDATE /N`, que antes de nada se pone al día solo.
+Copia también a la SD el `MXUPDATE.COM` de la release: con él, las siguientes versiones se instalan desde el MSX ([capítulo 11](11-actualizar.md)). Una tarjeta hecha con MSX SD Maker ya lo lleva en la carpeta `FPGA`, en el `PATH`. La 138K necesita la 1.3 o posterior: las tarjetas hechas con MSX SD Maker 1.5 o posterior la traen, y si la tuya lleva una 1.2 (SD Maker 1.4 o anterior), copia el de esta release encima de `FPGA\MXUPDATE.COM`, o lanza `MXUPDATE /N`, que antes de nada se pone al día solo.
 
 ## 2. El BL616 (paso 1, obligatorio) y el panel F12
 
