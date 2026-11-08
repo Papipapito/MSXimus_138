@@ -12,7 +12,7 @@ Tres ficheros, cada uno a una dirección distinta de la misma flash SPI de 8 MB 
 |---|---|---|
 | El core: `msximus138_v3.8.4_dado5569.fs` en la release (en las entregas de `files/<fecha>/` se llama `msximus138_v3.x_dadoNNNN.fs`) | **0x000000** | Sí |
 | El pack de BIOS, `pack_bios_msximus*.bin` | **0x500000** | Sí, sin él la máquina no arranca |
-| `yrw801.bin`, la ROM de ondas del MoonSound (va como `.bin` porque el Programmer de Gowin no coge `.rom`; si tienes un `yrw801.rom`, renómbralo) | **0x600000** | No, solo para tener el OPL4 completo |
+| `yrw801.bin`, la ROM de ondas del MoonSound (va como `.bin` porque el Programmer de Gowin no coge `.rom`; si tienes un `yrw801.rom`, renómbralo) | **0x600000** | No, y **ya no va en la release**: con el core en marcha, `MXUPDATE /N` ofrece bajarla de msx.barcelona y grabarla (o `MXUPDATE /O` cuando quieras; [capítulo 11](11-actualizar.md)). A mano solo si ya tienes tu `yrw801.bin` |
 
 Las direcciones **no son las del 60K** (allí el pack va en 0x400000 y el `yrw801.bin` en 0x500000): el bitstream del 138K ocupa unos 4,9 MB (5.096.124 bytes), el doble que el del 60K, y se comería un pack grabado en 0x400000. Por eso todo lo que va detrás del core está 1 MB más arriba. El `yrw801.bin` es el mismo fichero. Los packs publicados para el 60K también arrancan en la 138K grabados en 0x500000, pero para *Instalar actualización* hacen falta los de esta release (bios `30f1ce2`): los del 60K (hasta su v3.8.4) buscan `MSXIMUS.UPD` y esperan el pack de la 138K en 0x800000.
 
@@ -24,12 +24,11 @@ La release de la v3.8.4 trae:
 |---|---|
 | `msximus138_v3.8.4_dado5569.fs` | El core, en 0x000000 |
 | `pack_bios_msximus.bin` (menú en castellano), `_en` (inglés), `_nextor3` y `_en_nextor3` (Nextor 3.0 beta 2) | El pack, en 0x500000: uno de los cuatro |
-| `yrw801.bin` | Las ondas del OPL4, en 0x600000 |
 | `MXUPDATE.COM` (1.3) | A la SD: actualizar desde el MSX ([capítulo 11](11-actualizar.md)) |
 | `bl616_msximus_v3.8_138k.zip` | El firmware del BL616: el **paso 1** (sección 2) |
 | `firmware_esp32c6_v3.8_merged.bin` | La WiFi, en el ESP32-C6 (sección 3) |
 
-No lleva imagen de tarjeta: la SD se prepara con [MSX SD Maker](https://github.com/Papipapito/SD_Maker) ([capítulo 03](03-tarjeta-sd.md)). Con `yrw801.bin` sin grabar todo funciona igual, salvo la tabla de ondas del MoonSound.
+No lleva imagen de tarjeta: la SD se prepara con [MSX SD Maker](https://github.com/Papipapito/SD_Maker) ([capítulo 03](03-tarjeta-sd.md)). Las ondas del OPL4 (`yrw801.bin`) ya no van en la release: las baja `MXUPDATE` ([capítulo 11](11-actualizar.md)). Sin ellas todo funciona igual, salvo la tabla de ondas del MoonSound.
 
 **Herramienta**: el [Gowin Programmer](https://www.gowinsemi.com/en/support/download_eda/), el que viene con el IDE 1.9.12. Ya se ha usado con una 138K: el 16 de octubre de 2026 grabó en una el `.fs` de la v3.7 e identificó su flash (`0xEF4017`, la W25Q64 de 8 MB). Para compilar el core, en cambio, hace falta la edición Standard 1.9.12.03 con licencia: la Education no soporta el GW5AST-138.
 

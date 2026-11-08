@@ -57,7 +57,7 @@ Lo que en el 60K no existe y en la 138K puede dar un susto antes de llegar al me
 |---|---|---|
 | El televisor no muestra imagen | Receptor que no acepta 720p60 con audio embebido | Probar otro cable o entrada; es una señal estándar |
 | Un juego a 50 Hz se ve con la geometría rara | El modo 50 Hz es el menos probado | Anotar cuál y reportarlo |
-| Sin MoonSound, o instrumentos que faltan | `yrw801.bin` no grabado en 0x600000 (en el 138K, no en el 0x500000 del 60K) | Grabarlo |
+| Sin MoonSound, o instrumentos que faltan | Las ondas (`yrw801.bin`) no están grabadas en 0x600000 (en el 138K, no en el 0x500000 del 60K) | `MXUPDATE /O` las baja de msx.barcelona y las graba ([capítulo 11](11-actualizar.md)) |
 | Todo suena bajo o distorsionado | Ganancia maestra tocada | Volver a 5 ([capítulo 08](08-audio.md)) |
 | VGMPlay se cuelga con OPL3 | Nextor 3 beta | Usar el pack con Nextor 2.1.4 |
 | El SCC no suena en un juego | El juego busca el SCC en otro slot | Ajustes, Slot 1 = 2o SCC |
