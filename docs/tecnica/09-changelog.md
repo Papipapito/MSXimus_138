@@ -139,7 +139,7 @@ Release de GitHub: `msximus138_v3.8.4_dado5569.fs`, los cuatro packs (`pack_bios
 
 Core: dado **5569**, `msximus138_v3.8.4_dado5569.fs` 8e24561d (`_jtag.bin` 39c7b6eb, 5.096.124 bytes), campaña `v384138a` (5531/5557/5563/5569/5573, `place_option` 2): **4 de 5** pasan el gate gracias al registro del dato de la CPU (antes, 7 de 45 desde la v3.7). El 5569 da 0,143 ns contra los 11,30 ns del `clk_86` sobre-restringido (~0,48 ns reales), cero violaciones de setup y hold y todos los holds positivos; respaldo 5531 (0,098 ns). Packs (bios `30f1ce2`, «Instalar actualización» con `MSX138K.UPD` en la 138K): n214 bfba08691b5b, en 633325dc35db, n3 65d6396511b9, en_n3 ddf4e6738c2a. Publicada en msx.barcelona (`tang138k/`, ocho `.UPD`: `MXUPDATE /N` y `/N /R`) con MXUPDATE 1.3 (`mxupdate/`, release `mxupdate-1.3`). Sin validar en placa.
 
-### v3.8.4b (2 de noviembre de 2026; en la rama `hdmi-pll-propio`, sin publicar y sin probar en placa): el HDMI con su propio PLL
+### v3.8.4b (2 de noviembre de 2026; arranca con imagen por HDMI en una 138K; va en la release v3.8.4b): el HDMI con su propio PLL
 
 Nace de una 138K que, con la v3.8.4, no daba señal HDMI aunque el MSX vivía (F11 cambiaba el parpadeo del LED del turbo). El core es la v3.8.4 con un único cambio de relojes (`FPGA_VERSION` 38h y `FPGA_PATCH` 4: el menú sigue diciendo 3.8.4).
 
@@ -153,7 +153,7 @@ Core: dado **5683**, `msximus138_v3.8.4b_dado5683.fs` e775e5db (`_jtag.bin` cfc0
 
 Qué no arregla: la calibración de la DDR3 en la 138K. Sin DDR3 calibrada el MSX arranca a ciegas a los ~10 s: negro sin logo, pero con señal si la lectura es correcta, y el LED U12 parpadeando solo. La hipótesis (HDMI muerto por el reloj colgado de la DDR3) sale de leer el código y de un banco con un PLL simulado; **no hay medida en placa**. Si sigue sin señal con este core, `tools/dbg_video_reader.py COMx` dice qué PLL falla.
 
-### v3.8.4b + geo3d v2.0 (3 de noviembre de 2026; en la rama `geo3d-v2`, sin publicar y sin probar en placa): el coprocesador 3D en la 138K
+### v3.8.4b + geo3d v2.0 (3 de noviembre de 2026; probada en una 138K: HDMI, SD y geo3d; va en la release v3.8.4b): el coprocesador 3D en la 138K
 
 La v3.8.4b con el coprocesador 3D **geo3d v2.0.0** de Alex Moncks (MIT), que no cabe en el 60K (98 % de CLS) y en la 138K entra al 66 %. Detalle de la procedencia y de la verificacion: `fpga/geo3d/ORIGEN.txt`.
 

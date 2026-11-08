@@ -3,9 +3,9 @@
 <h1 align="center">MSXimus</h1>
 <p align="center"><b>A complete MSX2+ on a Tang Console 138K — now with the V9968 VDP</b></p>
 
-> **This repository is the port of the MSXimus to the Tang Console 138K (MSXimus_138, v3.8.4).** What is specific to the port (SOM Mega 138K, flash map, PLL cascade, campaigns, what has and has not been tested) is in [README.138.md](README.138.md); the documentation adapted to the 138K is in [docs/INDICE.md](docs/INDICE.md) (both in Spanish). Installation, updates and the F12 panel are described here for the 138K; the rest is the MSXimus as it was born on the Tang Console 60K: same board, same core.
+> **This repository is the port of the MSXimus to the Tang Console 138K (MSXimus_138, v3.8.4b).** What is specific to the port (SOM Mega 138K, flash map, PLL cascade, campaigns, what has and has not been tested) is in [README.138.md](README.138.md); the documentation adapted to the 138K is in [docs/INDICE.md](docs/INDICE.md) (both in Spanish). Installation, updates and the F12 panel are described here for the 138K; the rest is the MSXimus as it was born on the Tang Console 60K: same board, same core.
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-v3.8.4-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-v3.8.4b-blue">
   <img alt="fpga" src="https://img.shields.io/badge/FPGA-Gowin%20GW5AST--138-green">
   <img alt="license" src="https://img.shields.io/badge/license-GPLv3-orange">
 </p>
@@ -76,7 +76,7 @@ For a Console 138K fresh out of the box, or to bring one back to a clean state. 
 2. **The core and the pack into the SPI flash**, with the **Gowin Programmer** (it should detect a **GW5AST-138**): the `.fs` at `0x000000` with *exFlash Erase,Program,Verify* and `pack_bios_msximus.bin` at `0x500000` with *exFlash C Bin Erase,Program*. **These are the 138K addresses, not the 60K ones.** Then **power-cycle** the board: a reset is not enough. The MSXimus should come up; if something else does, see [How to flash](#how-to-flash). That ends the PC part.
 3. **The SD card.** Prepare it with [MSX SD Maker](https://github.com/Papipapito/SD_Maker): it partitions it the way Nextor does, copies the system and puts `MXUPDATE.COM` in the `FPGA` folder, which is on the `PATH` (on the 138K, 1.3 or later will do). Put it in the board and power on: the machine boots MSX-DOS (if the card browser shows up, press **ESC**; [chapter 06](docs/manual/06-msxdos-nextor.md)). Without MSX SD Maker, any FAT16 SD with Nextor (`NEXTOR.SYS` and `COMMAND2.COM` in the root) and `MXUPDATE.COM` copied over will do.
 4. **WiFi.** In the card browser, or during the logo, press **W**, go to *Scan/Join Access Points*, pick your network and type the password. It is stored in the module: it connects by itself at power-on ([chapter 07](docs/manual/07-wifi-file-hunter.md)).
-5. **`MXUPDATE /N`**, from MSX-DOS. It first updates itself and relaunches. Then it says which core you have and which one is on msx.barcelona, and asks for the variant: **1** is the usual one (Nextor 2.1.4, Spanish menu); 2 to 4 switch to Nextor 3 or the English menu and need an SD prepared for it. It downloads the file, checks it and asks `Fichero correcto. Grabar en la flash? (S/N)` (file OK, flash it?): **S**, and **do not power off** (about 16 minutes: the 138K bitstream is twice the size). Because a freshly flashed board has no OPL4 waves, when done it asks `Bajarlas e instalarlas ahora? (S/N)` (download and install them now?): **S** (about 5 more minutes). When it says `Listo`, **power-cycle**.
+5. **`MXUPDATE /N`**, from MSX-DOS. It first updates itself and relaunches. Then it says which core you have and which one is on msx.barcelona, and asks for the variant: **1** is the usual one (Nextor 2.1.4, Spanish menu); 2 to 4 switch to Nextor 3 or the English menu and need an SD prepared for it. It downloads the file, checks it and asks `Fichero correcto. Grabar en la flash? (S/N)` (file OK, flash it?): **S**, and **do not power off** (about 16 minutes: the 138K bitstream is twice the size). Because a freshly flashed board has no OPL4 waves, when done it asks `Bajarlas e instalarlas ahora? (S/N)` (download and install them now?): **S** (about 5 more minutes). When it says `Listo`, **power-cycle**. MXUPDATE recognises the board (60K or 138K) from the core chip that is flashed and puts the core, the pack and the waves at each board's own addresses: no address is typed here.
 6. **That's it.** Core and pack up to date, and the MoonSound with its waves. From here on, `MXUPDATE /N` whenever you want to catch up, and `MXUPDATE /O` if you ever need the waves again (if you already have the latest version and only the waves are missing, `MXUPDATE /O` alone is enough).
 
 If something doesn't go as described, [Updating from the MSX](#updating-from-the-msx) and [manual chapter 11](docs/manual/11-actualizar.md) explain every message.
@@ -89,7 +89,7 @@ If something doesn't go as described, [Updating from the MSX](#updating-from-the
 
 | # | File | Address | Required? |
 |---|---|---|---|
-| 1 | `msximus138_v3.8.4_dado5569.fs` | **`0x000000`** | Yes — this is the core |
+| 1 | `msximus138_v3.8.4b_geo3d_dado5867.fs` | **`0x000000`** | Yes — this is the core |
 | 2 | BIOS pack (`pack_bios_msximus*.bin`) | **`0x500000`** | Yes — the MSX won't boot without it |
 | 3 | `yrw801.bin` | **`0x600000`** | No, and it is **no longer in the release**: once the core runs, `MXUPDATE /N` offers to download the OPL4 waves from msx.barcelona and flashes them (or `MXUPDATE /O` any time). By hand only if you already have your own `yrw801.bin` (as `.bin`: Gowin's Programmer does not accept `.rom`) |
 
@@ -135,8 +135,8 @@ There are **four builds of the same pack**: the menu in Spanish or in English, a
 |---|---|---|
 | `pack_bios_msximus.bin` | Spanish | **2.1.4** — the stable one |
 | `pack_bios_msximus_en.bin` | English | **2.1.4** — the stable one |
-| `pack_bios_msximus_nextor3.bin` | Spanish | **3.0 beta 2** — to try the beta |
-| `pack_bios_msximus_en_nextor3.bin` | English | **3.0 beta 2** — to try the beta |
+| `pack_bios_msximus_nextor3.bin` | Spanish | **3.0 final** — to try Nextor 3 |
+| `pack_bios_msximus_en_nextor3.bin` | English | **3.0 final** — to try Nextor 3 |
 
 If you would rather build the pack from your own ROMs, there's the [**MSXnano Pack Builder**](https://github.com/Papipapito/MSXnano), which assembles the file from them, Nextor included.
 

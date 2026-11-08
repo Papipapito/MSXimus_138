@@ -14,13 +14,13 @@ Para una Console 138K recién sacada de la caja, o para dejarla como nueva. Los 
 | 2 | **El core y el pack**: el `.fs` en `0x000000` (*exFlash Erase,Program,Verify*) y `pack_bios_msximus.bin` en `0x500000` (*exFlash C Bin Erase,Program*), a la flash SPI externa. **Son las direcciones del 138K, no las del 60K.** Después, **apagar y encender** (un reset no basta). Tiene que salir el MSXimus | Gowin Programmer (detecta un GW5AST-138) | sección 1 |
 | 3 | **La tarjeta SD**, preparada con [MSX SD Maker](https://github.com/Papipapito/SD_Maker) (deja `MXUPDATE.COM` en `FPGA\`, en el `PATH`; en la 138K vale la 1.3 o posterior). Se pone en la placa y se enciende: arranca MSX-DOS (si sale el navegador, **ESC**) | MSX SD Maker | [capítulo 03](03-tarjeta-sd.md), [06](06-msxdos-nextor.md) |
 | 4 | **La WiFi**: tecla **W**, *Scan/Join Access Points*, tu red y su contraseña. Se guarda en el módulo | el menú | [capítulo 07](07-wifi-file-hunter.md) |
-| 5 | **`MXUPDATE /N`** desde MSX-DOS: se actualiza a sí mismo, baja la última versión (variante **1** = Nextor 2.1.4 y menú en castellano), la comprueba y la graba (**S**; unos 16 minutos, sin apagar). Al acabar pregunta `Bajarlas e instalarlas ahora?` por las ondas del OPL4 (**S**; unos 5 minutos más). Con `Listo`, **apagar y encender** | `MXUPDATE.COM` | [capítulo 11](11-actualizar.md) |
+| 5 | **`MXUPDATE /N`** desde MSX-DOS: se actualiza a sí mismo, baja la última versión (variante **1** = Nextor 2.1.4 y menú en castellano), la comprueba y la graba (**S**; unos 16 minutos, sin apagar). Al acabar pregunta `Bajarlas e instalarlas ahora?` por las ondas del OPL4 (**S**; unos 5 minutos más). Con `Listo`, **apagar y encender**. MXUPDATE reconoce la placa (60K o 138K) por el chip del core que hay grabado y deja el core, el pack y las ondas en las direcciones de cada una (y rechaza un `.UPD` de la otra): aquí no se teclea ninguna dirección. | `MXUPDATE.COM` | [capítulo 11](11-actualizar.md) |
 
 Y ya está: core y pack al día y el MoonSound con sus ondas. A partir de aquí, `MXUPDATE /N` para ponerse al día y `MXUPDATE /O` si alguna vez hay que volver a poner las ondas; si la placa ya tiene la última versión y solo faltan las ondas, basta `MXUPDATE /O`.
 
 Sin el módulo ESP32-C6 no hay internet: el core y el pack se graban igual desde un `.UPD` en la SD (`MXUPDATE fichero.UPD`) y las ondas, con tu propio `yrw801.bin` en 0x600000 desde el Gowin Programmer (sección 1).
 
-> **Aviso.** El MSXimus_138 es el porte del MSXimus a la Tang Console 138K: la misma placa base con el SOM Tang Mega 138K en vez del Mega 60K. Ninguna versión del 138, tampoco la v3.8.4, se ha validado todavía en una placa 138K: el core está compilado y verificado en simulación, pendiente de placa (la v3.8.4 del 60K, con el mismo RTL, sí está validada). Lo que este capítulo cuenta como procedimiento es el del 60K trasladado al mapa de flash del 138; lo que se ve al encender (logo, menú, calibración de la DDR3) está pendiente de verificar en placa.
+> **Aviso.** El MSXimus_138 es el porte del MSXimus a la Tang Console 138K: la misma placa base con el SOM Tang Mega 138K en vez del Mega 60K. La v3.8.4b (con geo3d v2.0) se ha probado en una placa 138K con chip B: imagen por HDMI, tarjeta SD y geo3d. Lo que este capítulo cuenta como procedimiento es el del 60K trasladado al mapa de flash del 138, y los pasos de actualizar con `MXUPDATE` sobre ese mapa, el panel F12 y la calibración de la DDR3 en frío están pendientes de verificar en placa.
 
 ## 1. Lo que va a la flash de la placa (paso 2)
 
@@ -28,7 +28,7 @@ Tres ficheros, cada uno a una dirección distinta de la misma flash SPI de 8 MB 
 
 | Fichero | Dirección | Obligatorio |
 |---|---|---|
-| El core: `msximus138_v3.8.4_dado5569.fs` en la release (en las entregas de `files/<fecha>/` se llama `msximus138_v3.x_dadoNNNN.fs`) | **0x000000** | Sí |
+| El core: `msximus138_v3.8.4b_geo3d_dado5867.fs` en la release (en las entregas de `files/<fecha>/` se llama `msximus138_v3.x_dadoNNNN.fs`) | **0x000000** | Sí |
 | El pack de BIOS, `pack_bios_msximus*.bin` | **0x500000** | Sí, sin él la máquina no arranca |
 | `yrw801.bin`, la ROM de ondas del MoonSound (va como `.bin` porque el Programmer de Gowin no coge `.rom`; si tienes un `yrw801.rom`, renómbralo) | **0x600000** | No, y **ya no va en la release**: con el core en marcha, `MXUPDATE /N` ofrece bajarla de msx.barcelona y grabarla (o `MXUPDATE /O` cuando quieras; [capítulo 11](11-actualizar.md)). A mano solo si ya tienes tu `yrw801.bin` |
 
@@ -36,13 +36,13 @@ Las direcciones **no son las del 60K** (allí el pack va en 0x400000 y el `yrw80
 
 **Esto solo hace falta una vez.** Desde la v3.8.4, las siguientes versiones se graban desde el propio MSX (sección 5 y [capítulo 11](11-actualizar.md)).
 
-La release de la v3.8.4 trae:
+La release de la v3.8.4b trae:
 
 | Fichero | Para qué |
 |---|---|
-| `msximus138_v3.8.4_dado5569.fs` | El core, en 0x000000 |
-| `pack_bios_msximus.bin` (menú en castellano), `_en` (inglés), `_nextor3` y `_en_nextor3` (Nextor 3.0 beta 2) | El pack, en 0x500000: uno de los cuatro |
-| `MXUPDATE.COM` (1.3) | A la SD: actualizar desde el MSX ([capítulo 11](11-actualizar.md)) |
+| `msximus138_v3.8.4b_geo3d_dado5867.fs` | El core, en 0x000000 |
+| `pack_bios_msximus.bin` (menú en castellano), `_en` (inglés), `_nextor3` y `_en_nextor3` (Nextor 3.0 final) | El pack, en 0x500000: uno de los cuatro |
+| `MXUPDATE.COM` (1.4) | A la SD: actualizar desde el MSX ([capítulo 11](11-actualizar.md)) |
 | `bl616_msximus_v3.8_138k.zip` | El firmware del BL616: el **paso 1** (sección 2) |
 | `firmware_esp32c6_v3.8_merged.bin` | La WiFi, en el ESP32-C6 (sección 3) |
 
@@ -72,8 +72,8 @@ Hay cuatro packs iguales en todo salvo el idioma del menú y el kernel de disco 
 |---|---|---|
 | `pack_bios_msximus.bin` | castellano | **2.1.4**, el estable, el que quieres |
 | `pack_bios_msximus_en.bin` | inglés | **2.1.4** |
-| `pack_bios_msximus_nextor3.bin` | castellano | **3.0 beta 2**, para probar la beta |
-| `pack_bios_msximus_en_nextor3.bin` | inglés | **3.0 beta 2** |
+| `pack_bios_msximus_nextor3.bin` | castellano | **3.0 final**, para probar Nextor 3 |
+| `pack_bios_msximus_en_nextor3.bin` | inglés | **3.0 final** |
 
 Los cuatro llevan la BIOS y la SubROM internacionales. Quien prefiera montar el pack con sus propias ROMs tiene el [Pack Builder del MSXnano](https://github.com/Papipapito/MSXnano), que las ensambla con Nextor incluido. El [capítulo 04 de la referencia técnica](../tecnica/04-pack-bios.md) describe qué lleva y en qué orden.
 

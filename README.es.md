@@ -3,9 +3,9 @@
 <h1 align="center">MSXimus</h1>
 <p align="center"><b>Un MSX2+ completo, en una Tang Console 138K — ahora con el VDP V9968</b></p>
 
-> **Este repositorio es el porte del MSXimus a la Tang Console 138K (MSXimus_138, v3.8.4).** Lo específico del porte (SOM Mega 138K, mapa de flash, cascada de PLL, campañas, lo probado y lo no probado) está en [README.138.md](README.138.md); la documentación adaptada al 138K, en [docs/INDICE.md](docs/INDICE.md). La instalación, la actualización y el panel F12 se cuentan aquí para la 138K; el resto es el MSXimus tal como nació en la Tang Console 60K: la misma placa base y el mismo core.
+> **Este repositorio es el porte del MSXimus a la Tang Console 138K (MSXimus_138, v3.8.4b).** Lo específico del porte (SOM Mega 138K, mapa de flash, cascada de PLL, campañas, lo probado y lo no probado) está en [README.138.md](README.138.md); la documentación adaptada al 138K, en [docs/INDICE.md](docs/INDICE.md). La instalación, la actualización y el panel F12 se cuentan aquí para la 138K; el resto es el MSXimus tal como nació en la Tang Console 60K: la misma placa base y el mismo core.
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/versi%C3%B3n-v3.8.4-blue">
+  <img alt="version" src="https://img.shields.io/badge/versi%C3%B3n-v3.8.4b-blue">
   <img alt="fpga" src="https://img.shields.io/badge/FPGA-Gowin%20GW5AST--138-green">
   <img alt="licencia" src="https://img.shields.io/badge/licencia-GPLv3-orange">
 </p>
@@ -76,7 +76,7 @@ Para una Console 138K recién sacada de la caja, o para dejarla como nueva. Los 
 2. **El core y el pack en la flash SPI**, con el **Gowin Programmer** (debe detectar un **GW5AST-138**): el `.fs` en `0x000000` con *exFlash Erase,Program,Verify* y `pack_bios_msximus.bin` en `0x500000` con *exFlash C Bin Erase,Program*. **Son las direcciones del 138K, no las del 60K.** Después, **apaga y enciende** la placa: un reset no basta. Tiene que salir el MSXimus; si sale otra cosa, mira [Cómo grabarlo](#cómo-grabarlo). Con esto se acaba el PC.
 3. **La tarjeta SD.** Prepárala con [MSX SD Maker](https://github.com/Papipapito/SD_Maker): la parte como Nextor, copia el sistema y deja `MXUPDATE.COM` en la carpeta `FPGA`, que está en el `PATH` (en la 138K vale la 1.3 o posterior). Ponla en la placa y enciende: la máquina arranca MSX-DOS (si sale el navegador de la tarjeta, **ESC**; [capítulo 06](docs/manual/06-msxdos-nextor.md)). Sin MSX SD Maker te vale cualquier SD FAT16 con Nextor (`NEXTOR.SYS` y `COMMAND2.COM` en la raíz) y el `MXUPDATE.COM` copiado.
 4. **La WiFi.** En el navegador de la tarjeta, o durante el logo, pulsa **W**, entra en *Scan/Join Access Points*, elige tu red y escribe la contraseña. Queda guardada en el módulo: al encender se conecta sola ([capítulo 07](docs/manual/07-wifi-file-hunter.md)).
-5. **`MXUPDATE /N`**, desde MSX-DOS. Primero se pone al día él mismo y se relanza. Después dice qué core tienes y cuál hay en msx.barcelona, y pide la variante: la **1** es la de siempre (Nextor 2.1.4, menú en castellano); la 2 a la 4 cambian a Nextor 3 o al menú en inglés y piden una SD preparada para ello. Baja el fichero, lo comprueba y pregunta `Fichero correcto. Grabar en la flash? (S/N)`: **S**, y **no apagues** (unos 16 minutos, el bitstream de la 138K es el doble de grande). Como la placa recién grabada no tiene las ondas del OPL4, al acabar pregunta `Bajarlas e instalarlas ahora? (S/N)`: **S** (unos 5 minutos más). Cuando diga `Listo`, **apaga y enciende**.
+5. **`MXUPDATE /N`**, desde MSX-DOS. Primero se pone al día él mismo y se relanza. Después dice qué core tienes y cuál hay en msx.barcelona, y pide la variante: la **1** es la de siempre (Nextor 2.1.4, menú en castellano); la 2 a la 4 cambian a Nextor 3 o al menú en inglés y piden una SD preparada para ello. Baja el fichero, lo comprueba y pregunta `Fichero correcto. Grabar en la flash? (S/N)`: **S**, y **no apagues** (unos 16 minutos, el bitstream de la 138K es el doble de grande). Como la placa recién grabada no tiene las ondas del OPL4, al acabar pregunta `Bajarlas e instalarlas ahora? (S/N)`: **S** (unos 5 minutos más). Cuando diga `Listo`, **apaga y enciende**. MXUPDATE reconoce la placa (60K o 138K) por el chip del core que hay grabado y deja el core, el pack y las ondas en las direcciones de cada una: aquí no se teclea ninguna dirección.
 6. **Ya está.** Core y pack al día y el MoonSound con sus ondas. A partir de aquí, `MXUPDATE /N` cuando quieras ponerte al día y `MXUPDATE /O` si alguna vez hay que volver a poner las ondas (si ya tienes la última versión y solo te faltan ellas, basta `MXUPDATE /O`).
 
 Si algo no sale como aquí, [Actualizar desde el MSX](#actualizar-desde-el-msx) y el [capítulo 11 del manual](docs/manual/11-actualizar.md) explican cada mensaje.
@@ -89,7 +89,7 @@ Si algo no sale como aquí, [Actualizar desde el MSX](#actualizar-desde-el-msx) 
 
 | # | Fichero | Dirección | ¿Obligatorio? |
 |---|---|---|---|
-| 1 | `msximus138_v3.8.4_dado5569.fs` | **`0x000000`** | Sí — es el core |
+| 1 | `msximus138_v3.8.4b_geo3d_dado5867.fs` | **`0x000000`** | Sí — es el core |
 | 2 | Pack de BIOS (`pack_bios_msximus*.bin`) | **`0x500000`** | Sí — sin él no arranca el MSX |
 | 3 | `yrw801.bin` | **`0x600000`** | No, y **ya no va en la release**: con el core en marcha, `MXUPDATE /N` ofrece bajar las ondas del OPL4 de msx.barcelona y las graba (o `MXUPDATE /O` cuando quieras). Solo a mano si ya tienes tu `yrw801.bin` (como `.bin`: el Programmer de Gowin no acepta `.rom`) |
 
@@ -135,8 +135,8 @@ Hay **cuatro versiones del mismo pack**: el menú en castellano o en inglés, y 
 |---|---|---|
 | `pack_bios_msximus.bin` | castellano | **2.1.4** — la estable |
 | `pack_bios_msximus_en.bin` | inglés | **2.1.4** — la estable |
-| `pack_bios_msximus_nextor3.bin` | castellano | **3.0 beta 2** — para probar la beta |
-| `pack_bios_msximus_en_nextor3.bin` | inglés | **3.0 beta 2** — para probar la beta |
+| `pack_bios_msximus_nextor3.bin` | castellano | **3.0 final** — para probar Nextor 3 |
+| `pack_bios_msximus_en_nextor3.bin` | inglés | **3.0 final** — para probar Nextor 3 |
 
 Si prefieres montarte el pack con tus propias ROMs, está el [**MSXnano Pack Builder**](https://github.com/Papipapito/MSXnano), que arma el fichero con ellas, Nextor incluido.
 
