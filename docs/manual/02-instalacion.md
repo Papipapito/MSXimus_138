@@ -42,7 +42,7 @@ La release de la v3.8.4b trae:
 |---|---|
 | `msximus138_v3.8.4b_geo3d_dado5867.fs` | El core, en 0x000000 |
 | `pack_bios_msximus.bin` (menú en castellano), `_en` (inglés), `_nextor3` y `_en_nextor3` (Nextor 3.0 final) | El pack, en 0x500000: uno de los cuatro |
-| `MXUPDATE.COM` (1.4) | A la SD: actualizar desde el MSX ([capítulo 11](11-actualizar.md)) |
+| `MXUPDATE.COM` (1.5) | A la SD: actualizar desde el MSX ([capítulo 11](11-actualizar.md)) |
 | `bl616_msximus_v3.8_138k.zip` | El firmware del BL616: el **paso 1** (sección 2) |
 | `firmware_esp32c6_v3.8_merged.bin` | La WiFi, en el ESP32-C6 (sección 3) |
 
