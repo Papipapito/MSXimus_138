@@ -73,3 +73,4 @@ tools/sd_tb/log_*.txt
 agentdb.rvf
 agentdb.rvf.lock
 ruvector.db
+__pycache__/

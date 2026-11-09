@@ -6,7 +6,7 @@ Qué sale por el HDMI, qué opciones tiene y qué es el V9968 desde el punto de 
 
 Una sola señal: **HDMI 1280×720 a 60 Hz**, con el audio embebido. Cualquier televisor o monitor con HDMI la acepta; los capturadores también.
 
-En la Tang Console 138K la señal es la misma que en el MSXimus del 60K, pero los relojes que la fabrican salen de otro sitio: el GW5AST del 138K no tiene PLLA y sus PLL exigen una referencia de entre 19 y 81,25 MHz, así que el vídeo cuelga de una **cascada**. Del reloj de 50 MHz de la placa sale un 27,000 exacto (`pll_27`); de ese 27 cuelga el PLL de la DDR3, que además de los 297 MHz de la memoria presta una salida de **74,25 MHz** (891/12); y `pll_74` la multiplica por 10 para dar el **74,25 del píxel** y el **371,25 del TMDS** (×5), enteros y sin fracciones. Es la cascada de nand2mario para estas consolas (la plantilla `monitorcore` del 60K iba 50 → 27 → 74,25 directamente), con el paso extra por el PLL de la DDR3 que exige el 138K. Cuidado con la conclusión: la cadena está compilada y verificada en simulación, pero el porte 138 no se ha encendido nunca en una placa 138K, así que la salida HDMI del 138 queda **pendiente de verificar en placa**.
+En la Tang Console 138K la señal es la misma que en el MSXimus del 60K, pero los relojes que la fabrican salen de otro sitio: el GW5AST del 138K no tiene PLLA y sus PLL exigen una referencia de entre 19 y 81,25 MHz, así que el vídeo cuelga de una **cascada**. Del reloj de 50 MHz de la placa sale un 27,000 exacto (`pll_27`); de ese 27 cuelga un PLL propio del HDMI (`pll_hdmiref`, 27 × 33 ÷ 12) que da **74,25 MHz**; y `pll_74` los multiplica por 10 para dar el **74,25 del píxel** y el **371,25 del TMDS** (×5), enteros y sin fracciones. Es la cascada de nand2mario para estas consolas (la plantilla `monitorcore` del 60K iba 50 → 27 → 74,25 directamente), con el paso extra por un PLL de 74,25 que exige el 138K (hasta la v3.8.4 lo prestaba el PLL de la DDR3, y los reintentos de la DDR3 le quitaban el reloj al HDMI). Cuidado con la conclusión: la cadena está compilada y verificada en simulación, pero el porte 138 no se ha encendido nunca en una placa 138K, así que la salida HDMI del 138 queda **pendiente de verificar en placa**.
 
 La imagen del MSX ocupa la pantalla entera. Cada punto del MSX son 4 píxeles de ancho y cada línea 3 de alto, sin fracciones, así que los píxeles salen todos iguales y sin escalones. Se ve el **borde** a los cuatro lados, como en un monitor de tubo: 32 puntos a cada lado del área de 256, que es donde los juegos con scroll esconden y sacan cosas.
 
@@ -39,6 +39,12 @@ Todo eso está desactivado hasta que el software lo pide, así que el MSXimus es
 Un detalle para quien programe o pruebe software de V9968: hay tres versiones del interfaz de registros del chip, y el MSXimus lleva la que HRA! documenta en su manual desde junio de 2026. El software hecho contra el emulador, que va por detrás, puede necesitar un byte cambiado. Está explicado en el [capítulo 05 de la referencia técnica](../tecnica/05-v9968.md).
 
 El V9968 se identifica como V9958 ante el software que pregunta, y el MSXimus como MSX2+. Los programas de diagnóstico dirán "V9958", y con el programa CHKVDP de HRA! saldrán dos V9968: es correcto, sondea las dos direcciones estándar y el MSXimus responde en las dos.
+
+### El coprocesador 3D (builds con geo3d)
+
+Las builds con geo3d llevan además el **geo3d** de Alex Moncks: un coprocesador que transforma, recorta, ordena y sombrea modelos 3D (hasta 1.023 vértices, aristas y caras con la v2.0) y dibuja él mismo las caras con el motor de comandos del V9968. Está siempre presente en los puertos 9Dh/9Fh (y 8Dh/8Fh); no hay nada que activar. En la Zynq da unos 200 cuadros sombreados por segundo; **en la 138K no se ha medido**.
+
+Para probarlo, las ROM de demos de Alex Moncks (`GEO3D_98.ROM`, `GEO FIGHTER`, `Cube Maze`) y las de kanon-ai se compilan desde sus repositorios, con la base de puertos 98h. Si no llevan la firma de tipo de ROM, hay que poner `[ASCII16]` en el nombre del fichero. El modo rápido del V9968 se activa con `OUT (9Ch),0`, R#21 = 0 y R#20 = 1. Las demos de kanon-ai marcan el ritmo con el temporizador del S1990 (puertos E6h/E7h).
 
 ## 4. Lo que no hay
 

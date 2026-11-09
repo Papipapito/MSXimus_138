@@ -11,7 +11,7 @@ El pack de BIOS lleva Nextor dentro, en el slot 3-2 de la máquina. La release t
 | Packs | Nextor | Cuándo |
 |---|---|---|
 | `pack_bios_msximus.bin` y `pack_bios_msximus_en.bin` | **2.1.4** | El de uso diario. Estable, con años de software probado encima |
-| `pack_bios_msximus_nextor3.bin` y `pack_bios_msximus_en_nextor3.bin` | **3.0 beta 2** | Para probar la beta. Con la beta 1, en el 60K, arrancaba, leía, escribía y pasaba la batería de pruebas del propio Nextor; la beta 2 (01/10/2026) lleva el mismo driver, byte a byte, y en el 60K también va bien (04/10/2026, con una tarjeta de MSX SD Maker); en la 138K, pendiente de placa. Es beta y hay software que todavía no la lleva bien |
+| `pack_bios_msximus_nextor3.bin` y `pack_bios_msximus_en_nextor3.bin` | **3.0 final** | Para probar Nextor 3. Con la beta 1, en el 60K, arrancaba, leía, escribía y pasaba la batería de pruebas del propio Nextor; la beta 2 (01/10/2026) llevaba el mismo driver, byte a byte, y en el 60K también iba bien (04/10/2026, con una tarjeta de MSX SD Maker); la 3.0 final (los packs del 08/11/2026) lo lleva igual, sin cambios, y aún no se ha probado en placa. Hay software que todavía no la lleva bien |
 
 El driver de la tarjeta es el mismo en todos, hecho para este core: sondea qué tiene delante y usa lo más rápido que encuentre. Con el core actual (v3.8.4, porte de la V3.8.4 del 60K), la lectura va por DMA sin que DOS se entere. Los packs se graban en la flash del 138K en 0x500000 (capítulo 02), no en 0x400000 como en el 60K.
 

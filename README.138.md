@@ -7,13 +7,13 @@ ESP32-C6 y el modulo SDRAM W9825 de 32 MB) con el SOM **Tang Mega 138K**
 1 GB de DDR3; la flash SPI es la misma W25Q64 de 8 MB) en vez del Mega 60K.
 Punto de partida: `MSX_up_v3`. La v1 (07/09/2026) salio de la rama `V3.5`, commit
 `dd8d8ff`, mas los cambios de la v3.5d; la **v3.7** (18/09/2026) es el porte, por merge,
-de la V3.7b del 60K, y la **v3.8.4** (17/10/2026, rama `V3.8`), el de su V3.8.4.
+de la V3.7b del 60K, y la **v3.8.4** (17/10/2026, rama `V3.8`), el de su V3.8.4; la **v3.8.4b** (08/11/2026, rama `release-3.8.4b`) le añade el HDMI con PLL propio y geo3d v2.0.
 
-> **Ninguna version del porte se ha validado en una placa 138K.** La v3.7, grabada en
-> una el 16/10/2026, se quedo en negro por su mapa de flash de 16 MB (de ahi la v3.7-8mb);
-> la v3.7-8mb y la v3.8.4 estan sin probar. Todo lo que en la documentacion del 60K es
-> "validado en placa" aqui es "compilado y verificado en simulacion, pendiente de placa".
-> Ver [Estado](#estado).
+> **La v3.8.4b y la v3.8.4b + geo3d v2.0 (dado 5867) se han probado en una placa 138K** (la del autor, chip B):
+> imagen por HDMI, tarjeta SD y geo3d. Las versiones anteriores, no: la v3.7, grabada el 16/10/2026, se quedo
+> en negro por su mapa de flash de 16 MB (de ahi la v3.7-8mb) y la v3.8.4 (dado 5569) no daba señal por HDMI.
+> Todo lo demas que en la documentacion del 60K es "validado en placa" aqui es "compilado y verificado en
+> simulacion, pendiente de placa". Ver [Estado](#estado).
 
 La documentacion completa (manual de usuario y referencia tecnica, adaptados al 138K)
 esta en [docs/INDICE.md](docs/INDICE.md). Este fichero recoge solo lo que es propio
@@ -37,11 +37,11 @@ del porte.
 | Flash: pack | 0x400000 | **0x500000** |
 | Flash: config (11 bytes desde la 3.7) | 0x480000 | **0x580000** |
 | Flash: YRW801 (OPL4 wave, 2 MB) | 0x500000 | **0x600000** (hasta el final de la flash) |
-| Firmware del BL616 | fork TangCore (V3.8, OSD con color) en 0x40000, con el partner de Sipeed en 0x0 | **el mismo, compilado para la Console 138K** (`bl616_msximus_v3.8_138k.zip`): solo la imagen en 0x40000; el partner firmware de Sipeed de la 138K, en 0x0, no se toca |
+| Firmware del BL616 | fork TangCore (V3.8, OSD con color) en 0x40000, con el partner de Sipeed en 0x0 | **el mismo, compilado para la Console 138K** (`bl616_msximus_v3.8_138k.zip`): solo la imagen en 0x40000; el partner firmware de Sipeed de la 138K, en 0x0, no se toca. Es el **paso 1 obligatorio**: sin él sale el firmware de fábrica de la Console |
 | MXUPDATE e "Instalar actualizacion" | pack en 0x400000, `MSXIMUS.UPD`, web `tang60k/` | pack en **0x500000** (MXUPDATE 1.3 y bios `30f1ce2`), **`MSX138K.UPD`** (MXUPDATE y el menu), web `tang138k/` |
 | Dato de la CPU hacia la SDRAM | directo al cruce 54 -> 108 | **registrado a 54 MHz** antes del cruce (`cpu_dout_ram`, v3.8.4) |
 | Gowin EDA | 1.9.12.03 Standard (la Education 1.9.11.03 tambien cubre el GW5AT-60B) | **1.9.12.03 Standard con licencia** (la Education no soporta el 138K) |
-| Validado en placa | cada entrega (la V3.8.4, el 16/10/2026) | **ninguna version** |
+| Validado en placa | cada entrega (la V3.8.4, el 16/10/2026) | **la v3.8.4b y la v3.8.4b + geo3d** (HDMI, SD, geo3d); las anteriores, ninguna |
 
 Por que se puede reutilizar tanto:
 
@@ -82,14 +82,29 @@ asi que los PLL van en cascada, como nand2mario en esta misma consola:
 | `pll_27` | 50 MHz del pad, /2 x27 | 675 | 27,000 exactos, referencia de los demas |
 | `pll_main` | 27 x40 | 1080 | 108, 54, 27, 135 y **36** para el motor OPL4 (ya no puede ser 37,5) |
 | `pll_86` | 27 x35/11 | 945 | 85,9 para el V9968 |
-| `pll_ddr3` | 27 x33 | 891 | 297 para la DDR3 y `CLKOUT1` = 74,25 sin gatear |
+| `pll_ddr3` | 27 x33 | 891 | 297 para la DDR3 (su `CLKOUT1` de 74,25 ya no se usa desde la v3.8.4b) |
+| `pll_hdmiref` | 27 x33 /12 | 891 | 74,25 para `pll_74` (propio del HDMI desde la v3.8.4b) |
 | `pll_74` | 74,25 x10 | 742,5 | 74,25 y 371,25 para el HDMI |
 
-`pll_main` y `pll_ddr3` esperan al lock de `pll_27`. El `pll_stop` de la IP DDR3 va
+`pll_main`, `pll_ddr3`, `pll_hdmiref` y `pll_86` esperan al lock de `pll_27`, y `pll_74` al de
+`pll_hdmiref` (v3.8.4b): el `PLL_INIT` calibra ICP/LPF una sola vez, en unos 16 ms, y con `I_RST` fijo a 0
+lo hacia antes de que existiera el reloj de entrada. El `pll_stop` de la IP DDR3 va
 directo a `ENCLK2` del PLL (en el 60K era la danza mDRP con `pll_mDRP_intf`). La
 salida del OPLL se registra en `clk_27m` antes del mezclador (`jt2413_wav_r27`): el
 arbol de sumas de 22 ns que en el 60K cabia por poco en la relacion 54→27 aqui no
 cerraba en ningun dado.
+
+### Relojes globales: 8 PRIMARY y 8 LW
+
+El 138K tiene 8 relojes `PRIMARY` y 8 `LW` (`BUFG[0..15]` en las restricciones de Gowin) y en este
+core los 8 `PRIMARY` estan en uso: `clk_108m`, `clk_54m`, `clk_27m`, `clk_wave375`, `clk27_video`,
+`clk_hdmi`, `vddr_clk_x1` y `clk_86`. Un net de reloj nuevo desplaza a otro, y el allocator elige solo.
+Con `pll_hdmiref` propio, `clk_7425` (el 74,25 que solo alimenta el `CLKIN` de `pll_74`) se llevo un
+`PRIMARY` y mando a `clk_86` (el V9968) a `LW`: la campana `h138a` salio 0 de 5, con 109 endpoints en
+rojo en `clk_86`. Se arreglo con `CLOCK_LOC "clk_7425" BUFG[15] = CLK;` en `msx_console138k.cst`
+(`BUFG[15]` cae en `LW`; `LOCAL_CLOCK` no vale, Gowin da `CT1018` porque un `CLKIN` de PLL exige red
+de reloj). Antes de dar por buena una campana, mirar "Global Clock Signals" del `.rpt.txt`: `clk_86`
+tiene que estar en `PRIMARY`.
 
 ## Version del chip: B o C
 
@@ -131,6 +146,22 @@ Lo propio del 138:
   [capitulo 07](docs/tecnica/07-sintesis-campanas.md) y en el
   [changelog](docs/tecnica/09-changelog.md)).
 
+## geo3d (coprocesador 3D)
+
+La v3.8.4b (rama `release-3.8.4b`, antes `geo3d-v2`) lleva **geo3d v2.0** de Alex Moncks (MIT) en 9Dh/9Fh y los espejos 8Dh/8Fh, el coprocesador 3D de la
+Zynq que no cabe en el 60K (98 % de CLS). Es el RTL de HRA! 3d55af4 (v0.92) con la fila rapida de caras planas
+(HMMV de una fila en SCREEN 8). El 138K no tiene ninguna red de reloj global libre, asi que el motor va en `clk_86` con un
+clock enable a 1/2 (`GEO3D_CE`); detalle y verificacion en `fpga/geo3d/ORIGEN.txt` y
+[docs/tecnica/01-arquitectura.md](docs/tecnica/01-arquitectura.md). Se compila con
+`tools/lanzar_campana.ps1 -Campana <nombre> -Dados <primos> -Geo3d -Root <este arbol>`.
+
+Entrega del 03/11/2026, probada en una placa 138K: dado **5867** (campana `g3v2d`; 1 de 21 dados con geo3d pasa el gate; +0,004 ns
+contra los 11,30 del `clk_86` sobre-restringido = ~0,34 ns reales; CLS 66 %, BSRAM 136/340, DSP 32/298; `.fs` ab77822305dd;
+`files/20261103/`). Con geo3d el CLS pasa del 58 % al 66 % y salieron dos problemas, ambos del T80 y no de geo3d: el camino de
+la CPU a la SD (la direccion que el T80 saca combinacional de la BSRAM de su banco de registros, hacia los decodificadores y las
+escrituras de la SD en 27 MHz: de -1 a -3,7 ns en 11 dados) se arreglo registrando a 54 MHz el dato (`cpu_dout_sd`) y,
+sobre todo, la direccion (`bus_addr_sd`), y despues quedo el cierre de `clk_86` en el shim del V9968, resuelto por dados.
+
 ## Versiones del porte
 
 | Version | Fecha | Dado | Equivale a | Que trae |
@@ -140,18 +171,22 @@ Lo propio del 138:
 | v3.7 | 18/09/2026 | dado **4391** (campaña `p138k`; 0,034 ns contra 11,30 = ~0,37 ns real; `files/20260918/`) | V3.7b del 60K | DMA de la SD (3.6/3.6c), mandos HID por USB-A (3.6f), espera a la DDR3 + LED chivato (3.6g), generacion C del V9968, mezclador por fuente con persistencia de 11 bytes (3.7), `cpu_run` registrado, motor de reintentos escalonado de la DDR3 + puertos 2Ah-2Ch (3.7b) |
 | v3.7-8mb | 17/10/2026 | dado **5519** (campaña `p138m`, place_option 2; 0,006 ns contra 11,30 = ~0,35 ns real; `files/20261017/`) | la v3.7 | El mapa de flash dentro de los 8 MB de la W25Q64: pack 0x500000, configuración 0x580000, YRW801 0x600000 |
 | v3.8.4 | 17/10/2026 | dado **5569** (campaña `v384138a`, place_option 2; 0,143 ns contra 11,30 = ~0,48 ns real; md5 del `.fs` 8e24561ddc1d; `files/20261017/`) | la V3.8.4 del 60K | OSD con color (y el firmware del BL616 para la 138K), actualizar desde el MSX (`flash_bridge.v` + MXUPDATE 1.3), el motor wave del OPL4 de la 3.8.4, las 3.7.1 a 3.7.6 del 60K y el dato de la CPU a la SDRAM registrado a 54 MHz; el mapa de flash de la v3.7-8mb |
+| v3.8.4b | 08/11/2026 | dado **5867** (campaña `g3v2d`, 1 de 21 dados con geo3d pasa el gate; +0,004 ns contra 11,30 = ~0,34 ns real; md5 del `.fs` ab77822305dd; `files/20261103/`. El 5683, sin geo3d, en `files/20261102/`) | la V3.8.4 del 60K | El HDMI con su propio PLL (con el PLL colgado de la DDR3, una 138K no daba señal), geo3d v2.0 (coprocesador 3D) con el relleno rápido de caras planas, el dato y la dirección de la CPU hacia la SD registrados a 54 MHz, MXUPDATE 1.4 (las ondas del OPL4 por internet) y los packs con Nextor 3.0 final |
 
 El puerto 2Fh de la v3.7 dice 37h, como en el 60K; el de la v3.8.4 dice 38h, con el 29h
 (FPGA_PATCH) a 4: Ajustes y MXUPDATE dicen 3.8.4.
 
 ## Estado
 
-Ninguna version del porte se ha validado en una placa 138K: v1 y v2 se entregaron sin
-validar; la v3.7 se grabo el 16/10/2026 en una 138K y se quedo en negro por el mapa de
-flash de 16 MB; la v3.7-8mb y la v3.8.4 estan sin probar. Lo que hay es sintesis limpia,
-gate pasado, los bancos de simulacion del 60K y el de `tools/t80mem` para el registro de la
-v3.8.4. Las cifras medidas en placa que cita la documentacion
+La v3.8.4b y la v3.8.4b + geo3d v2.0 (dado 5867) se han probado en una placa 138K con chip B
+(la del autor): imagen por HDMI, tarjeta SD y geo3d. Las versiones anteriores no: v1 y v2 se
+entregaron sin validar; la v3.7 se grabo el 16/10/2026 en una 138K y se quedo en negro por el
+mapa de flash de 16 MB; la v3.7-8mb y la v3.8.4 (dado 5569) no daban señal por HDMI o estan sin
+probar. De todo lo demas hay sintesis limpia, gate pasado, los bancos de simulacion del 60K y el
+de `tools/t80mem` para el registro de la v3.8.4. Las cifras medidas en placa que cita la documentacion
 (velocidades de la SD, margenes de dados de la 60K, temperaturas) son del 60K.
+
+**Que RTL es cada cosa.** El `.fs` de la v3.8.4b (dado 5867) se construyo con el RTL del tag `v3.8.4b` (rama `release-3.8.4b`). Esta rama (`V3.8`) lleva ese mismo RTL **mas** dos candidatos que no estan en ningun `.fs`: la v3.8.5 (paleta y sprites del YJK, SCREEN 10-12) y la v3.8.6 (el cuadro del VDP recortado para que el HDMI salga a 60,000 Hz). Fusionados con geo3d, ni se han construido ni se han probado en placa; solo hay bancos de simulacion. Antes de llamarlos version hace falta una campana de dados (con geo3d pasa 1 de 21) y una prueba en placa. Para reproducir el `.fs` publicado, el tag `v3.8.4b`.
 
 Pendiente, en este orden, cuando haya placa: el plan de pruebas de
 `files/20260907/LEEME_138_v1.txt` (logo y menu, Ajustes, SD por las tres rutas,

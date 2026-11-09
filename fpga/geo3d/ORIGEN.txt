@@ -1,0 +1,91 @@
+geo3d — coprocesador de geometria 3D para MSX + V9968, de Alex Moncks (MIT).
+================================================================================
+Origen : https://github.com/alexmoncks/V9968_Cartridge (fork del V9968_Cartridge de HRA!), carpeta geo3d/rtl/
+         commit c938150507f9763ac41720104135096776d9f2af (27/09/2026, "Merge branch 'geo3d-phase2'").
+Ficheros: geo3d_core.v, geo3d_engine.v, geo3d_bus.v  — en la Zynq, SIN CAMBIOS (diff = 0); en el 138K, iguales
+         quitando los bloques `ifdef GEO3D_CE (ver la seccion 138K mas abajo). geo3d_z80if.v (su
+         fase 1, interfaz Z80 directa) no se usa: aqui entra por geo3d_bus, el adaptador al bus valid/ready.
+Licencia: MIT (LICENSE en esta carpeta, la del repo de origen).
+
+Como va en el MSXimus Z (27/09/2026, fpga/zynq/top_zynq.v, `define ENABLE_GEO3D):
+- Cartucho virtual SIEMPRE presente en los puertos 9Dh (indice / estado) y 9Fh (datos), los "offsets 5 y 7" del bloque
+  del VDP en 98h; 9Eh y los espejos 8Dh/8Fh no responden. Es lo que espera la ROM de demos GEO3D_98.ROM (build_rom.py
+  --base 0x98) y el openMSX de alexmoncks con `-ext geo3d`.
+- Cuelga del bus valid/ready del glue del V9968 (v9968_cpu_glue): la decodificacion vdp_io_hit incluye 9Dh/9Fh, el
+  glue hace la transaccion como con el VDP y geo3d_bus se la queda (hit); el VDP no ve el valid de esos accesos y en
+  las lecturas responde el que emite rdata_en.
+- Reloj: bus y VDP a clk_86 (85,909 MHz); el motor a clk_43 = CLKOUT1 (/22) de la MISMA PLLE2 del V9968, /2 exacto y
+  en fase, como el clk42g de su cartucho Tang. Cruces por toggle dentro de geo3d_bus.
+- fpga/v9968/vdp.v lleva su parche: puertos ext_cmd_wr/num/data OR-eados en vdp_command (R#32-R#46) y ext_cmd_ce
+  (= S#2 CE) hacia fuera. Con ext_cmd_wr = 0 el VDP es identico. Los bancos de tools/v9968_sim los atan a 0.
+- Banco de integracion: tools/v9968_sim/tb_geo3d_int.sv + run_geo3d_int_vl.sh (glue + geo3d_bus + vdp completo con
+  VRAM perfecta; reproduce sus escenas aleatorias de sim/gen_scenes.py por los puertos 9Dh/9Fh y compara el registro
+  de LINEs con su modelo).
+
+================================================================================
+MSXimus 138K (rama geo3d, 17/10/2026)
+================================================================================
+Procedencia: copia de fpga/geo3d de la Zynq (los mismos tres .v + LICENSE). Es geo3d v1.0.0 de Alex: el
+mismo RTL que HRA! publico despues en su upstream (hra1129/V9968_Cartridge 3e81e92, 03/10/2026, "Added
+Geo3D", fpga/V9968_Cartridge_TangNano20K/src/geo3d/, su readme dice v1.0.0) y que el tag geo3d-v1.0.0 del
+repo de Alex (6ed10ff), igual en su main (eeb13f4, 04/10/2026): diff = 0 con los tres (mismos blobs).
+Su rama geo3d-v2.0 (14-16/10/2026, d354695; cambia geo3d_engine.v y geo3d_bus.v) esta en desarrollo, sin
+tag: no adoptada (revisado el 18/10/2026).
+
+Lo que cambia en el 138K es el reloj del motor. Alli no queda ninguna red global libre (PRIMARY 8/8, LW 8/8)
+para un clk_43 como el de la Zynq, asi que el motor va a clk_86 con un clock enable a 1/2:
+- GEO3D_CE (`ifdef en los tres .v): puerto ce_eng[4:0] en geo3d_bus, ce[3:0] en geo3d_engine y ce en
+  geo3d_core. Cada always secuencial del lado motor (11: los 6 de memoria, los 2 grandes de geo3d_engine, el
+  de geo3d_core y los 2 del lado motor de geo3d_bus) va dentro de "if (ce...) begin ... end", y con el las
+  seis memorias (BSRAM) y los registros de los DSP. El reset del motor se registra con CE (rst_e). Los
+  contadores (guard, ik, it, dcnt) cuentan ciclos de CE, como antes ciclos de clk_43.
+- SIN el define, cada fichero es BYTE A BYTE el original: las lineas de Alex no se tocan (ni la sangria);
+  todo lo nuevo va dentro de `ifdef GEO3D_CE / `else / `endif. Se comprueba quitando esos bloques.
+- geo3d_ce.v (nuevo, del MSXimus): `define GEO3D_CE + `include de los tres. build.tcl compila solo ese
+  fichero con USE_GEO3D = 1, para que el define llegue seguro a los fuentes.
+- El generador del CE (cinco replicas en fase, con syn_preserve) y el reset local estan en top.v; el
+  multiciclo 2/1 entre registros con CE, en constraints/msx_geo3d.sdc; la auditoria del netlist, en
+  geo3d_ce_audit.py (esta carpeta): build.tcl la pasa entre run syn y run pnr y, con --emit, añade al
+  SDC combinado un set_max_delay de un ciclo para cada FF del motor con el CE solo en el D.
+Propuesta pendiente para Alex: un parametro de CE en su upstream, para no divergir.
+
+================================================================================
+MSXimus 138K (rama geo3d-v2, 03/11/2026): geo3d v2.0 y el HMMV rapido, sobre la v3.8.4b
+================================================================================
+Procedencia: los tres .v son los de HRA! 3d55af4 (v0.92, 01/11/2026; blobs geo3d_engine dc032d60, geo3d_bus 179d832a,
+geo3d_core 1f2e84ef, comprobados con git hash-object), los mismos que lleva fpga/geo3d de la Zynq beta Z1.3.2b10:
+- geo3d v2.0.0 de Alex: hasta 1.023 vertices, aristas y caras (RAM de 1.024 entradas, AW = 10), registros XCTRL (6Fh),
+  VFIRST, FFIRST y EFIRST, ID 20h en el 49h (lo exige el software v2.0: GEO FIGHTER, Cube Maze, las ediciones
+  *-GEO3D-V2 de kanon-ai) y el reset del motor desde un flop propio (rst_e). Un programa v1.0.0 saca los mismos comandos.
+- La etiqueta cmd_fill_span (idea de muhanpong, issue #9 de HRA!): el motor marca el R#46 de una fila rellena de cara plana
+  (LINE + IMP) y vdp_command.v la ejecuta como HMMV de una fila en SCREEN 8 (fpga/v9968/ORIGEN.txt, 03/11/2026).
+NO se porta la parte de geo3d_bus.v de bee8f7e (v0.93: relanzado en el flanco de bajada de clk; hold de Gowin), igual
+que la Zynq. La v0.93 y lo posterior de HRA! (09519fd, 4294aea, 02/11/2026) no se han mirado.
+
+El envoltorio GEO3D_CE de arriba se aplico de nuevo con un merge a tres bandas (base: los tres ficheros de la v1.0.0 SIN
+los bloques GEO3D_CE; los nuestros: los de la rama geo3d; los suyos: los de HRA!). Cuatro conflictos, todos de forma: los
+indices [AW-1:0] de las seis memorias y el rst_e de la v2.0, que en la Zynq sale de un flop de clk_eng y aqui, como antes,
+se registra CON CE y arranca en 1. Quedan 18 bloques CE en geo3d_engine (los 6 de memoria, el de registros del Z80, el de la
+FSM, el puerto ce y el .ce del core), 5 en geo3d_bus y 3 en geo3d_core. Comprobacion de forma: quitando los bloques GEO3D_CE
+y dejando los `else, salen los tres ficheros de HRA! byte a byte.
+
+Fuera de geo3d: geo3d_ce_audit.py cuenta cmd_fill_span_e entre los registros del lado motor de geo3d_bus; top.v lleva
+cmd_fill_span hasta ext_cmd_fill_span del VDP y decodifica tambien 8Dh y 8Fh (espejos del geo3d, como la Zynq desde la
+Z1.3.4: las demos de renatus geo3d-motion-stage, MOT2N y MOT8N, buscan el V9968 en 88h y piden el geo3d en 8Dh/8Fh; sin
+espejo se paraban con el borde amarillo). 8Eh sigue sin responder (es de la megaram).
+
+Verificacion (WSL, 03/11/2026, sin placa):
+- run_alex_ce.sh con el clon de Alex (geo3d/sim, gen_scenes.py 24, gen_face_scenes.py 16, gen_tex_scenes.py 12) y como
+  referencia el fpga/geo3d de la Zynq (sin CE): fase 1 (4.000 vectores, 0 errores), tb_engine y tb_bus con las tres familias
+  de escenas. B (GEO3D_CE, ce = 1 fijo) = A (sin define) ciclo a ciclo; C2 (motor a clk con ce 1/2, fase A) = A en secuencia
+  (num, dato); C3 (fase B) = A en secuencia; 0 violaciones de CE, 0 X. RESULTADO: PASS.
+- tools/v9968_sim/run_geo3d_hmmv.sh (bancos de HRA!: tb_geo3d_hmmv 38 PASS y tb_geo3d_vdp_modes: solo SCREEN 8 sin YJK
+  optimiza la fila) y run_geo_abort.sh (tb_geo_abort: 420 escenarios de aborto y pisado de NX/NY por la CPU), PASS.
+- tools/v9968_sim/run_geo3d_v2_ce.sh con las mismas escenas (VDP completo + glue + geo3d_bus, sin y con GEO3D_CE): en
+  SCREEN 5 y en SCREEN 8 (+sc8, filas planas por el HMMV rapido) el registro de comandos coincide con el modelo en las seis
+  combinaciones (2.792, 52.164 y 27.555 comandos) y la VRAM final (65.536 palabras) de la variante con CE es identica a la de
+  sin CE en SCREEN 8. RESULTADO: PASS. No se ha pasado tb_geo3d_sys (ROM de kanon-ai) ni se ha comparado la VRAM de SCREEN 8
+  contra la de SCREEN 5/LINE de este mismo RTL: eso lo cubre el banco de HRA! (tb_geo3d_hmmv).
+- Los modelos de Alex que se usan son los de la v1.0.0 (el clon local no tiene su rama geo3d-v2.0: el 03/11 un fetch del
+  repo de Alex solo trae main, y el commit d354695 ya no se puede pedir): no se ha comparado el comando de la v2.0 con SU modelo v2.0, solo con el v1.0.0 y con el RTL de la Zynq, que si lo
+  paso (ORIGEN de la Zynq, 27/10/2026). Los registros nuevos de la v2.0 (XCTRL, VFIRST...) no estan cubiertos por estos bancos.

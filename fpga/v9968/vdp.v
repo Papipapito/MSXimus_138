@@ -96,6 +96,15 @@ module vdp (
 	// Force Highspeed Mode
 	input				force_highspeed,
 
+	// 27/09/2026 geo3d (Alex Moncks, MIT): escritura EXTERNA de registros de comando R#32-R#46 y CE (S#2 bit0)
+	// hacia fuera. El motor 3D escribe los LINE/LRMM directamente en vdp_command cuando CE = 0. Con ext_cmd_wr = 0
+	// el VDP es bit a bit el de siempre.
+	input				ext_cmd_wr,
+	input		[ 5:0]	ext_cmd_num,
+	input		[ 7:0]	ext_cmd_data,
+	input				ext_cmd_fill_span,		// 01/11/2026 (HRA 3d55af4): este R#46 es una fila rellena de una cara (LINE + IMP)
+	output				ext_cmd_ce,
+
 	// debug pulse
 	input		[ 1:0]	button,
 	output				pulse0,
@@ -417,9 +426,10 @@ module vdp (
 		.command_vram_wdata_mask					( w_command_vram_wdata_mask					),
 		.command_vram_rdata							( w_command_vram_rdata						),
 		.command_vram_rdata_en						( w_command_vram_rdata_en					),
-		.register_write								( w_register_write							),
-		.register_num								( w_register_num							),
-		.register_data								( w_register_data							),
+		.register_write								( w_register_write | ext_cmd_wr				),
+		.register_num								( ext_cmd_wr ? ext_cmd_num  : w_register_num	),
+		.register_data								( ext_cmd_wr ? ext_cmd_data : w_register_data	),
+		.register_fill_span							( ext_cmd_wr & ext_cmd_fill_span			),
 		.clear_border_detect						( w_clear_border_detect						),
 		.read_color									( w_read_color								),
 		.status_command_execute						( w_status_command_execute					),
@@ -428,6 +438,7 @@ module vdp (
 		.status_color								( w_status_color							),
 		.status_border_position						( w_status_border_position					),
 		.screen_mode								( w_screen_mode								),
+		.reg_yjk_mode								( reg_yjk_mode								),
 		.vram_interleave							( w_vram_interleave							),
 		.reg_text_back_color						( reg_text_back_color						),
 		.reg_command_enable							( reg_command_enable						),
@@ -559,4 +570,7 @@ module vdp (
 		.reg_normalize								( 8'd43										),
 		.reg_50hz_mode								( reg_50hz_mode								)
 	);
+	//	geo3d: CE del motor de comandos hacia fuera
+	assign ext_cmd_ce = w_status_command_execute;
+
 endmodule

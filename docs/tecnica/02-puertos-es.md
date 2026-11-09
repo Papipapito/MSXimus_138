@@ -160,6 +160,12 @@ El 99h recibe los registros en pares de bytes (dato y luego número con el bit 7
 
 Los puertos 9Ch y 8Ch, el "puerto 4" que el V9968 define para los flags de interrupción, **no están decodificados**. El capítulo 05 explica qué implica.
 
+### 8Dh, 8Fh, 9Dh y 9Fh: geo3d (solo en las builds con geo3d)
+
+El coprocesador 3D de Alex Moncks (geo3d v2.0, MIT), un cartucho virtual **siempre presente** en el bloque del VDP: 9Dh es el índice (al escribir) y el estado (al leer) y 9Fh los datos; 8Dh y 8Fh son sus espejos, igual que 88h-8Bh lo son del V9968 (las demos de renatus buscan el V9968 en 88h y piden el geo3d en 8Dh/8Fh; sin el espejo se paraban con el borde amarillo). 8Eh y 9Eh no responden (8Eh es de la megaram).
+
+El Z80 sube el modelo una vez y manda una orden; geo3d transforma, recorta, ordena y sombrea, y **escribe él mismo los comandos LINE y LRMM** en el motor de comandos del V9968 (R#32-R#46) mientras CE = 0. La v2.0 contesta con el ID 20h en el registro 49h, que el software v2.0 exige. En el core normal estos puertos no responden.
+
 ### A0h-A2h: PSG
 
 El YM2149 principal. En A2h con el registro 14 seleccionado se lee el joystick, que viene del mando o del ratón USB; el bit 6 del registro 15 elige el puerto. Los botones 3 y 4 del mando hacen autodisparo sobre los botones 1 y 2. El registro 15 se relee (lo último escrito): la BIOS lo lee, modifica y escribe en cada interrupción, y devolver FFh conmutaba el pin 8 del puerto 2 a 60 Hz y vaciaba el ratón (arreglado en la v3.6e del 60K, incluido en el porte). Los demás registros siguen devolviendo FFh al leerlos: el `O_DA` del YM2149 está sin conectar, aunque el modelo los sirve.

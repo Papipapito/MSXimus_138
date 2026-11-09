@@ -70,6 +70,7 @@ module vdp_command (
 	input				register_write,
 	input		[5:0]	register_num,
 	input		[7:0]	register_data,
+	input				register_fill_span,				//	geo3d: este R#46 (LINE + IMP) es una fila rellena de una cara (upstream HRA v0.92)
 	input				clear_border_detect,
 	input				read_color,
 	output				status_command_execute,			//	S#2 bit0
@@ -79,6 +80,7 @@ module vdp_command (
 	output		[8:0]	status_border_position,			//	S#8, S#9
 	//	Screen mode
 	input		[9:0]	screen_mode,
+	input				reg_yjk_mode,
 	input				vram_interleave,
 	input		[7:0]	reg_text_back_color,
 	input				reg_command_enable,
@@ -207,6 +209,9 @@ module vdp_command (
 	//	syn_maxfan=4 replica el registro (5 dados de la _126 violando a 8).
 	reg			[3:0]	ff_command /* synthesis syn_maxfan = 4 */;
 	reg					ff_start;
+	reg					ff_geo_hmmv;				//	01/11: la LINE de geo3d en curso se ejecuta como HMMV de una fila (upstream HRA 3d55af4)
+	reg					ff_geo_nx_adj;				//	01/11: NX lleva el +1 del camino rapido y nadie lo ha tocado (se deshace al acabar o abortar)
+	reg					ff_geo_ny_adj;				//	01/11: lo mismo para NY (= 1 en vez de 0)
 
 	reg			[17:0]	ff_cache_vram_address;
 	reg					ff_cache_vram_valid;
@@ -303,6 +308,11 @@ module vdp_command (
 	reg			[7:0]	ff_wait_counter;
 	reg			[5:0]	ff_wait_count;
 	reg					ff_command_end;
+	wire				w_geo_screen8;
+	wire				w_geo_hmmv_start;
+	wire				w_geo_hmmv_fallback;
+	wire				w_geo_end;
+	wire				w_geo_undo;
 
 	// --------------------------------------------------------------------
 	//	Mode select
@@ -337,6 +347,65 @@ module vdp_command (
 			end
 			else begin
 				ff_pixel_step	<= 3'd2;
+			end
+		end
+	end
+
+	//	01/11/2026, upstream HRA 3d55af4 (v0.92; idea de muhanpong, issue #9 de HRA): una fila rellena de geo3d llega como
+	//	LINE horizontal + IMP con register_fill_span = 1. En SCREEN 8 (G7 sin YJK; G7 tambien cubre SCREEN 10/11/12) se
+	//	arranca como HMMV de una fila: mismo VRAM, menos ciclos por pixel. NX pasa de "pixeles - 1" (LINE) a "pixeles"
+	//	(HMMV), NY = 1, y al acabar, al volver a LINE o cuando la CPU lo aborta con otro R#46 los registros que ve la CPU
+	//	quedan como los dejaria la LINE. Solo se deshace lo que el camino rapido ajusto: ff_geo_nx_adj / ff_geo_ny_adj bajan
+	//	cuando la CPU escribe R#40/41 o R#42/43, y desde entonces el valor es suyo (una escritura a una sola mitad del
+	//	registro recibe la otra mitad ya deshecha). Si el modo de pantalla cambia a mitad de la fila, vuelve a LINE antes
+	//	del pixel siguiente (w_geo_hmmv_fallback).
+	//	MSXimus: el fin de comando es w_cache_flush_end CON ff_state == c_state_finish (guarda FIX ABORTO 2b), no el pulso
+	//	suelto: el flush rancio de un comando abortado no puede apagar ff_geo_hmmv de la fila nueva.
+	assign w_geo_screen8		= ff_screen_mode[c_g7] && !reg_yjk_mode;
+	assign w_geo_hmmv_start		= register_write && register_num == 6'd46 &&
+								  register_fill_span && register_data == { c_line, c_imp } &&
+								  w_geo_screen8 && !reg_dx[8] && !ff_fg4 &&
+								  !ff_maj && !ff_dix && !ff_diy && reg_ny == 11'd0;
+	assign w_geo_hmmv_fallback	= ff_geo_hmmv && !w_geo_screen8 &&
+								  ff_state == c_state_hmmv && !ff_cache_vram_valid;
+	assign w_geo_end			= w_cache_flush_end && (ff_state == c_state_finish);
+	assign w_geo_undo			= w_geo_hmmv_fallback || w_geo_end || (register_write && register_num == 6'd46);
+
+	always @( posedge clk ) begin
+		if( !reset_n ) begin
+			ff_geo_hmmv <= 1'b0;
+		end
+		else if( register_write && register_num == 6'd46 ) begin
+			ff_geo_hmmv <= w_geo_hmmv_start;
+		end
+		else if( w_geo_hmmv_fallback || w_geo_end ) begin
+			ff_geo_hmmv <= 1'b0;
+		end
+	end
+
+	always @( posedge clk ) begin
+		if( !reset_n ) begin
+			ff_geo_nx_adj <= 1'b0;
+			ff_geo_ny_adj <= 1'b0;
+		end
+		else begin
+			if( register_write && (register_num == 6'd40 || register_num == 6'd41) ) begin
+				ff_geo_nx_adj <= 1'b0;
+			end
+			else if( w_geo_hmmv_start ) begin
+				ff_geo_nx_adj <= 1'b1;
+			end
+			else if( w_geo_undo ) begin
+				ff_geo_nx_adj <= 1'b0;
+			end
+			if( register_write && (register_num == 6'd42 || register_num == 6'd43) ) begin
+				ff_geo_ny_adj <= 1'b0;
+			end
+			else if( w_geo_hmmv_start ) begin
+				ff_geo_ny_adj <= 1'b1;
+			end
+			else if( w_geo_undo ) begin
+				ff_geo_ny_adj <= 1'b0;
 			end
 		end
 	end
@@ -654,6 +723,9 @@ module vdp_command (
 				ff_dy[10:8]	<= { 1'b0, register_data[1:0] };
 			end
 		end
+		else if( ff_geo_hmmv ) begin
+			//	Una HMMV de una fila debe dejar DY como la LINE horizontal original (upstream HRA 3d55af4).
+		end
 		else if( !ff_command_execute || ff_cache_vram_valid ) begin
 			//	hold
 		end
@@ -763,9 +835,27 @@ module vdp_command (
 		end
 		else if( register_write && register_num == 6'd40 ) begin
 			reg_nx[7:0]		<= register_data;
+			if( ff_geo_nx_adj ) begin
+				//	La mitad que la CPU no toca vuelve al valor de la LINE (el +1 puede haber acarreado al bit 8).
+				reg_nx[10:8]	<= { 2'd0, w_reg_nx[8] };
+			end
 		end
 		else if( register_write && register_num == 6'd41 ) begin
 			reg_nx[10:8]	<= register_data[2:0];
+			if( ff_geo_nx_adj ) begin
+				reg_nx[7:0]		<= w_reg_nx[7:0];
+			end
+		end
+		else if( w_geo_hmmv_start ) begin
+			//	LINE incluye el pixel final; HMMV cuenta pixeles. Con el ajuste de una fila anterior aun puesto (R#46 sin
+			//	esperar al fin y NX intacto) el valor ya es el de HMMV: deshacer y volver a sumar lo deja igual.
+			if( !ff_geo_nx_adj ) begin
+				reg_nx <= reg_nx + 11'd1;
+			end
+		end
+		else if( ff_geo_nx_adj && w_geo_undo ) begin
+			//	LINE enmascara NX a nueve bits al arrancar. Al acabar, al volver a LINE o al abortar la CPU con R#46.
+			reg_nx <= { 2'd0, w_reg_nx[8:0] };
 		end
 		else if( ff_start ) begin
 			if( ff_command == c_lrmm ) begin
@@ -795,6 +885,10 @@ module vdp_command (
 			else begin
 				ff_nx <= { 2'd0, w_next };
 			end
+		end
+		else if( w_geo_hmmv_fallback ) begin
+			//	El contador X de HMMV arranca en uno, el de LINE en cero.
+			ff_nx <= ff_nx - 11'd1;
 		end
 		else if( !ff_command_execute || ff_cache_vram_valid ) begin
 			//	hold
@@ -838,6 +932,16 @@ module vdp_command (
 			else begin
 				reg_ny[10:8]	<= { 1'b0, register_data[1:0] };
 			end
+			if( ff_geo_ny_adj ) begin
+				//	El camino rapido dejo NY[7:0] = 1; la LINE lo tenia a 0.
+				reg_ny[7:0]		<= 8'd0;
+			end
+		end
+		else if( w_geo_hmmv_start ) begin
+			reg_ny <= 11'd1;
+		end
+		else if( ff_geo_ny_adj && w_geo_undo ) begin
+			reg_ny <= 11'd0;
 		end
 		else if( ff_start ) begin
 			if( ff_command == c_lrmm ) begin
@@ -850,7 +954,7 @@ module vdp_command (
 		//	FIX ABORTO 2b (MSXimus): misma guarda que en ff_command_execute --
 		//	el flush_end del comando ABORTADO no es el fin del comando NUEVO.
 		else if( w_cache_flush_end && (ff_state == c_state_finish) ) begin
-			reg_ny <= ff_ny;
+			reg_ny <= ff_geo_hmmv ? 11'd0 : ff_ny;
 		end
 	end
 
@@ -865,6 +969,9 @@ module vdp_command (
 			else begin
 				ff_ny <= 11'd1;
 			end
+		end
+		else if( w_geo_hmmv_fallback ) begin
+			ff_ny <= 11'd0;
 		end
 		else if( !ff_command_execute || ff_cache_vram_valid ) begin
 			//	hold
@@ -906,6 +1013,10 @@ module vdp_command (
 		else if( ff_start ) begin
 			//	線分を構成する水平又は垂直の直線の最初と最後を均等サイズにするために分母の半分の値を事前に足しておく
 			ff_nyb	<= { 1'd0, w_reg_nx[10:1] };
+		end
+		else if( w_geo_hmmv_fallback ) begin
+			//	La LINE horizontal tiene NY = 0: su acumulador de Y no necesita avanzar.
+			ff_nyb <= 12'd0;
 		end
 		else if( !ff_command_execute || ff_cache_vram_valid ) begin
 			//	hold
@@ -1108,11 +1219,14 @@ module vdp_command (
 		end
 		else if( register_write && (register_num == 6'd46) ) begin
 			ff_logical_opration	<= register_data[3:0];
-			ff_command			<= register_data[7:4];
+			ff_command			<= w_geo_hmmv_start ? c_hmmv : register_data[7:4];
 			ff_start			<= 1'b1;
 		end
 		else begin
 			ff_start			<= 1'b0;
+			if( ff_geo_hmmv && (w_geo_hmmv_fallback || w_geo_end) ) begin
+				ff_command <= c_line;
+			end
 		end
 	end
 
@@ -1645,25 +1759,31 @@ module vdp_command (
 
 			//	HMMV command --------------------------------------------------
 			c_state_hmmv: begin
-				//	Write the location of (DX, DY)
-				ff_cache_vram_address	<= w_address_d;
-				ff_cache_vram_valid		<= 1'b1;
-				ff_cache_vram_write		<= 1'b1;
-				ff_cache_vram_wdata		<= ff_color;
-				ff_count_valid			<= 1'b1;
-				if( (w_nx_end || w_sx_overflow || w_dx_overflow) && (w_ny_end || w_dy_overflow) ) begin
-					ff_state				<= c_state_pre_finish;
-				end
-				else if( reg_command_high_speed_mode ) begin
-					//	SX, DX のカウントアップが終わるまでの 1clk を待機する
-					ff_wait_counter			<= 8'd1;
-					ff_next_state			<= c_state_hmmv;
-					ff_state				<= c_state_wait_counter;
+				if( w_geo_hmmv_fallback ) begin
+					ff_count_valid			<= 1'b0;
+					ff_state				<= c_state_line;
 				end
 				else begin
-					ff_wait_counter			<= { c_wait_hmmv, 2'b11 };
-					ff_next_state			<= c_state_hmmv;
-					ff_state				<= c_state_wait_counter;
+					//	Write the location of (DX, DY)
+					ff_cache_vram_address	<= w_address_d;
+					ff_cache_vram_valid		<= 1'b1;
+					ff_cache_vram_write		<= 1'b1;
+					ff_cache_vram_wdata		<= ff_color;
+					ff_count_valid			<= 1'b1;
+					if( (w_nx_end || w_sx_overflow || w_dx_overflow) && (w_ny_end || w_dy_overflow) ) begin
+						ff_state				<= c_state_pre_finish;
+					end
+					else if( reg_command_high_speed_mode ) begin
+						//	SX, DX のカウントアップが終わるまでの 1clk を待機する
+						ff_wait_counter			<= 8'd1;
+						ff_next_state			<= c_state_hmmv;
+						ff_state				<= c_state_wait_counter;
+					end
+					else begin
+						ff_wait_counter			<= { c_wait_hmmv, 2'b11 };
+						ff_next_state			<= c_state_hmmv;
+						ff_state				<= c_state_wait_counter;
+					end
 				end
 			end
 

@@ -3,9 +3,9 @@
 <h1 align="center">MSXimus</h1>
 <p align="center"><b>A complete MSX2+ on a Tang Console 138K — now with the V9968 VDP</b></p>
 
-> **This repository is the port of the MSXimus to the Tang Console 138K (MSXimus_138, v3.8.4).** What is specific to the port (SOM Mega 138K, flash map, PLL cascade, campaigns, what has and has not been tested) is in [README.138.md](README.138.md); the documentation adapted to the 138K is in [docs/INDICE.md](docs/INDICE.md) (both in Spanish). Installation, updates and the F12 panel are described here for the 138K; the rest is the MSXimus as it was born on the Tang Console 60K: same board, same core.
+> **This repository is the port of the MSXimus to the Tang Console 138K (MSXimus_138, v3.8.4b).** What is specific to the port (SOM Mega 138K, flash map, PLL cascade, campaigns, what has and has not been tested) is in [README.138.md](README.138.md); the documentation adapted to the 138K is in [docs/INDICE.md](docs/INDICE.md) (both in Spanish). Installation, updates and the F12 panel are described here for the 138K; the rest is the MSXimus as it was born on the Tang Console 60K: same board, same core.
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-v3.8.4-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-v3.8.4b-blue">
   <img alt="fpga" src="https://img.shields.io/badge/FPGA-Gowin%20GW5AST--138-green">
   <img alt="license" src="https://img.shields.io/badge/license-GPLv3-orange">
 </p>
@@ -41,7 +41,7 @@ That is a change at the foundation rather than on the surface, and it earned its
 
 **Input** · USB keyboard straight into the board (no hub needed), with physical F1–F10 · USB gamepads mapped to MSX joysticks · USB mouse as an MSX mouse
 
-**On screen** · Optional **status panel on F12**, in colour, painted over the MSX by the BL616 the board already carries
+**On screen** · **Status panel on F12**, in colour, painted over the MSX by the BL616 the board already carries
 
 **Updates** · From the MSX itself, no PC: `MXUPDATE /N` downloads the latest version from the internet and flashes it; an `.UPD` file on the SD works too
 
@@ -60,29 +60,48 @@ That is a change at the foundation rather than on the surface, and it earned its
 | Optional | **USB** keyboard and gamepad | Straight into the board's USB-A ports, no hub |
 | Optional | **USB mouse**, wired | Straight into the board. ⚠️ A **wireless** receiver will not work: it presents itself as a composite device |
 | Optional | **ESP32-C6** (Waveshare C6-LCD-1.3) | For **WiFi**, with an optional info display |
-| Optional | *Nothing to buy* — the board's own **BL616** | Enables the F12 status panel. Needs its firmware flashed once |
+| **Required** | *Nothing to buy* — the board's own **BL616** | Its MSXimus firmware has to be flashed **first**: from the factory it carries Sipeed's own, and that is what you get at power-on. It also gives the F12 status panel |
 
 The fan is not needed for operation. If you fit one, the core drives it by itself: it measures the die temperature with an internal thermometer and only spins it when needed.
 
 ## Installation
 
-Everything goes into the board's **SPI flash**, at three different addresses. ⚠️ **These are the 138K addresses**: the 138K bitstream is twice as big, so the pack and the OPL4 waves sit 1 MB higher than on the 60K (`0x400000` / `0x500000` there). The flash holds 8 MB, and the waves fill its last 2 MB.
+### From zero to running, step by step
+
+For a Console 138K fresh out of the box, or to bring one back to a clean state. Steps **1 and 2 are done with the PC, once**; from step 3 on everything is done from the MSX itself, no PC.
+
+**What you need.** The board and a USB-C cable; a Windows PC; a good-brand Class 10 microSD; and, for the MSX to download things from the internet, the ESP32-C6 module with its firmware ([Wiring the ESP32-C6](#wiring-the-esp32-c6-wifi)) and a 2.4 GHz WiFi network. From the GitHub release: `bl616_msximus_v3.8_138k.zip`, the `.fs` (`msximus138_…fs`), `pack_bios_msximus.bin` and `MXUPDATE.COM`. **You do not need the OPL4 waves (`yrw801.bin`):** `MXUPDATE` downloads them.
+
+1. **The BL616 firmware** (mandatory, and first). Hold **BOOT** while plugging in the USB, open **BLDevCube**, load the ZIP's `flash_prog_cfg.ini` and flash. Without it, power-on gives Sipeed's factory firmware, not the MSXimus. [Details](#flashing-the-bl616).
+2. **The core and the pack into the SPI flash**, with the **Gowin Programmer** (it should detect a **GW5AST-138**): the `.fs` at `0x000000` with *exFlash Erase,Program,Verify* and `pack_bios_msximus.bin` at `0x500000` with *exFlash C Bin Erase,Program*. **These are the 138K addresses, not the 60K ones.** Then **power-cycle** the board: a reset is not enough. The MSXimus should come up; if something else does, see [How to flash](#how-to-flash). That ends the PC part.
+3. **The SD card.** Prepare it with [MSX SD Maker](https://github.com/Papipapito/SD_Maker): it partitions it the way Nextor does, copies the system and puts `MXUPDATE.COM` in the `FPGA` folder, which is on the `PATH` (on the 138K, 1.3 or later will do). Put it in the board and power on: the machine boots MSX-DOS (if the card browser shows up, press **ESC**; [chapter 06](docs/manual/06-msxdos-nextor.md)). Without MSX SD Maker, any FAT16 SD with Nextor (`NEXTOR.SYS` and `COMMAND2.COM` in the root) and `MXUPDATE.COM` copied over will do.
+4. **WiFi.** In the card browser, or during the logo, press **W**, go to *Scan/Join Access Points*, pick your network and type the password. It is stored in the module: it connects by itself at power-on ([chapter 07](docs/manual/07-wifi-file-hunter.md)).
+5. **`MXUPDATE /N`**, from MSX-DOS. It first updates itself and relaunches. Then it says which core you have and which one is on msx.barcelona, and asks for the variant: **1** is the usual one (Nextor 2.1.4, Spanish menu); 2 to 4 switch to Nextor 3 or the English menu and need an SD prepared for it. It downloads the file, checks it and asks `Fichero correcto. Grabar en la flash? (S/N)` (file OK, flash it?): **S**, and **do not power off** (about 16 minutes: the 138K bitstream is twice the size). Because a freshly flashed board has no OPL4 waves, when done it asks `Bajarlas e instalarlas ahora? (S/N)` (download and install them now?): **S** (about 5 more minutes). When it says `Listo`, **power-cycle**. MXUPDATE recognises the board (60K or 138K) from the core chip that is flashed and puts the core, the pack and the waves at each board's own addresses: no address is typed here.
+6. **That's it.** Core and pack up to date, and the MoonSound with its waves. From here on, `MXUPDATE /N` whenever you want to catch up, and `MXUPDATE /O` if you ever need the waves again (if you already have the latest version and only the waves are missing, `MXUPDATE /O` alone is enough).
+
+If something doesn't go as described, [Updating from the MSX](#updating-from-the-msx) and [manual chapter 11](docs/manual/11-actualizar.md) explain every message.
+
+### The flash files, in detail
+
+> **Two mandatory steps, in this order.** **Step 1:** the BL616 firmware ([Flashing the BL616](#flashing-the-bl616), with BLDevCube): from the factory the Console carries Sipeed's own firmware (NES and other things) and, unless you replace it, that is what you get at power-on — not the MSXimus. **Step 2:** the core and the pack into the SPI flash, with the Gowin Programmer (what follows).
+
+**Step 2 — the SPI flash.** Everything goes into the board's **SPI flash**, at three different addresses. ⚠️ **These are the 138K addresses**: the 138K bitstream is twice as big, so the pack and the OPL4 waves sit 1 MB higher than on the 60K (`0x400000` / `0x500000` there). The flash holds 8 MB, and the waves fill its last 2 MB.
 
 | # | File | Address | Required? |
 |---|---|---|---|
-| 1 | `msximus138_v3.8.4_dado5569.fs` | **`0x000000`** | Yes — this is the core |
+| 1 | `msximus138_v3.8.4b_geo3d_dado5867.fs` | **`0x000000`** | Yes — this is the core |
 | 2 | BIOS pack (`pack_bios_msximus*.bin`) | **`0x500000`** | Yes — the MSX won't boot without it |
-| 3 | `yrw801.bin` | **`0x600000`** | No — only for MoonSound/OPL4 (shipped as `.bin`: Gowin's Programmer does not accept `.rom`; rename a `yrw801.rom` if that is what you have) |
+| 3 | `yrw801.bin` | **`0x600000`** | No, and it is **no longer in the release**: once the core runs, `MXUPDATE /N` offers to download the OPL4 waves from msx.barcelona and flashes them (or `MXUPDATE /O` any time). By hand only if you already have your own `yrw801.bin` (as `.bin`: Gowin's Programmer does not accept `.rom`) |
 
 The rest of the release does not go into that flash:
 
 | File | Where |
 |---|---|
 | `MXUPDATE.COM` | To the SD card: it updates the board from the MSX ([below](#updating-from-the-msx)) |
-| `bl616_msximus_v3.8_138k.zip` | The BL616, for the F12 panel (optional) |
+| `bl616_msximus_v3.8_138k.zip` | The BL616: it is **step 1** ([below](#flashing-the-bl616)) |
 | `firmware_esp32c6_v3.8_merged.bin` | The ESP32-C6, for WiFi (optional) |
 
-Each optional piece has its own section below.
+Each one has its own section below.
 
 **This is only needed once.** From v3.8.4 on, the next updates are done from the MSX itself: see [Updating from the MSX](#updating-from-the-msx).
 
@@ -92,7 +111,7 @@ Each optional piece has its own section below.
 |---|---|
 | The three files above | [**Gowin Programmer**](https://www.gowinsemi.com/en/support/download_eda/) (the one bundled with the 1.9.12 IDE works fine) |
 | ESP32-C6 (WiFi) | [**esptool-js**](https://espressif.github.io/esptool-js/) in the browser — nothing to install — or `esptool` |
-| BL616 (F12 panel) | [**Bouffalo Lab Dev Cube**](https://github.com/bouffalolab/bouffalo_sdk) (BLDevCube) |
+| BL616 (step 1) | [**Bouffalo Lab Dev Cube**](https://github.com/bouffalolab/bouffalo_sdk) (BLDevCube) |
 
 ### How to flash
 
@@ -103,10 +122,12 @@ Each optional piece has its own section below.
 5. **Power-cycle the board.** A reset is **not** enough: the DDR3 needs a cold recalibration and may hang after a warm reset.
 
 > If you power up and only get a blue screen, it's almost always (a) the pack at the wrong address, or (b) a missing power-cycle.
+>
+> If what comes up is not the MSXimus but the Console's factory firmware (Sipeed's), step 1 is missing: the BL616.
 
 ### About the BIOS pack
 
-The release ships **everything you need**: the core, the BIOS pack, the OPL4's `yrw801.bin` and the firmwares. Download, flash, and it boots.
+The release ships **everything you need to boot**: the core, the BIOS pack and the firmwares. The OPL4's waves are not in it: [MXUPDATE](#updating-from-the-msx) downloads them. Download, flash, and it boots.
 
 There are **four builds of the same pack**: the menu in Spanish or in English, and the disk kernel inside:
 
@@ -114,12 +135,12 @@ There are **four builds of the same pack**: the menu in Spanish or in English, a
 |---|---|---|
 | `pack_bios_msximus.bin` | Spanish | **2.1.4** — the stable one |
 | `pack_bios_msximus_en.bin` | English | **2.1.4** — the stable one |
-| `pack_bios_msximus_nextor3.bin` | Spanish | **3.0 beta 2** — to try the beta |
-| `pack_bios_msximus_en_nextor3.bin` | English | **3.0 beta 2** — to try the beta |
+| `pack_bios_msximus_nextor3.bin` | Spanish | **3.0 final** — to try Nextor 3 |
+| `pack_bios_msximus_en_nextor3.bin` | English | **3.0 final** — to try Nextor 3 |
 
 If you would rather build the pack from your own ROMs, there's the [**MSXnano Pack Builder**](https://github.com/Papipapito/MSXnano), which assembles the file from them, Nextor included.
 
-Without `yrw801.bin` the core works just the same; you simply won't have MoonSound.
+Without the OPL4 waves (`yrw801.bin`) the core works just the same; you simply won't have MoonSound's wavetable. Once the core runs, `MXUPDATE /N` offers to download them when it finishes, and `MXUPDATE /O` does it any time.
 
 ### One BIOS, and the menu is a setting
 
@@ -147,7 +168,7 @@ From v3.8 the MSXimus updates **itself**: the core and the BIOS pack are written
 
 **Fixes only come this way.** GitHub carries the big versions; the fixes are published only for `MXUPDATE /N`. Install the GitHub release once and `MXUPDATE /N` takes you to the latest.
 
-`MXUPDATE.COM` is in the release and, on a card made with [MSX SD Maker](https://github.com/Papipapito/SD_Maker), in the `FPGA` folder (on the `PATH`). The 138K needs **version 1.3 or later**: 1.2 expected the 138K's pack at the old address and refuses its files without touching anything. The published MSX SD Maker release (1.4) carries 1.2: copy this release's `MXUPDATE.COM` over `FPGA\MXUPDATE.COM`, or just run `MXUPDATE /N`, which updates itself first. It recognises the board by itself, speaks the menu's language and **updates itself**: before looking for a new core on the internet it checks whether there is a newer MXUPDATE; if there is, it downloads it, checks it, replaces itself and carries on with the new one.
+`MXUPDATE.COM` is in the release and, on a card made with [MSX SD Maker](https://github.com/Papipapito/SD_Maker), in the `FPGA` folder (on the `PATH`). The 138K needs **version 1.3 or later**: 1.2 expected the 138K's pack at the old address and refuses its files without touching anything. MSX SD Maker 1.4 and earlier carry 1.2 (from 1.5 on it carries 1.3 or later): in that case copy this release's `MXUPDATE.COM` over `FPGA\MXUPDATE.COM`, or just run `MXUPDATE /N`, which updates itself first. It recognises the board by itself, speaks the menu's language and **updates itself**: before looking for a new core on the internet it checks whether there is a newer MXUPDATE; if there is, it downloads it, checks it, replaces itself and carries on with the new one.
 
 ```
 MXUPDATE                  flashes this board's file from the current directory (MSX138K.UPD on the
@@ -157,6 +178,7 @@ MXUPDATE file.UPD         flashes that file
 MXUPDATE /C file.UPD      only checks it (header and CRCs); the flash is not touched
 MXUPDATE /N               downloads the latest version and flashes it
 MXUPDATE /N /R            the full one (core, pack and the OPL4 waves) and back to factory settings
+MXUPDATE /O               only the OPL4 waves (YRW801): downloads and flashes them
 MXUPDATE /H   /?          help: the commands, without touching anything
 ```
 
@@ -166,9 +188,9 @@ Every file is checked **before anything is erased**, and the flash is read back 
 
 Times, since the Z80 does all the work: pack only, 1.5 minutes. The 138K's core is twice the size of the 60K's, so core and pack take about 16 minutes and the full one about 22 (estimated from the 60K's measurements) — plus the download. Everything else is in the manual: [`docs/manual/11-actualizar.md`](docs/manual/11-actualizar.md) (Spanish).
 
-## The status panel — F12 (optional)
+## The BL616 and the status panel — F12
 
-The Console 138K carries, like the 60K, a second chip you have probably never used: a **BL616** microcontroller, wired to the FPGA from the factory. Give it a firmware and it will paint a status panel straight over the MSX picture.
+The Console 138K carries, like the 60K, a second chip: a **BL616** microcontroller, wired to the FPGA from the factory. **It has to be given the MSXimus firmware before anything else**: out of the box it runs Sipeed's own (NES and other things), and that is what shows up at power-on, not the MSXimus. With the MSXimus one it also paints a status panel straight over the MSX picture.
 
 Press **F12** and the MSX freezes and the panel comes up, in colour. Press it again (or ESC) and the game carries on exactly where it was. It is **read-only** — there is no menu, no cursor, nothing to break. It reports what the core says about itself, in the menu's language:
 
@@ -197,18 +219,18 @@ This costs you nothing in hardware: **no wires, no soldering, no module**. The l
 
 ### Flashing the BL616
 
-The release ships it in a ZIP, **`bl616_msximus_v3.8_138k.zip`**: the MSXimus image, which goes at **`0x40000`**, and the `.ini` that writes it. The Sipeed firmware the Console 138K carries at `0x0` is not touched: the two **coexist**.
+**Step 1, before the core.** The release ships it in a ZIP, **`bl616_msximus_v3.8_138k.zip`**: the MSXimus image, which goes at **`0x40000`**, and the `.ini` that writes it. The Sipeed firmware the Console 138K carries at `0x0` is not touched: the two **coexist**.
 
 1. **Hold the BOOT button down while you plug in the USB.** That puts the chip in ISP mode.
 2. A **new COM port** appears — that one is the BL616. (Listing the ports before and after plugging it in is the easy way to tell which.)
 3. Unzip it into a folder, open **BLDevCube** and load its **`flash_prog_cfg.ini`**: it already carries the image and its address, so there is nothing to type.
-4. Unplug the PC's USB and power the board from a **USB charger**.
+4. Carry on with **step 2**: the core, the pack and the waves with the Gowin Programmer ([Installation](#installation)).
 
-> The panel only works with the board powered from a charger: with the PC's USB plugged in, the BL616 acts as the JTAG bridge for the Gowin Programmer and there is no panel.
+> The panel only works with the board powered from a charger: once you have finished flashing, unplug the PC's USB and use a **USB charger**. With the PC's USB plugged in, the BL616 acts as the JTAG bridge for the Gowin Programmer and there is no panel.
 
 ISP mode lives in the chip's ROM, not in its flash, so it works no matter what you have written. **It is the reverse gear that never fails** — you cannot brick the board this way.
 
-If you would rather not flash it at all, don't: the MSX works exactly the same, you simply won't have the F12 panel.
+Don't skip it: without this step the board powers up with the Console's factory firmware (Sipeed's) and not the MSXimus.
 
 ## Wiring the ESP32-C6 (WiFi)
 

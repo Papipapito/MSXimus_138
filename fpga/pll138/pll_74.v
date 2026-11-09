@@ -4,13 +4,16 @@
 // divisores (leidos del fichero, no copiados a mano), ICP/LPF dinamicos por
 // PLL_INIT (pll138/pll_init.v, el que emite el IDE para gw5ast138b). Lista de
 // puertos y resto de parametros = console138k/pll_ddr3_mod.v de nand2mario.
-// Puerto nuevo init_clk; sin lock (como antes).
+// Puerto nuevo init_clk. v3.8.4b: reset (PLL_INIT en reset hasta que su referencia, pll_hdmiref,
+// tiene lock: la calibracion es de un solo intento) y lock (O_LOCK del PLL_INIT).
 //============================================================================
 module pll_74 (
     input  wire init_clk,   // 50 MHz (CLK_PERIOD = 20): reloj del PLL_INIT,
     input  wire clkin,
+    input  wire reset,      // = ~lock de la referencia
     output wire clkout0,
-    output wire clkout1
+    output wire clkout1,
+    output wire lock
 );
 wire [5:0] icpsel;
 wire [2:0] lpfres;
@@ -28,10 +31,10 @@ wire pll_rst;
     );
     PLL_INIT u_pll_init(
         .CLKIN(init_clk),
-        .I_RST(1'b0),
+        .I_RST(reset),
         .O_RST(pll_rst),
         .PLLLOCK(pll_lock),
-        .O_LOCK(),
+        .O_LOCK(lock),
         .ICPSEL(icpsel),
         .LPFRES(lpfres)
     );

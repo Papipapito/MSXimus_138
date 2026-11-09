@@ -4,7 +4,7 @@ Un **MSX2+ completo dentro de una FPGA**, en la placa Sipeed Tang Console 138K. 
 
 Es el **porte del [MSXimus](https://github.com/Papipapito/MSXimus)** (el mismo core en la Tang Console 60K) a la Console 138K: la misma placa base con un SOM más grande. Y el MSXimus, a su vez, es el hermano mayor del [MSXnano](https://github.com/Papipapito/MSXnano): la misma línea de core (goauld, luego MSXnano), portada a una placa con más recursos y ampliada con lo que en la pequeña no cabía. Nano era el pequeño; Maximus el grande.
 
-> **Estado.** El porte está compilado y verificado en simulación, pero **no se ha validado en una placa 138K**: ninguna versión, tampoco la v3.8.4. Todo lo que en la documentación del 60K está "validado en placa", aquí está pendiente de placa.
+> **Estado.** La v3.8.4b (el HDMI con su propio PLL) y la v3.8.4b + geo3d v2.0 se han probado en una placa 138K (la del autor, chip B): imagen por HDMI, tarjeta SD y geo3d. Todo lo demás que en la documentación del 60K está "validado en placa" (actualizar con `MXUPDATE` sobre el mapa de 8 MB, el panel F12, Nextor 3.0 final, los ajustes) aquí sigue pendiente de placa. La v3.8.4 anterior (dado 5569) no daba señal por HDMI en esa placa.
 
 ## Lo que trae
 
@@ -49,7 +49,7 @@ Todo lo demás (menú, tarjeta SD, mappers, megaram, guardado, DMA, DOS/Nextor, 
 | Opcional | Teclado y mando USB | Directos a los USB-A de la placa |
 | Opcional | Ratón USB **con cable** | Un receptor inalámbrico no funciona: se presenta como dispositivo compuesto |
 | Opcional | **ESP32-C6** Waveshare C6-LCD-1.3 | Para la WiFi y su pantalla. Tres cables y la alimentación desde la placa |
-| Opcional | Nada que comprar: el **BL616** de la placa | Para el panel F12. Solo hay que flashearle un firmware una vez: `bl616_msximus_v3.8_138k.zip`, en la release |
+| **Obligatorio** | Nada que comprar: el **BL616** de la placa | Hay que flashearle el firmware del MSXimus una vez y **antes que nada**: de fábrica lleva el de Sipeed y es lo que sale al encender. Además da el panel F12: `bl616_msximus_v3.8_138k.zip`, en la release |
 | Opcional | Una **carcasa** impresa en 3D | Con forma de Spectravideo SVI-728, con sitio para la placa, el C6 con su pantalla y el ventilador. Como la placa base es la misma, vale la del 60K. Los ficheros y las fotos están en [`carcasa/`](../../carcasa/README.md) |
 
 ## Lo que no es

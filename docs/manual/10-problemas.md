@@ -6,6 +6,7 @@ Por síntoma, qué mirar. Casi todo lo que hay aquí ha pasado de verdad durante
 
 | Síntoma | Causa probable | Qué hacer |
 |---|---|---|
+| Al encender no sale el MSXimus sino el firmware de fábrica de la Console (el de Sipeed: NES y otras cosas) | Al BL616 no se le ha grabado el firmware del MSXimus (paso 1 de la instalación) | Grabar `bl616_msximus_v3.8_138k.zip` con BLDevCube ([capítulo 02](02-instalacion.md)); después, el core con el Gowin Programmer |
 | Pantalla azul y nada más | El pack no está en 0x500000 (en el 138K **no** es el 0x400000 del 60K: ahí lo pisa el bitstream, que ocupa unos 4,9 MB), o falta apagar y encender tras grabar | Regrabar el pack en la dirección exacta y **apagar y encender**, no reset |
 | Pantalla negra, sin señal HDMI | La DDR3 no calibró tras un reset en caliente | Apagar y encender |
 | Pantalla negra (o negra y luego el menú sin logo) al encender **desde un cargador**, pero arranca bien desde el USB del PC; el LED de la SD (U12) parpadea solo y va más rápido con F11 | La DDR3 de la VRAM no ha calibrado: cada intento de calibración sale bien con una probabilidad que depende del core (del dado, capítulo 07 de la técnica) y de la alimentación. Es la lotería medida en el 60K; el 138K usa la misma IP de DDR3 y el mismo motor de reintentos, así que le aplica igual (pendiente de verificar en placa). El MSX corre por debajo, sin vídeo | Esperar: desde la v3.7 del 138 (la v3.7b del 60K) el core reintenta con ventanas cada vez más largas y, si sigue sin calibrar, con el PLL reiniciado; el arranque espera hasta 10 s. Probar otro cargador o una batería USB (algunos cargadores USB-C hacen caer VBUS un instante al negociar). Si un core concreto falla siempre, es su dado: otro `.fs`. Desde BASIC `PRINT INP(&H2C) AND 127` dice los intentos que fallaron |
@@ -24,6 +25,7 @@ Lo que en el 60K no existe y en la 138K puede dar un susto antes de llegar al me
 | Gowin (la síntesis o el programador) avisa de "unexpected compatibility issues" | El SOM lleva un chip **versión C** (Sipeed los monta desde julio de 2025) y el `.fs` se compiló para `GW5AST-138B` | Mirar la serigrafía del chip del SOM; el `LEEME` de cada entrega en `files/` dice para qué versión se compiló. Para un chip C hay que compilar con `GW5AST-138C` (basta cambiar el nombre del dispositivo en `build.tcl`) |
 | Gowin EDA no deja abrir el proyecto ni sintetizar ("device not supported" o similar) | La edición **Education** no soporta el GW5AST-138 | Hace falta la edición **Standard con licencia**, 1.9.12.03 |
 | El `.fs` recién compilado no arranca o el vídeo se corrompe | Dado sin margen: la temporización del 138K es una lotería por dado, sobre todo en el dominio de 86 MHz del V9968 (`clk_86` va sobre-restringido a 11,30 ns para forzar margen) | No entregar un `.fs` que no pase el gate. Con la v3.8.4 pasaron 4 de los 5 dados de una campaña, con un PnR de 21 a 27 min por dado ([capítulo 07 de la técnica](../tecnica/07-sintesis-campanas.md)) |
+| Sin señal HDMI, pero el MSX vive (F11 cambia el parpadeo del LED del turbo) con la v3.8.4 | El reloj del HDMI colgaba del PLL de la DDR3 y su `PLL_INIT` calibraba antes de tener reloj de entrada (hipótesis desde la lectura del código, sin medir en placa) | Grabar la v3.8.4b, que lleva un PLL propio para el HDMI. Si sigue sin señal, `python tools\dbg_video_reader.py COMx`: el bit alto del byte 15 es pll_27 y pll_hdmiref y pll_74 enganchados |
 | Los botones S1/S2 o el ventilador no responden | En el 138K esas señales van a 3,3 V (banco 5, `LVCMOS33`), y `s2`, `fan_en_o`, `sd_*`, `spi_irqn` y `esp_*` no se han contrastado contra el esquemático | Pendiente de verificar en placa: si falla, lo primero es revisar esos pines en `msx_console138k.cst` |
 
 ## La tarjeta
@@ -55,7 +57,7 @@ Lo que en el 60K no existe y en la 138K puede dar un susto antes de llegar al me
 |---|---|---|
 | El televisor no muestra imagen | Receptor que no acepta 720p60 con audio embebido | Probar otro cable o entrada; es una señal estándar |
 | Un juego a 50 Hz se ve con la geometría rara | El modo 50 Hz es el menos probado | Anotar cuál y reportarlo |
-| Sin MoonSound, o instrumentos que faltan | `yrw801.bin` no grabado en 0x600000 (en el 138K, no en el 0x500000 del 60K) | Grabarlo |
+| Sin MoonSound, o instrumentos que faltan | Las ondas (`yrw801.bin`) no están grabadas en 0x600000 (en el 138K, no en el 0x500000 del 60K) | `MXUPDATE /O` las baja de msx.barcelona y las graba ([capítulo 11](11-actualizar.md)) |
 | Todo suena bajo o distorsionado | Ganancia maestra tocada | Volver a 5 ([capítulo 08](08-audio.md)) |
 | VGMPlay se cuelga con OPL3 | Nextor 3 beta | Usar el pack con Nextor 2.1.4 |
 | El SCC no suena en un juego | El juego busca el SCC en otro slot | Ajustes, Slot 1 = 2o SCC |

@@ -32,6 +32,12 @@
 // clockea FFs directamente con spi_sclk (13,33 MHz; antes del BL616, ahora
 // del ESP32-S3 por el J10 -- y en U20, que ES pin de reloj global).
 CLOCK_LOC "spi_sclk" LOCAL_CLOCK;
+// v3.8.4b: clk_7425 (74,25 MHz de pll_hdmiref, solo alimenta el CLKIN de pll_74) FIJADO a un hilo LW.
+// El 138K tiene 8 relojes PRIMARY y 8 LW (BUFG[0..15] de Gowin) y los 8 PRIMARY estan en uso. Sin fijarlo, con
+// pll_hdmiref propio el allocator le daba un PRIMARY a clk_7425 y mandaba a clk_86 (V9968) a LW: la campana
+// h138a salio 0 de 5 (109 endpoints en rojo en clk_86). LOCAL_CLOCK no vale (CT1018: un CLKIN de PLL exige red
+// de reloj). BUFG[15] cae en LW (medido en h138cB: clk_7425 LW, clk_86 PRIMARY, como en la v3.8.4).
+CLOCK_LOC "clk_7425" BUFG[15] = CLK;
 NET_LOC   "jtagseln" V_JTAGSELN;
 IO_PORT   "jtagseln" PULL_MODE=DOWN IO_TYPE=LVCMOS33 BANK_VCCIO=3.3;
 // V3.1 (TangCore): TX del enlace UART con el BL616. U15 = GPIO27 RX del

@@ -1,9 +1,9 @@
 Core V9968 de Takayuki Hara (HRA!) — hra1129/V9968_Cartridge
-Base: RTL de HRA hasta 4410365 (30/09/2026). Lo no portado, con su motivo, en las secciones de abajo.
-  El gancho de geo3d de vdp.v (puertos ext_cmd_*, HRA 3e81e92, 03/10/2026) NO va en esta rama, a proposito:
-  geo3d esta en la rama geo3d del 138K y en la Zynq.
+Base: RTL de HRA hasta 4410365 (30/09/2026) + el gancho de geo3d en vdp.v (puertos ext_cmd_*, el mismo que HRA
+  publico en 3e81e92, 03/10/2026; seccion del 17/10 al final). Lo no portado, con su motivo, en las secciones
+  de abajo.
 Ultima revision del upstream: 18/10/2026, contra 122cdd1 (13/10/2026). Nada mas que portar; desde 4410365 solo:
-    3e81e92           geo3d (en esta rama no va; ver arriba)
+    3e81e92           geo3d (su RTL = fpga/geo3d, aqui con el CE del 138K; su gancho de vdp.v = el nuestro)
     9aceef9, dceec5a  opciones de rutado de su placa y readme de geo3d
     55966fb           manual: LockExtReg (puerto #4 bit 7) a 0 para poder escribir R#20/R#21
     f327563           manual (HR/VR de S#2 en logica positiva) y el comentario de R#20 de vdp_cpu_interface.v,
@@ -871,7 +871,7 @@ CAMPANA _166 (rc5), dados 1181/1187/1193:
   avanzan 1 byte por paso en TODO modo que no sea SCREEN 5/6/7 (antes solo en SCREEN 8): en SCREEN 2 con R#25 CMD=1
   el paso de 2 copiaba un byte si y otro no. SCREEN 5-8 bit a bit como antes (tools/v9968_sim/g2cmd_check.py,
   60 casos). Sustituido el 30/09 por el ff_pixel_step de HRA (4410365, abajo).
-- vdp.v: el gancho de geo3d de la Zynq (ext_cmd_*) NO va en esta rama.
+- vdp.v: el gancho de geo3d de la Zynq (ext_cmd_*) entro en esta rama el 17/10 (seccion de abajo).
 ################################################################################
 [2026-09-27] V3.7.1 (b5aee3e): UPSTREAM DE HRA ceeecd7 -> 44e93ec (12 commits del 09-27/09), igual que la Zynq.
 ################################################################################
@@ -894,9 +894,29 @@ NO PORTADOS: e64f55a/31e4464/cbe1528 (overmap 5S/9S), 965bc05 (A17 en modo V58),
   4410365  vdp_command.v: ff_pixel_step, el paso de pixel registrado al escribir R#46 = su arreglo de nuestra issue
            #10; sustituye a nuestro ff_byte_mode de la V3.7.1 (mismo resultado, salvo FG4, que va como SCREEN 5).
 YA ESTABA: 6acdb4d (R#4) y el comentario de R#21.
-Ficheros identicos a los de la Zynq (MSXimus_zynq fpga/v9968, RTL de su 05cfa53) salvo vdp.v, sin el gancho de geo3d.
+=======
+Ficheros identicos a los de la Zynq (MSXimus_zynq fpga/v9968, RTL de su 05cfa53); vdp.v tambien, desde el 17/10.
 Los bancos de este porte (tb_port1_latch.sv de HRA, g2cmd_check.py check_diy) y la regresion estan en la Zynq.
 ================================================================================
+
+================================================================================
+17/10/2026 (rama geo3d del 138K) — cambio PROPIO del MSXimus en este directorio:
+- vdp.v: puertos ext_cmd_wr/ext_cmd_num/ext_cmd_data (OR-eados en la instancia u_command) y ext_cmd_ce
+  (= CE de S#2) para geo3d (fpga/geo3d/, Alex Moncks, MIT). Copia literal del vdp.v de la Zynq (27/09):
+  diff = 0 entre los dos. Es el mismo parche, nombre por nombre, que HRA lleva upstream. Con ext_cmd_wr = 0
+  el VDP es identico (sin ENABLE_GEO3D, top.v los ata a 0); los bancos de tools/v9968_sim los atan a 0.
+================================================================================
+
+================================================================================
+03/11/2026 (rama geo3d-v2 del 138K): la fila rapida de geo3d (HRA! 3d55af4, v0.92, 01/11/2026)
+- vdp_command.v: IGUAL que el de la Zynq beta Z1.3.2b10 (diff = 0). Una fila rellena de una cara plana de geo3d llega como
+  LINE horizontal + IMP con register_fill_span = 1; en SCREEN 8 (G7 sin YJK) se arranca como HMMV de una fila y los
+  registros que ve la CPU (NX, NY, DX, DY) quedan como los dejaria la LINE al acabar, al volver a LINE o al abortar la CPU.
+  Entra reg_yjk_mode (ya existia en vdp.v).
+- vdp.v: el puerto ext_cmd_fill_span, register_fill_span = ext_cmd_wr & ext_cmd_fill_span y reg_yjk_mode hacia u_command.
+  Igual que el de la Zynq salvo la salida hires512 (4:3 con Scale3x), que aqui no se porta.
+- Con ext_cmd_wr = 0 el VDP es identico al de antes (top.v ata ext_cmd_fill_span a 0 sin ENABLE_GEO3D).
+- Bancos: tools/v9968_sim/run_geo3d_hmmv.sh y run_geo_abort.sh (de la Zynq), PASS.
 
 ################################################################################
 [2026-11-02] V3.8.5 (candidato, SIN build): DE LA ZYNQ Z1.3.2b9/b10 SOLO LO DEL V9968 QUE SIRVE EN GOWIN.
