@@ -167,7 +167,7 @@ Core: dado **5867**, `msximus138_v3.8.4b_geo3d_dado5867.fs` ab778223 (`_jtag.bin
 ### MXUPDATE 1.5 (9 de noviembre de 2026): el User-Agent con la versión y la placa
 
 - Todas las peticiones HTTP de MXUPDATE (manifiesto, `.UPD`, ondas del OPL4 y autoactualización) llevan `User-Agent: MXUPDATE/1.5 (console138k)` (`console60k`, `msxnano`; `mxupdate` al autoactualizarse). Sigue en HTTP/1.0 con `Connection: close`: el servidor contesta igual que antes.
-- Es la 1.4 (las ondas del OPL4 por la red con `/O` y tras un `/N`) más ese cambio; sin cambios en la flash ni en el formato de los `.UPD`. El fuente y el banco son byte a byte los del 60K (banco: 52 de 52, con la comprobación del User-Agent en cada petición); el `.COM` es el mismo de la web y de la release v3.8.4b (md5 `2c56b8117694`).
+- Es la 1.4 (las ondas del OPL4 por la red con `/O` y tras un `/N`) más ese cambio; sin cambios en la flash ni en el formato de los `.UPD`. El fuente y el banco son byte a byte los del 60K (banco: 52 de 52, con la comprobación del User-Agent en cada petición); el `.COM` es el mismo de la web y de la release v3.8.4b (md5 `2c56b8117694`). Probada en placa por el autor, también la actualización sobre el mapa de 8 MB de la 138K.
 
 > Los dos candidatos siguientes (v3.8.5 y v3.8.6) están en el RTL de la rama `V3.8`, pero **no** en el `.fs` de la v3.8.4b ni en ninguna entrega construida: la release se compiló sin ellos (su RTL exacto es el del tag `v3.8.4b`). Fusionados con geo3d siguen sin construir y sin probar: antes de llamarlos versión hacen falta una campaña de dados y una prueba en placa. Donde el texto de abajo dice que esta rama no lleva geo3d, es de antes de la fusión.
 

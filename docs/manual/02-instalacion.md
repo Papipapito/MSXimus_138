@@ -20,7 +20,7 @@ Y ya está: core y pack al día y el MoonSound con sus ondas. A partir de aquí,
 
 Sin el módulo ESP32-C6 no hay internet: el core y el pack se graban igual desde un `.UPD` en la SD (`MXUPDATE fichero.UPD`) y las ondas, con tu propio `yrw801.bin` en 0x600000 desde el Gowin Programmer (sección 1).
 
-> **Aviso.** El MSXimus_138 es el porte del MSXimus a la Tang Console 138K: la misma placa base con el SOM Tang Mega 138K en vez del Mega 60K. La v3.8.4b (con geo3d v2.0) se ha probado en una placa 138K con chip B: imagen por HDMI, tarjeta SD y geo3d. Lo que este capítulo cuenta como procedimiento es el del 60K trasladado al mapa de flash del 138, y los pasos de actualizar con `MXUPDATE` sobre ese mapa, el panel F12 y la calibración de la DDR3 en frío están pendientes de verificar en placa.
+> **Aviso.** El MSXimus_138 es el porte del MSXimus a la Tang Console 138K: la misma placa base con el SOM Tang Mega 138K en vez del Mega 60K. La v3.8.4b (con geo3d v2.0) se ha probado en una placa 138K con chip B: imagen por HDMI, tarjeta SD, geo3d y actualizar con `MXUPDATE` sobre el mapa de flash del 138K. Lo que este capítulo cuenta como procedimiento es el del 60K trasladado a ese mapa, y el panel F12 y la calibración de la DDR3 en frío están pendientes de verificar en placa.
 
 ## 1. Lo que va a la flash de la placa (paso 2)
 

@@ -10,7 +10,7 @@ Punto de partida: `MSX_up_v3`. La v1 (07/09/2026) salio de la rama `V3.5`, commi
 de la V3.7b del 60K, y la **v3.8.4** (17/10/2026, rama `V3.8`), el de su V3.8.4; la **v3.8.4b** (08/11/2026, rama `release-3.8.4b`) le añade el HDMI con PLL propio y geo3d v2.0.
 
 > **La v3.8.4b y la v3.8.4b + geo3d v2.0 (dado 5867) se han probado en una placa 138K** (la del autor, chip B):
-> imagen por HDMI, tarjeta SD y geo3d. Las versiones anteriores, no: la v3.7, grabada el 16/10/2026, se quedo
+> imagen por HDMI, tarjeta SD, geo3d y actualizar con MXUPDATE sobre el mapa de 8 MB. Las versiones anteriores, no: la v3.7, grabada el 16/10/2026, se quedo
 > en negro por su mapa de flash de 16 MB (de ahi la v3.7-8mb) y la v3.8.4 (dado 5569) no daba señal por HDMI.
 > Todo lo demas que en la documentacion del 60K es "validado en placa" aqui es "compilado y verificado en
 > simulacion, pendiente de placa". Ver [Estado](#estado).
@@ -41,7 +41,7 @@ del porte.
 | MXUPDATE e "Instalar actualizacion" | pack en 0x400000, `MSXIMUS.UPD`, web `tang60k/` | pack en **0x500000** (MXUPDATE 1.3 y bios `30f1ce2`), **`MSX138K.UPD`** (MXUPDATE y el menu), web `tang138k/` |
 | Dato de la CPU hacia la SDRAM | directo al cruce 54 -> 108 | **registrado a 54 MHz** antes del cruce (`cpu_dout_ram`, v3.8.4) |
 | Gowin EDA | 1.9.12.03 Standard (la Education 1.9.11.03 tambien cubre el GW5AT-60B) | **1.9.12.03 Standard con licencia** (la Education no soporta el 138K) |
-| Validado en placa | cada entrega (la V3.8.4, el 16/10/2026) | **la v3.8.4b y la v3.8.4b + geo3d** (HDMI, SD, geo3d); las anteriores, ninguna |
+| Validado en placa | cada entrega (la V3.8.4, el 16/10/2026) | **la v3.8.4b y la v3.8.4b + geo3d** (HDMI, SD, geo3d y MXUPDATE); las anteriores, ninguna |
 
 Por que se puede reutilizar tanto:
 
@@ -193,8 +193,7 @@ Pendiente, en este orden, cuando haya placa: el plan de pruebas de
 ROMs grandes y SRAM, DOS, OPL4 a 36 MHz, V9968/DEVCON, WiFi/File-Hunter, ventilador y
 botones a 3,3 V), la calibracion de la DDR3 con `pll_stop→ENCLK2`, los pines sin
 contrastar, la version del chip (B/C), el firmware del BL616 de la v3.8.4 (el panel F12)
-y la actualizacion desde el MSX con el mapa de 8 MB (`MXUPDATE /N`, `/R` e "Instalar
-actualizacion").
+y "Instalar actualizacion" del menu (la actualizacion con `MXUPDATE` ya esta probada en placa).
 
 Ver `files/<fecha>/LEEME_*.txt` para cada entrega: dado, margen, md5 y lo que falta
 por validar en placa.

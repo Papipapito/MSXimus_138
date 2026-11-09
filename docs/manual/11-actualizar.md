@@ -11,7 +11,7 @@ Desde la V3.8 el MSXimus se actualiza **sin PC**: el core y el pack de BIOS se g
 
 Los cuatro hacen las mismas comprobaciones y graban igual. La única condición es que en la placa ya haya un **core V3.8 o posterior**, el primero que lleva el *puente de la flash* (el dispositivo que deja escribir en ella desde el MSX). En la 138K la primera V3.8 es la **v3.8.4**: se graba una vez con el PC, como siempre ([capítulo 02](02-instalacion.md)); desde ahí, ya no hace falta.
 
-> Lo de este capítulo está validado en placa en el 60K (desde la 3.8.0b3). En la 138K es el mismo programa y el mismo puente, con su mapa de flash; en una placa 138K está pendiente de verificar.
+> Lo de este capítulo está validado en placa en el 60K (desde la 3.8.0b3) y también en una placa 138K, donde es el mismo programa y el mismo puente, con su mapa de flash.
 
 > La MSXimus Z (la versión para la ZYNQ MINI) se actualiza de otra forma: **F12 y U**, desde el panel del propio OSD. Lo de este capítulo es para la Tang Console 138K (y para la 60K, con sus direcciones).
 
