@@ -2,7 +2,7 @@
 
 Versión a versión, qué cambió, qué dado se entregó y con qué hashes. La primera parte es la **línea 138K**, la del porte que vive en este repositorio; la segunda es el historial de la era v3 del MSXimus en la Tang Console 60K, del que deriva el core y del que el 138 hereda cada cambio por merge. Sale de los LEEME de cada entrega en `files/<fecha>/`, que quedan fuera de git (los del 138 en este repo, los del 60K en `MSX_up_v3`), y de las notas de `mi_release/`.
 
-Los hashes son md5, los ocho primeros dígitos salvo donde se indica. El "dado" es el número primo con que se sembró el place and route ([capítulo 07](07-sintesis-campanas.md)); el margen es el peor setup del informe de temporización. En el 138 el `clk_86` del V9968 está sobre-restringido a 11,30 ns en `msx_v9968.sdc` (el periodo real es 11,64), así que un margen "contra 11,30" lleva unos 0,34 ns escondidos: se indica cuál es el real.
+Los hashes son md5, los ocho primeros dígitos salvo donde se indica. El "dado" es el número primo con que se sembró el place and route; el margen es el peor setup del informe de temporización. En el 138 el `clk_86` del V9968 está sobre-restringido a 11,30 ns en `msx_v9968.sdc` (el periodo real es 11,64), así que un margen "contra 11,30" lleva unos 0,34 ns escondidos: se indica cuál es el real.
 
 ## Línea 138K
 

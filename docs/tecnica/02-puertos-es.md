@@ -56,7 +56,7 @@ Una escritura en 41h o en 42h pasa por una copia temporal y se confirma en el re
 
 El reset del MSX borra del 46h los bits 3-7 a propósito (si el Game Master 2 quedara armado, el escaneo de slots de la BIOS se toparía con su firma en el slot 1) y **conserva los bits 0-2** (en la 138K desde la v3.8.4): tras un reset la BIOS relanza la ROM cargada y sin ellos la lanzaba con el mapper básico.
 
-Las escrituras a 40h-43h, 45h y 46h, como la del 44h desde la v3.7, pasan por una etapa de registro en 27 MHz (en la 138K desde la v3.8.4; en el 60K, desde la 3.7.5): petición, dirección y dato se capturan juntos y se aplican un ciclo después. Es invisible para el software (un OUT dura unos 20 ciclos de 27 MHz) y quita un cruce de 54 a 27 MHz que en el 60K tumbaba casi todos los dados ([capítulo 07](07-sintesis-campanas.md)).
+Las escrituras a 40h-43h, 45h y 46h, como la del 44h desde la v3.7, pasan por una etapa de registro en 27 MHz (en la 138K desde la v3.8.4; en el 60K, desde la 3.7.5): petición, dirección y dato se capturan juntos y se aplican un ciclo después. Es invisible para el software (un OUT dura unos 20 ciclos de 27 MHz) y quita un cruce de 54 a 27 MHz que en el 60K tumbaba casi todos los dados.
 
 ### Dispositivo 48h, puertos 47h a 4Fh: la SD por puertos
 

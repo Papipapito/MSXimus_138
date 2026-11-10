@@ -16,7 +16,7 @@ Ficheros parcheados para el MSXimus (marcados "MSXimus:" en el codigo):
   - vdp.v                 (plumbing de vram_tag/vram_rtag al top del core)
 No son los unicos: de los 21 .v solo vdp_color_palette_ram, vdp_sprite_divide_table, vdp_video_double_buffer y
 vdp_video_out_bilinear son iguales a 4410365; los demas parches, en las secciones de abajo.
-Regen/diff contra upstream: proyectosAI/msx/V9968_Cartridge
+Regen/diff contra upstream: un clon de hra1129/V9968_Cartridge
 
 ################################################################################
 [CORRECCION 2026-07-26] EL SENTIDO DE LA MIGRACION ESTABA INVERTIDO EN ESTE DOC
@@ -60,7 +60,7 @@ snapshot th9958). Verificados uno a uno contra el repo:
                         DEVCON.COM  offset 14882 (0x3A22): 0xFF -> 0x9F
                         V9968DM.COM offset   888 (0x0378): 0xFF -> 0x9F
                       NO hay que parchear nada: los binarios del upstream VIVO
-                      (clon proyectosAI/msx/V9968_Cartridge) YA traen 0x9F, y
+                      (clon un clon de hra1129/V9968_Cartridge) YA traen 0x9F, y
                       difieren del arbol th9958 en ESE UNICO byte cada uno.
                       ⚠️ HALLAZGO: el V9968DM.COM que Albert ya tenia en
                       files/v9968_tests/ es BYTE-IDENTICO al del upstream vivo,
@@ -125,7 +125,7 @@ PARCHE 3 (_120f, 2026-07-19) - vdp_command.v: comparadores de ventana LRMM
 
 ============================================================================
 [MIGRACION th9958 — PLAN, 2026-07-21] Directiva de Albert: pasar al arbol
-th9958 de hra1129/TangCartMSX (clon en proyectosAI/msx/TangCartMSX, ruta
+th9958 de hra1129/TangCartMSX (clon en hra1129/TangCartMSX, ruta
 RTL/tangnano20k_vdp_cartridge_rev2_step1/src/th9958) y re-aplicar nuestros
 parches. Los 21 .v tienen los MISMOS nombres. Rama: th9958.
 
@@ -961,8 +961,8 @@ NO PORTADO, y por que:
 ABIERTO EN LA ZYNQ (no es de esta sesion, pero afecta al V9968 que compartimos): su plan Z1.2.8 pide probar en una build aparte el
   revertir el TR=1 en reposo de S#2 (nuestro _183) con regresion Fleet / V9968DM; y la issue #7 de HRA (LMMC de Dragon Slayer
   Family) sigue sin respuesta. Aqui no se toca ninguno.
-ESTADO: simulado, SIN build de Gowin y SIN probar en placa (la b9/b10 de la Zynq tampoco esta probada en placa). El 60K (repo MSXimus,
-  rama claude/msximus-60k-138k-update-54c650) lleva el mismo fichero. Antes de llamarlo v3.8.5: una campana de dados con el gate (el cambio toca el camino sprite -> mezcla -> paleta
+ESTADO: simulado, SIN build de Gowin y SIN probar en placa (la b9/b10 de la Zynq tampoco esta probada en placa). El 60K lleva el mismo fichero
+  en su linea de desarrollo. Antes de llamarlo v3.8.5: una campana de dados con el gate (el cambio toca el camino sprite -> mezcla -> paleta
   del reloj del VDP) y una prueba en placa con un demo en SCREEN 10-12 (no hay placa 138K: se prueba en la del 60K).
 ================================================================================
 

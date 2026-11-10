@@ -115,10 +115,11 @@ dispositivo. Las entregas en `files/` indican con que version se compilaron.
 
 ## Como se compila
 
-Igual que el 60K: `tools/lanzar_campana.ps1 -Campana <nombre> -Dados <primos>` deja
-los clones en `%LOCALAPPDATA%\Temp\claude\campanas\<nombre>\bx_cN` y
-`tools/gate_check.ps1 -Campana <ruta>` aplica el mismo criterio (setup 0, holds solo
-en la IP DDR3). El .fs se convierte a `_jtag.bin` con el mismo script de siempre.
+Con Gowin EDA 1.9.12.03 Standard: `cd fpga && gw_sh.exe build.tcl` (el dispositivo, en
+`build.tcl`; arriba, el B o el C). El .fs se convierte a `_jtag.bin` con
+`tools/fs2jtagbin.py`. Un .fs solo vale si cumple la temporizacion: setup sin
+negativos y holds solo en la IP DDR3. Cada dado (semilla del place and route) da un
+resultado distinto; el autor compila varios y entrega uno que cumpla.
 
 Lo propio del 138:
 
@@ -135,16 +136,14 @@ Lo propio del 138:
   T80 fija `DO` al cerrar T1 y baja /WR a mitad de T2, medio estado T despues: 4,5 ciclos
   de 54 MHz con el turbo de 5,37 MHz (el maximo del core) y 6,5-7,5 a 3,58. Hasta que
   `memory_ctrl` captura `SdrDat` sobran al menos 8,5 ciclos, medidos con el T80 real en el
-  banco [`tools/t80mem`](tools/t80mem/README.md) (2312/2312 escrituras; falla con 10
+  banco `tools/t80mem` (2312/2312 escrituras; falla con 10
   ciclos de retraso), asi que el ciclo de mas no se nota. Es el mismo patron que el
   `cpu_run` registrado de la v3.7.
 - CLS ~57 % (el 60K va al 98 %), BSRAM 116/340, PnR de 15 a 27 min por dado (7 en la v1;
   21-27 en la v3.8.4): campanas de 5 dados.
 - Las campanas del porte son `p138a`..`p138m`, las de los portes 3.7.x que no se
   entregaron (`pz138a`, `pz138b`, `pz138r`, `pz138r2` y `pf138g`..`pf138i`), `v38b138` y
-  `v384138a` (detalle en `files/<fecha>/LEEME_*.txt`, en el
-  [capitulo 07](docs/tecnica/07-sintesis-campanas.md) y en el
-  [changelog](docs/tecnica/09-changelog.md)).
+  `v384138a` (detalle en el [changelog](docs/tecnica/09-changelog.md)).
 
 ## geo3d (coprocesador 3D)
 
