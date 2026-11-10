@@ -297,7 +297,6 @@ fpga/            top.v, build.tcl
   constraints/   Console 138K (and 60K) pinout and constraints
   pll138/        The PLL + PLL_INIT cascade of the GW5AST
 tools/           Testbenches and validation utilities
-  mxupdate/      MXUPDATE.COM (MSXgl + UNAPI)
   mxupd.py       Builds the .UPD files and the update manifest
 ```
 
